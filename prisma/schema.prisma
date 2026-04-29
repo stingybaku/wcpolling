@@ -1,0 +1,418 @@
+generator client {
+  provider   = "prisma-client-js"
+  engineType = "binary"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum MatchStatus {
+  SCHEDULED
+  FINISHED
+}
+
+enum MatchParticipantSourceType {
+  TEAM
+  GROUP_POSITION
+  MATCH_RESULT
+  PLACEHOLDER
+  BEST_THIRD
+}
+
+enum MatchParticipantOutcome {
+  WINNER
+  LOSER
+}
+
+enum TieBreakerType {
+  NUMBER
+  TEXT
+}
+
+enum PredictionScoreType {
+  MATCH
+  GROUP_STANDING
+  KNOCKOUT
+  TIEBREAKER
+}
+
+model User {
+  id              String                 @id @default(cuid())
+  name            String?
+  email           String?                @unique
+  passwordHash    String?
+  emailVerified   DateTime?
+  image           String?
+  role            Role                   @default(USER)
+  predictions     Prediction[]
+  submissions     PredictionSubmission[]
+  memberships     GroupMembership[]
+  groupRoomsOwned GroupRoom[]
+  accounts        Account[]
+  sessions        Session[]
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+}
+
+model Account {
+  id                String @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Tournament {
+  id               String              @id @default(cuid())
+  name             String
+  slug             String              @unique
+  description      String?
+  teamsPerGroup    Int?
+  isActive         Boolean             @default(false)
+  submissionDeadline DateTime?
+  archivedAt       DateTime?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  groups           TournamentGroup[]
+  phases           TournamentPhase[]
+  matches          Match[]
+  tieBreakers      TieBreakerQuestion[]
+  tags             TournamentTag[]
+  newsArticles     NewsArticle[]
+  sponsoredPlacements SponsoredPlacement[]
+  predictions      Prediction[]
+  groupRooms       GroupRoom[]
+}
+
+model TournamentTag {
+  id           String     @id @default(cuid())
+  tournamentId String
+  name         String
+  slug         String
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  @@unique([tournamentId, slug])
+}
+
+model NewsArticle {
+  id                String      @id @default(cuid())
+  tournamentId      String
+  provider          String
+  providerArticleId String?
+  title             String
+  summary           String?
+  url               String      @unique
+  sourceName        String?
+  imageUrl          String?
+  publishedAt       DateTime
+  fetchedAt         DateTime    @default(now())
+  matchedTags       String?
+  tournament        Tournament  @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  @@unique([tournamentId, url])
+  @@unique([tournamentId, provider, providerArticleId])
+  @@index([tournamentId, publishedAt])
+}
+
+model SponsoredPlacement {
+  id           String     @id @default(cuid())
+  tournamentId String
+  title        String
+  summary      String?
+  imageUrl     String?
+  targetUrl    String
+  ctaLabel     String?
+  sponsorName  String?
+  badgeLabel   String     @default("Sponsored")
+  priority     Int        @default(0)
+  isActive     Boolean    @default(true)
+  activeFrom   DateTime?
+  activeTo     DateTime?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  @@index([tournamentId, isActive, priority])
+}
+
+model TournamentGroup {
+  id           String                 @id @default(cuid())
+  tournamentId String
+  name         String
+  sortOrder    Int                    @default(0)
+  createdAt    DateTime               @default(now())
+  updatedAt    DateTime               @updatedAt
+  tournament   Tournament             @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  teams        TournamentGroupTeam[]
+  matches      Match[]
+  homeSourceMatches Match[]           @relation("homeSourceGroup")
+  awaySourceMatches Match[]           @relation("awaySourceGroup")
+  standings    PredictionGroupStanding[]
+  scores       PredictionScore[]
+
+  @@unique([tournamentId, name])
+}
+
+model TournamentPhase {
+  id           String       @id @default(cuid())
+  tournamentId String
+  name         String
+  slug         String
+  sortOrder    Int          @default(0)
+  isKnockout   Boolean      @default(false)
+  teamCount    Int?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  tournament   Tournament   @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  matches      Match[]
+
+  @@unique([tournamentId, slug])
+}
+
+model Team {
+  id                String                 @id @default(cuid())
+  name              String
+  fifaCode          String                 @unique
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+  groupMemberships  TournamentGroupTeam[]
+  homeMatches       Match[]                @relation("homeMatches")
+  awayMatches       Match[]                @relation("awayMatches")
+  winningMatches    Match[]                @relation("winningMatches")
+  predictedHomeFor  PredictionEntry[]      @relation("predictedHomeTeam")
+  predictedAwayFor  PredictionEntry[]      @relation("predictedAwayTeam")
+  standings         PredictionGroupStanding[]
+}
+
+model TournamentGroupTeam {
+  id        String          @id @default(cuid())
+  groupId   String
+  teamId    String
+  seed      Int?
+  createdAt DateTime        @default(now())
+  group     TournamentGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  team      Team            @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, teamId])
+}
+
+model Match {
+  id                String            @id @default(cuid())
+  tournamentId      String
+  phaseId           String
+  groupId           String?
+  sortOrder         Int               @default(0)
+  label             String?
+  homeTeamId        String?
+  awayTeamId        String?
+  homePlaceholder   String?
+  awayPlaceholder   String?
+  homeSourceType    MatchParticipantSourceType @default(TEAM)
+  awaySourceType    MatchParticipantSourceType @default(TEAM)
+  homeSourceGroupId String?
+  awaySourceGroupId String?
+  homeSourcePosition Int?
+  awaySourcePosition Int?
+  homeSourceMatchId String?
+  awaySourceMatchId String?
+  homeSourceOutcome MatchParticipantOutcome?
+  awaySourceOutcome MatchParticipantOutcome?
+  homeSourceThirdRank   Int?
+  awaySourceThirdRank   Int?
+  homeSourceThirdGroups String?
+  awaySourceThirdGroups String?
+  scheduledAt       DateTime?
+  homeScore         Int?
+  awayScore         Int?
+  status            MatchStatus       @default(SCHEDULED)
+  winnerId          String?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  tournament        Tournament        @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  phase             TournamentPhase   @relation(fields: [phaseId], references: [id], onDelete: Cascade)
+  group             TournamentGroup?  @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  homeTeam          Team?             @relation("homeMatches", fields: [homeTeamId], references: [id], onDelete: SetNull)
+  awayTeam          Team?             @relation("awayMatches", fields: [awayTeamId], references: [id], onDelete: SetNull)
+  winner            Team?             @relation("winningMatches", fields: [winnerId], references: [id], onDelete: SetNull)
+  homeSourceGroup   TournamentGroup?  @relation("homeSourceGroup", fields: [homeSourceGroupId], references: [id], onDelete: SetNull)
+  awaySourceGroup   TournamentGroup?  @relation("awaySourceGroup", fields: [awaySourceGroupId], references: [id], onDelete: SetNull)
+  homeSourceMatch   Match?            @relation("homeSourceMatch", fields: [homeSourceMatchId], references: [id], onDelete: SetNull)
+  awaySourceMatch   Match?            @relation("awaySourceMatch", fields: [awaySourceMatchId], references: [id], onDelete: SetNull)
+  feedsHomeMatches  Match[]           @relation("homeSourceMatch")
+  feedsAwayMatches  Match[]           @relation("awaySourceMatch")
+  predictionEntries PredictionEntry[]
+  predictionScores  PredictionScore[]
+}
+
+model TieBreakerQuestion {
+  id           String          @id @default(cuid())
+  tournamentId String
+  prompt       String
+  type         TieBreakerType  @default(NUMBER)
+  correctAnswer String?
+  sortOrder    Int             @default(0)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  tournament   Tournament      @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  answers      PredictionTieBreakerAnswer[]
+  scores       PredictionScore[]
+}
+
+model GroupRoom {
+  id          String                 @id @default(cuid())
+  tournamentId String?
+  name        String
+  description String?
+  ownerId     String
+  inviteCode  String                 @unique
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
+  tournament  Tournament?            @relation(fields: [tournamentId], references: [id], onDelete: SetNull)
+  owner       User                   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  memberships GroupMembership[]
+  submissions PredictionSubmission[]
+}
+
+model GroupMembership {
+  id        String    @id @default(cuid())
+  userId    String
+  groupId   String
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group     GroupRoom @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, groupId])
+}
+
+model Prediction {
+  id               String                      @id @default(cuid())
+  userId           String
+  tournamentId     String
+  name             String
+  description      String?
+  selected         Boolean                     @default(false)
+  createdAt        DateTime                    @default(now())
+  updatedAt        DateTime                    @updatedAt
+  user             User                        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tournament       Tournament                  @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  entries          PredictionEntry[]
+  groupStandings   PredictionGroupStanding[]
+  tieBreakerAnswers PredictionTieBreakerAnswer[]
+  submissions      PredictionSubmission[]
+
+  @@unique([userId, tournamentId, name])
+}
+
+model PredictionEntry {
+  id                  String      @id @default(cuid())
+  predictionId        String
+  matchId             String
+  predictedHomeTeamId String?
+  predictedAwayTeamId String?
+  predictedHomeScore  Int?
+  predictedAwayScore  Int?
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+  prediction          Prediction  @relation(fields: [predictionId], references: [id], onDelete: Cascade)
+  match               Match       @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  predictedHomeTeam   Team?       @relation("predictedHomeTeam", fields: [predictedHomeTeamId], references: [id], onDelete: SetNull)
+  predictedAwayTeam   Team?       @relation("predictedAwayTeam", fields: [predictedAwayTeamId], references: [id], onDelete: SetNull)
+
+  @@unique([predictionId, matchId])
+}
+
+model PredictionGroupStanding {
+  id           String          @id @default(cuid())
+  predictionId String
+  groupId      String
+  teamId       String
+  position     Int
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  prediction   Prediction      @relation(fields: [predictionId], references: [id], onDelete: Cascade)
+  group        TournamentGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  team         Team            @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([predictionId, groupId, position])
+}
+
+model PredictionTieBreakerAnswer {
+  id           String            @id @default(cuid())
+  predictionId String
+  questionId   String
+  answer       String
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  prediction   Prediction        @relation(fields: [predictionId], references: [id], onDelete: Cascade)
+  question     TieBreakerQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([predictionId, questionId])
+}
+
+model PredictionSubmission {
+  id           String            @id @default(cuid())
+  userId       String
+  groupId      String
+  predictionId String
+  submittedAt  DateTime          @default(now())
+  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group        GroupRoom         @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  prediction   Prediction        @relation(fields: [predictionId], references: [id], onDelete: Cascade)
+  scores       PredictionScore[]
+
+  @@unique([userId, groupId])
+}
+
+model PredictionScore {
+  id           String               @id @default(cuid())
+  submissionId String
+  scoreKey     String
+  scoreType    PredictionScoreType  @default(MATCH)
+  matchId      String?
+  groupId      String?
+  questionId   String?
+  label        String?
+  points       Int
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+  submission   PredictionSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  match        Match?               @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  group        TournamentGroup?     @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  question     TieBreakerQuestion?  @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([submissionId, scoreKey])
+}
