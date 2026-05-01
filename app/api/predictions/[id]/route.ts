@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { badRequest, forbidden, getCurrentUser, unauthorized } from "@/app/api/helpers";
 import { recalculateSubmissionByPrediction } from "@/lib/scoring";
+import { populatePredictionR32Bracket } from "@/lib/prediction-bracket";
 
 type PredictionEntryData = {
   matchId: string;
@@ -95,6 +96,9 @@ export async function PUT(request: NextRequest, context: { params: Promise<{ id:
   if (prediction.submissions.length > 0) {
     await recalculateSubmissionByPrediction(prediction.id);
   }
+
+  // Auto-populate R32 bracket from predicted group standings (fire-and-forget — never fails the save)
+  populatePredictionR32Bracket(prediction.id).catch(() => {});
 
   return new Response(JSON.stringify({ prediction: updatedPrediction }), { status: 200 });
 }

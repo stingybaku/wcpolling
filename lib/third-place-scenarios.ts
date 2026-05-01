@@ -12,7 +12,7 @@ export type ThirdPlaceSlot = (typeof THIRD_PLACE_MATCH_SLOTS)[number];
 
 // Lookup key = 8 advancing group letters sorted alphabetically (e.g. "EFGHIJKL")
 // Value = tuple of 8 third-place assignments in slot order [1A,1B,1D,1E,1G,1I,1K,1L]
-const RAW: [string, string, string, string, string, string, string, string, string][] = [
+const RAW: [string, string, string, string, string, string, string, string, string, string][] = [
   // No. | Groups (sorted) | [1A,1B,1D,1E,1G,1I,1K,1L]
   [  "1","EFGHIJKL","3E","3J","3I","3F","3H","3G","3L","3K"],
   [  "2","DFGHIJKL","3H","3G","3I","3D","3J","3F","3L","3K"],

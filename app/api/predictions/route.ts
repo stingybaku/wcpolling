@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentTournament, getCurrentUser, unauthorized, badRequest } from "@/app/api/helpers";
+import { populatePredictionR32Bracket } from "@/lib/prediction-bracket";
 
 export async function GET(request: NextRequest) {
   const user = await getCurrentUser();
@@ -127,5 +128,9 @@ export async function POST(request: NextRequest) {
       tieBreakerAnswers: true,
     },
   });
+
+  // Auto-populate R32 bracket from predicted group standings (fire-and-forget — never fails the save)
+  populatePredictionR32Bracket(prediction.id).catch(() => {});
+
   return new Response(JSON.stringify({ prediction }), { status: 201 });
 }
