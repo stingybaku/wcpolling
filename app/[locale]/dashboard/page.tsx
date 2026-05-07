@@ -1,6 +1,7 @@
 /* eslint-disable @next/next/no-img-element */
 
-import Link from "next/link";
+import { getTranslations } from "next-intl/server";
+import { Link } from "@/lib/navigation";
 import { getCurrentTournament, getCurrentUser } from "@/app/api/helpers";
 import { NewsSyncButton } from "@/components/news-sync-button";
 import { prisma } from "@/lib/prisma";
@@ -39,6 +40,8 @@ function summarizeScores(scores: Array<{ points: number; scoreType: ScoreType }>
 }
 
 export default async function DashboardPage() {
+  const t = await getTranslations("dashboard");
+  const tCommon = await getTranslations("common");
   const user = await getCurrentUser();
   const currentTournament = await getCurrentTournament();
 
@@ -85,7 +88,7 @@ export default async function DashboardPage() {
         const scoreSummary = summarizeScores(submission.scores as Array<{ points: number; scoreType: ScoreType }>);
         return {
           userId: submission.user.id,
-          userName: submission.user.name ?? submission.user.email ?? "Unknown",
+          userName: submission.user.name ?? submission.user.email ?? tCommon("unknown"),
           predictionName: submission.prediction.name,
           points: scoreSummary.total,
           breakdown: scoreSummary,
@@ -98,7 +101,7 @@ export default async function DashboardPage() {
     return {
       id: group.id,
       name: group.name,
-      tournamentName: group.tournament?.name ?? "Unassigned tournament",
+      tournamentName: group.tournament?.name ?? t("unassignedTournament"),
       memberCount: group.memberships.length,
       submissionCount: group.submissions.length,
       rank: userRow ? leaderboard.findIndex((entry) => entry.userId === user.id) + 1 : null,
@@ -180,9 +183,9 @@ export default async function DashboardPage() {
   return (
     <div className="space-y-6">
       <section className="hero-surface rounded-[2rem] border px-5 py-5 md:px-8 md:py-6" style={{ borderColor: "var(--border)" }}>
-        <p className="text-xs font-semibold uppercase tracking-[0.34em]" style={{ color: "var(--accent-strong)" }}>Dashboard</p>
-        <h2 className="display-title mt-2 text-4xl leading-none md:text-6xl xl:text-[4.6rem]">Your group pulseboard.</h2>
-        <p className="mt-3 text-sm leading-6 muted md:text-base">Track rankings, locked picks, and tournament context at a glance.</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.34em]" style={{ color: "var(--accent-strong)" }}>{t("tagline")}</p>
+        <h2 className="display-title mt-2 text-4xl leading-none md:text-6xl xl:text-[4.6rem]">{t("title")}</h2>
+        <p className="mt-3 text-sm leading-6 muted md:text-base">{t("subtitle")}</p>
       </section>
 
       <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
@@ -190,25 +193,25 @@ export default async function DashboardPage() {
           <section className="surface rounded-[2rem] p-6 md:p-8">
             <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.3em] muted">Performance</p>
-                <h3 className="mt-2 text-3xl font-extrabold">How you are doing in your groups</h3>
+                <p className="text-xs font-semibold uppercase tracking-[0.3em] muted">{t("performance")}</p>
+                <h3 className="mt-2 text-3xl font-extrabold">{t("performanceTitle")}</h3>
               </div>
               <Link className="rounded-[1.2rem] border px-4 py-3 text-sm font-semibold transition hover:opacity-90" href="/dashboard/groups" style={{ borderColor: "var(--border)", background: "var(--bg-strong)" }}>
-                Open groups
+                {t("openGroups")}
               </Link>
             </div>
 
             <div className="mt-5 grid gap-3 md:grid-cols-3">
               <div className="rounded-[1.4rem] border p-4" style={{ borderColor: "var(--border)", background: "var(--bg-strong)" }}>
-                <p className="text-xs font-semibold uppercase tracking-[0.22em] muted">Joined groups</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.22em] muted">{t("joinedGroups")}</p>
                 <p className="mt-2 text-3xl font-extrabold">{groupPerformance.length}</p>
               </div>
               <div className="rounded-[1.4rem] border p-4" style={{ borderColor: "var(--border)", background: "var(--bg-strong)" }}>
-                <p className="text-xs font-semibold uppercase tracking-[0.22em] muted">Best rank</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.22em] muted">{t("bestRank")}</p>
                 <p className="mt-2 text-3xl font-extrabold">{bestRank ? `#${bestRank}` : "-"}</p>
               </div>
               <div className="rounded-[1.4rem] border p-4" style={{ borderColor: "var(--border)", background: "var(--bg-strong)" }}>
-                <p className="text-xs font-semibold uppercase tracking-[0.22em] muted">Total points</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.22em] muted">{t("totalPoints")}</p>
                 <p className="mt-2 text-3xl font-extrabold">{totalPoints}</p>
               </div>
             </div>
@@ -221,42 +224,42 @@ export default async function DashboardPage() {
                       <p className="text-lg font-bold">{group.name}</p>
                       <p className="mt-1 text-sm muted">{group.tournamentName}</p>
                       <p className="mt-3 text-xs uppercase tracking-[0.18em] muted">
-                        {group.memberCount} members • {group.submissionCount} submissions
+                        {t("members", { count: group.memberCount })} • {t("submissions", { count: group.submissionCount })}
                       </p>
                       <p className="mt-2 text-sm muted">
-                        {group.predictionName ? `Live pick: ${group.predictionName}` : "No prediction submitted in this group yet."}
+                        {group.predictionName ? t("livePick", { name: group.predictionName }) : t("noPrediction")}
                       </p>
                     </div>
 
                     <div className="flex items-center gap-3">
                       <div className="rounded-[1.2rem] px-4 py-3 text-center" style={{ background: "var(--accent-soft)", color: "var(--accent-strong)" }}>
-                        <p className="text-[0.65rem] font-semibold uppercase tracking-[0.22em]">Rank</p>
+                        <p className="text-[0.65rem] font-semibold uppercase tracking-[0.22em]">{t("rank")}</p>
                         <p className="mt-1 text-2xl font-extrabold">{group.rank ? `#${group.rank}` : "-"}</p>
                       </div>
                       <div className="rounded-[1.2rem] border px-4 py-3 text-center" style={{ borderColor: "var(--border)" }}>
-                        <p className="text-[0.65rem] font-semibold uppercase tracking-[0.22em] muted">Points</p>
+                        <p className="text-[0.65rem] font-semibold uppercase tracking-[0.22em] muted">{t("points")}</p>
                         <p className="mt-1 text-2xl font-extrabold">{group.points}</p>
                       </div>
                     </div>
                   </div>
 
                   <div className="mt-4 grid gap-2 text-xs md:grid-cols-4">
-                    <div className="rounded-full px-3 py-2" style={{ background: "var(--bg)" }}>Matches: <strong>{group.breakdown.MATCH}</strong></div>
-                    <div className="rounded-full px-3 py-2" style={{ background: "var(--bg)" }}>Standings: <strong>{group.breakdown.GROUP_STANDING}</strong></div>
-                    <div className="rounded-full px-3 py-2" style={{ background: "var(--bg)" }}>Bracket: <strong>{group.breakdown.KNOCKOUT}</strong></div>
-                    <div className="rounded-full px-3 py-2" style={{ background: "var(--bg)" }}>Tie-breakers: <strong>{group.breakdown.TIEBREAKER}</strong></div>
+                    <div className="rounded-full px-3 py-2" style={{ background: "var(--bg)" }}>{t("matches", { count: group.breakdown.MATCH })}</div>
+                    <div className="rounded-full px-3 py-2" style={{ background: "var(--bg)" }}>{t("standings", { count: group.breakdown.GROUP_STANDING })}</div>
+                    <div className="rounded-full px-3 py-2" style={{ background: "var(--bg)" }}>{t("bracket", { count: group.breakdown.KNOCKOUT })}</div>
+                    <div className="rounded-full px-3 py-2" style={{ background: "var(--bg)" }}>{t("tieBreakers", { count: group.breakdown.TIEBREAKER })}</div>
                   </div>
 
                   <div className="mt-4">
                     <Link className="text-sm font-semibold" href={`/dashboard/groups/${group.id}`} style={{ color: "var(--accent-strong)" }}>
-                      Open group room
+                      {t("openGroupRoom")}
                     </Link>
                   </div>
                 </article>
               )) : (
                 <div className="rounded-[1.5rem] border p-5" style={{ borderColor: "var(--border)", background: "var(--bg-strong)" }}>
-                  <p className="text-lg font-bold">No group performance yet</p>
-                  <p className="mt-2 text-sm muted">Join or create a group in the selected tournament to start tracking rank and points here.</p>
+                  <p className="text-lg font-bold">{t("noGroupPerformance")}</p>
+                  <p className="mt-2 text-sm muted">{t("noGroupPerformanceDesc")}</p>
                 </div>
               )}
             </div>
@@ -265,7 +268,7 @@ export default async function DashboardPage() {
 
         <aside className="space-y-6">
           <section className="surface rounded-[2rem] p-6 md:p-8">
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] muted">Newsroom</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] muted">{t("newsroom")}</p>
             <div className="mt-5 flex flex-wrap gap-2">
               {newsroomTags.length > 0 ? newsroomTags.map((tag) => (
                 <span
@@ -277,7 +280,7 @@ export default async function DashboardPage() {
                 </span>
               )) : (
                 <span className="rounded-full px-3 py-2 text-[11px] font-bold uppercase tracking-[0.16em]" style={{ background: "var(--bg-strong)", color: "var(--text-muted)" }}>
-                  No tags yet
+                  {t("noTagsYet")}
                 </span>
               )}
             </div>
@@ -315,10 +318,10 @@ export default async function DashboardPage() {
                         />
                       ) : null}
                       {item.summary ? <p className="mt-3 text-sm muted">{item.summary}</p> : null}
-                      {item.kind === "article" && item.matchedTags ? <p className="mt-3 text-xs muted">Matched tags: {item.matchedTags}</p> : null}
+                      {item.kind === "article" && item.matchedTags ? <p className="mt-3 text-xs muted">{t("matchedTags", { tags: item.matchedTags })}</p> : null}
                       <div className="mt-4">
                         <a className="text-sm font-semibold" href={item.kind === "sponsored" ? item.targetUrl : item.url} rel="noreferrer" style={{ color: "var(--accent-strong)" }} target="_blank">
-                          {item.kind === "sponsored" ? item.ctaLabel ?? "Open sponsor" : "Open article"}
+                          {item.kind === "sponsored" ? item.ctaLabel ?? t("openSponsor") : t("openArticle")}
                         </a>
                       </div>
                     </div>
@@ -327,13 +330,13 @@ export default async function DashboardPage() {
               )) : (
                 <>
                   <div className="rounded-[1.4rem] border p-4" style={{ borderColor: "var(--border)", background: "var(--bg-strong)" }}>
-                    <p className="text-xs font-semibold uppercase tracking-[0.22em] muted">Feed not populated yet</p>
-                    <p className="mt-2 text-lg font-bold">No stored articles for this tournament</p>
-                    <p className="mt-2 text-sm muted">Sync the newsroom after configuring a provider key and tournament tags.</p>
+                    <p className="text-xs font-semibold uppercase tracking-[0.22em] muted">{t("feedEmpty")}</p>
+                    <p className="mt-2 text-lg font-bold">{t("feedEmptyTitle")}</p>
+                    <p className="mt-2 text-sm muted">{t("feedEmptyDesc")}</p>
                   </div>
                   <div className="rounded-[1.4rem] border p-4" style={{ borderColor: "var(--border)", background: "var(--bg-strong)" }}>
-                    <p className="text-xs font-semibold uppercase tracking-[0.22em] muted">Recommended setup</p>
-                    <p className="mt-2 text-sm muted">Add clean, broad tags to tournaments now, such as competition name, governing body, and host country or year.</p>
+                    <p className="text-xs font-semibold uppercase tracking-[0.22em] muted">{t("feedSetupTitle")}</p>
+                    <p className="mt-2 text-sm muted">{t("feedSetupDesc")}</p>
                   </div>
                 </>
               )}

@@ -2,10 +2,14 @@
 
 import { FormEvent, useState } from "react";
 import { signIn } from "next-auth/react";
-import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { LocaleSwitcher } from "@/components/locale-switcher";
+import { Link, useRouter } from "@/lib/navigation";
 
 export default function SignInPage() {
+  const t = useTranslations("auth.signIn");
+  const router = useRouter();
   const [mode, setMode] = useState<"signin" | "register">("signin");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -15,7 +19,7 @@ export default function SignInPage() {
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     if (mode === "register") {
-      setMessage("Creating account...");
+      setMessage(t("creatingAccount"));
       const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -23,21 +27,21 @@ export default function SignInPage() {
       });
       const data = await res.json().catch(() => null);
       if (!res.ok) {
-        setMessage(data?.error ?? "Registration failed.");
+        setMessage(data?.error ?? t("registrationFailed"));
         return;
       }
       setMode("signin");
-      setMessage("Account created. Sign in with your email and password.");
+      setMessage(t("accountCreated"));
       return;
     }
 
-    setMessage("Signing in...");
+    setMessage(t("signingIn"));
     const res = await signIn("credentials", { email, password, redirect: false });
     if (res?.error) {
-      setMessage("Sign-in failed. Check your email and password.");
+      setMessage(t("signInFailed"));
     } else {
-      setMessage("Sign-in successful. Redirecting...");
-      window.location.href = "/dashboard";
+      setMessage(t("signInSuccess"));
+      router.push("/dashboard");
     }
   }
 
@@ -46,23 +50,24 @@ export default function SignInPage() {
       <section className="hero-surface relative hidden min-h-screen flex-col justify-between p-10 lg:flex xl:p-14">
         <div className="flex items-start justify-between">
           <Link href="/" className="display-title text-6xl leading-none">WCP</Link>
-          <ThemeToggle className="surface rounded-full px-4 py-2 text-sm font-semibold" />
+          <div className="flex items-center gap-2">
+            <LocaleSwitcher className="surface rounded-full px-4 py-2 text-sm font-semibold" />
+            <ThemeToggle className="surface rounded-full px-4 py-2 text-sm font-semibold" />
+          </div>
         </div>
 
         <div className="max-w-xl">
           <p className="text-sm font-semibold uppercase tracking-[0.34em]" style={{ color: "var(--accent-strong)" }}>
-            Matchday starts here
+            {t("heroTagline")}
           </p>
-          <h1 className="display-title mt-4 text-8xl leading-[0.9]">Call every score before kickoff.</h1>
-          <p className="mt-4 text-lg leading-8 muted">
-            Private leagues, group invites, one locked submission per room, and a live table that moves with every result.
-          </p>
+          <h1 className="display-title mt-4 text-8xl leading-[0.9]">{t("heroTitle")}</h1>
+          <p className="mt-4 text-lg leading-8 muted">{t("heroDesc")}</p>
         </div>
 
         <div className="grid gap-3">
           <div className="surface rounded-[1.6rem] p-5">
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] muted">Providers</p>
-            <p className="mt-2 text-xl font-bold">Google, Facebook, or secure email-password access.</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] muted">{t("heroProvidersLabel")}</p>
+            <p className="mt-2 text-xl font-bold">{t("heroProvidersText")}</p>
           </div>
         </div>
       </section>
@@ -71,31 +76,34 @@ export default function SignInPage() {
         <div className="w-full max-w-xl space-y-6">
           <div className="flex items-center justify-between lg:hidden">
             <Link href="/" className="display-title text-5xl leading-none">WCP</Link>
-            <ThemeToggle className="surface rounded-full px-4 py-2 text-sm font-semibold" />
+            <div className="flex items-center gap-2">
+              <LocaleSwitcher className="surface rounded-full px-4 py-2 text-sm font-semibold" />
+              <ThemeToggle className="surface rounded-full px-4 py-2 text-sm font-semibold" />
+            </div>
           </div>
 
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.32em] muted">Sign in</p>
-            <h1 className="display-title mt-3 text-6xl leading-none">Join the pool.</h1>
-            <p className="mt-3 max-w-lg text-base leading-7 muted">Use email and password for local access, or connect an OAuth provider to enter the full dashboard.</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.32em] muted">{t("formTagline")}</p>
+            <h1 className="display-title mt-3 text-6xl leading-none">{t("formTitle")}</h1>
+            <p className="mt-3 max-w-lg text-base leading-7 muted">{t("formDesc")}</p>
           </div>
 
           <div className="surface rounded-[2rem] p-6 md:p-8">
             <form onSubmit={onSubmit} className="space-y-4">
               {mode === "register" ? (
                 <div className="space-y-2">
-                  <label className="block text-sm font-semibold">Name</label>
+                  <label className="block text-sm font-semibold">{t("nameLabel")}</label>
                   <input
                     className="field"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder="Your name"
+                    placeholder={t("namePlaceholder")}
                     type="text"
                   />
                 </div>
               ) : null}
               <div className="space-y-2">
-                <label className="block text-sm font-semibold">Email</label>
+                <label className="block text-sm font-semibold">{t("emailLabel")}</label>
                 <input
                   className="field"
                   value={email}
@@ -106,12 +114,12 @@ export default function SignInPage() {
                 />
               </div>
               <div className="space-y-2">
-                <label className="block text-sm font-semibold">Password</label>
+                <label className="block text-sm font-semibold">{t("passwordLabel")}</label>
                 <input
                   className="field"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="At least 8 characters"
+                  placeholder={t("passwordPlaceholder")}
                   type="password"
                   minLength={8}
                   required
@@ -122,7 +130,7 @@ export default function SignInPage() {
                 style={{ background: "linear-gradient(135deg, var(--accent), var(--accent-strong))" }}
                 type="submit"
               >
-                {mode === "signin" ? "Sign in with Email" : "Create account"}
+                {mode === "signin" ? t("signInButton") : t("registerButton")}
               </button>
             </form>
 
@@ -135,11 +143,11 @@ export default function SignInPage() {
                 }}
                 type="button"
               >
-                {mode === "signin" ? "Need an account? Register" : "Already have an account? Sign in"}
+                {mode === "signin" ? t("needAccount") : t("haveAccount")}
               </button>
               {mode === "signin" && (
                 <Link href="/auth/reset-password" className="text-sm muted underline underline-offset-4">
-                  Forgot password?
+                  {t("forgotPassword")}
                 </Link>
               )}
             </div>
@@ -151,8 +159,8 @@ export default function SignInPage() {
             </div>
 
             <div className="space-y-3">
-              <button onClick={() => signIn("google")} className="surface-strong w-full rounded-[1.2rem] px-4 py-4 text-sm font-bold">Continue with Google</button>
-              <button onClick={() => signIn("facebook")} className="surface-strong w-full rounded-[1.2rem] px-4 py-4 text-sm font-bold">Continue with Facebook</button>
+              <button onClick={() => signIn("google")} className="surface-strong w-full rounded-[1.2rem] px-4 py-4 text-sm font-bold">{t("google")}</button>
+              <button onClick={() => signIn("facebook")} className="surface-strong w-full rounded-[1.2rem] px-4 py-4 text-sm font-bold">{t("facebook")}</button>
             </div>
 
             {message ? <p className="mt-4 text-sm muted">{message}</p> : null}

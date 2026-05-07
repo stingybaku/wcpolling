@@ -1,12 +1,14 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { Link } from "@/lib/navigation";
 
 type Phase = "request" | "confirm" | "done";
 
 export default function ResetPasswordPage() {
+  const t = useTranslations("auth.resetPassword");
   const [phase, setPhase] = useState<Phase>("request");
   const [email, setEmail] = useState("");
   const [token, setToken] = useState("");
@@ -28,7 +30,7 @@ export default function ResetPasswordPage() {
     setLoading(false);
     const data = await res.json().catch(() => null);
     if (!res.ok) {
-      setError(data?.error ?? "Request failed.");
+      setError(data?.error ?? t("requestFailed"));
       return;
     }
     setMessage(data?.message ?? "Check the server console for your reset token.");
@@ -39,7 +41,7 @@ export default function ResetPasswordPage() {
     e.preventDefault();
     setError("");
     if (password !== confirm) {
-      setError("Passwords do not match.");
+      setError(t("passwordsDoNotMatch"));
       return;
     }
     setLoading(true);
@@ -51,7 +53,7 @@ export default function ResetPasswordPage() {
     setLoading(false);
     const data = await res.json().catch(() => null);
     if (!res.ok) {
-      setError(data?.error ?? "Reset failed.");
+      setError(data?.error ?? t("resetFailed"));
       return;
     }
     setPhase("done");
@@ -64,12 +66,12 @@ export default function ResetPasswordPage() {
       </div>
       <div className="w-full max-w-md">
         <p className="text-xs font-semibold uppercase tracking-[0.34em]" style={{ color: "var(--accent-strong)" }}>
-          {phase === "done" ? "All done" : "Reset password"}
+          {phase === "done" ? t("donePhaseLabel") : t("requestPhaseLabel")}
         </p>
         <h1 className="mt-3 text-4xl font-extrabold">
-          {phase === "request" && "Forgot your password?"}
-          {phase === "confirm" && "Enter your reset token"}
-          {phase === "done" && "Password updated"}
+          {phase === "request" && t("forgotTitle")}
+          {phase === "confirm" && t("tokenTitle")}
+          {phase === "done" && t("doneTitle")}
         </h1>
 
         {message ? (
@@ -89,7 +91,7 @@ export default function ResetPasswordPage() {
               <input
                 className="field"
                 type="email"
-                placeholder="Your email address"
+                placeholder={t("emailPlaceholder")}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -100,13 +102,13 @@ export default function ResetPasswordPage() {
                 type="submit"
                 disabled={loading}
               >
-                {loading ? "Sending..." : "Send reset token"}
+                {loading ? t("sending") : t("sendTokenButton")}
               </button>
             </div>
             <p className="mt-4 text-center text-sm muted">
-              Already have a token?{" "}
+              {t("alreadyHaveToken")}{" "}
               <button type="button" className="font-bold underline" onClick={() => setPhase("confirm")}>
-                Enter it here
+                {t("enterHere")}
               </button>
             </p>
           </form>
@@ -118,7 +120,7 @@ export default function ResetPasswordPage() {
               <input
                 className="field"
                 type="text"
-                placeholder="Reset token (from server console)"
+                placeholder={t("tokenPlaceholder")}
                 value={token}
                 onChange={(e) => setToken(e.target.value)}
                 required
@@ -126,7 +128,7 @@ export default function ResetPasswordPage() {
               <input
                 className="field"
                 type="password"
-                placeholder="New password (min 8 characters)"
+                placeholder={t("newPasswordPlaceholder")}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
@@ -134,7 +136,7 @@ export default function ResetPasswordPage() {
               <input
                 className="field"
                 type="password"
-                placeholder="Confirm new password"
+                placeholder={t("confirmPasswordPlaceholder")}
                 value={confirm}
                 onChange={(e) => setConfirm(e.target.value)}
                 required
@@ -145,7 +147,7 @@ export default function ResetPasswordPage() {
                 type="submit"
                 disabled={loading}
               >
-                {loading ? "Resetting..." : "Reset password"}
+                {loading ? t("resetting") : t("resetButton")}
               </button>
             </div>
           </form>
@@ -153,19 +155,19 @@ export default function ResetPasswordPage() {
 
         {phase === "done" && (
           <div className="surface mt-6 rounded-[2rem] p-6 md:p-8 text-center">
-            <p className="text-base">Your password has been updated successfully.</p>
+            <p className="text-base">{t("passwordUpdated")}</p>
             <Link
               href="/auth/signin"
               className="mt-5 inline-block rounded-[1.3rem] px-5 py-4 text-sm font-extrabold uppercase tracking-[0.2em] text-white"
               style={{ background: "linear-gradient(135deg, var(--accent), var(--accent-strong))" }}
             >
-              Sign in now
+              {t("signInNow")}
             </Link>
           </div>
         )}
 
         <p className="mt-6 text-center text-sm muted">
-          <Link href="/auth/signin" className="font-bold underline">Back to sign in</Link>
+          <Link href="/auth/signin" className="font-bold underline">{t("backToSignIn")}</Link>
         </p>
       </div>
     </div>

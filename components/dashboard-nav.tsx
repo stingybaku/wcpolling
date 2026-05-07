@@ -1,27 +1,8 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { useTranslations } from "next-intl";
+import { Link, usePathname } from "@/lib/navigation";
 import { TournamentSwitcher } from "@/components/tournament-switcher";
-
-type NavItem = {
-  href: string;
-  label: string;
-};
-
-const navItems: NavItem[] = [
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/dashboard/groups", label: "Groups" },
-  { href: "/dashboard/predictions", label: "Predictions" },
-];
-
-function isActive(pathname: string, href: string) {
-  if (href === "/dashboard") {
-    return pathname === href;
-  }
-
-  return pathname === href || pathname.startsWith(`${href}/`);
-}
 
 type TournamentOption = {
   id: string;
@@ -29,6 +10,13 @@ type TournamentOption = {
   slug: string;
   isActive: boolean;
 };
+
+function isActive(pathname: string, href: string) {
+  if (href === "/dashboard") {
+    return pathname === href;
+  }
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
 
 export function DashboardNav({
   currentTournamentId,
@@ -39,7 +27,14 @@ export function DashboardNav({
   dailyTip: string;
   tournaments: TournamentOption[];
 }) {
+  const t = useTranslations("nav");
   const pathname = usePathname();
+
+  const navItems = [
+    { href: "/dashboard" as const, label: t("dashboard") },
+    { href: "/dashboard/groups" as const, label: t("groups") },
+    { href: "/dashboard/predictions" as const, label: t("predictions") },
+  ];
 
   return (
     <>
@@ -54,16 +49,16 @@ export function DashboardNav({
                 LP
               </div>
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.3em] muted">Logo</p>
-                <p className="text-sm font-bold">Placeholder mark</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.3em] muted">{t("logoLabel")}</p>
+                <p className="text-sm font-bold">{t("logoSubLabel")}</p>
               </div>
             </div>
 
             <div className="inline-flex rounded-full border px-3 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.32em]" style={{ borderColor: "var(--border)", background: "var(--accent-soft)", color: "var(--accent-strong)" }}>
-              Control Room
+              {t("controlRoom")}
             </div>
             <div>
-              <p className="muted mt-2 text-sm">League and Tournament predictions, group rivalry, and live scoring in one control room.</p>
+              <p className="muted mt-2 text-sm">{t("tagline")}</p>
             </div>
           </div>
 
@@ -74,7 +69,6 @@ export function DashboardNav({
           <nav className="space-y-2">
             {navItems.map((item) => {
               const active = isActive(pathname, item.href);
-
               return (
                 <Link
                   className="block rounded-2xl border px-4 py-3 text-sm font-semibold transition"
@@ -93,7 +87,7 @@ export function DashboardNav({
           </nav>
         </div>
         <div className="rounded-[1.4rem] border px-4 py-4" style={{ borderColor: "var(--border)", background: "var(--bg-strong)" }}>
-          <p className="text-xs font-semibold uppercase tracking-[0.28em] muted">Tip of the Day</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.28em] muted">{t("tipOfTheDay")}</p>
           <p className="mt-3 text-sm muted">{dailyTip}</p>
         </div>
       </aside>
@@ -102,7 +96,6 @@ export function DashboardNav({
         <div className="grid grid-cols-3 gap-2">
           {navItems.map((item) => {
             const active = isActive(pathname, item.href);
-
             return (
               <Link
                 className="flex min-h-[3.25rem] items-center justify-center rounded-2xl px-2 py-3 text-center text-[0.7rem] font-semibold uppercase tracking-[0.18em]"

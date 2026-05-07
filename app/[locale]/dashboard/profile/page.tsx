@@ -2,7 +2,8 @@
 /* eslint-disable @next/next/no-img-element */
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
+import { useRouter } from "@/lib/navigation";
 
 type Profile = {
   id: string;
@@ -13,6 +14,7 @@ type Profile = {
 };
 
 export default function DashboardProfilePage() {
+  const t = useTranslations("profile");
   const router = useRouter();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [name, setName] = useState("");
@@ -28,7 +30,7 @@ export default function DashboardProfilePage() {
     async function loadProfile() {
       const res = await fetch("/api/profile");
       if (!res.ok) {
-        setError("Could not load your profile.");
+        setError(t("loadError"));
         return;
       }
 
@@ -48,7 +50,7 @@ export default function DashboardProfilePage() {
 
     if (newPassword && newPassword !== confirmPassword) {
       setSaving(false);
-      setError("New password and confirmation do not match.");
+      setError(t("passwordMismatch"));
       return;
     }
 
@@ -62,7 +64,7 @@ export default function DashboardProfilePage() {
 
     if (!res.ok) {
       const data = await res.json().catch(() => null);
-      setError(data?.error ?? "Could not update profile.");
+      setError(data?.error ?? t("updateError"));
       return;
     }
 
@@ -72,7 +74,7 @@ export default function DashboardProfilePage() {
     setCurrentPassword("");
     setNewPassword("");
     setConfirmPassword("");
-    setMessage(newPassword ? "Profile and password updated." : "Profile updated.");
+    setMessage(newPassword ? t("profileAndPasswordUpdated") : t("profileUpdated"));
     router.refresh();
   }
 
@@ -97,30 +99,30 @@ export default function DashboardProfilePage() {
 
     if (!res.ok) {
       const data = await res.json().catch(() => null);
-      setError(data?.error ?? "Could not upload avatar.");
+      setError(data?.error ?? t("avatarUploadError"));
       return;
     }
 
     const data = await res.json();
     setProfile(data.profile);
-    setMessage("Profile photo updated.");
+    setMessage(t("avatarUpdated"));
     router.refresh();
   }
 
   return (
     <div className="space-y-6">
       <section className="hero-surface rounded-[2rem] border px-5 py-6 md:px-8 md:py-8" style={{ borderColor: "var(--border)" }}>
-        <p className="text-xs font-semibold uppercase tracking-[0.34em]" style={{ color: "var(--accent-strong)" }}>Profile</p>
-        <h2 className="display-title mt-3 text-5xl leading-none md:text-7xl">Your account card.</h2>
-        <p className="mt-4 max-w-2xl text-base leading-7 muted">Review your account details, update the display name, and keep your identity clean across groups and leaderboards.</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.34em]" style={{ color: "var(--accent-strong)" }}>{t("tagline")}</p>
+        <h2 className="display-title mt-3 text-5xl leading-none md:text-7xl">{t("title")}</h2>
+        <p className="mt-4 max-w-2xl text-base leading-7 muted">{t("subtitle")}</p>
       </section>
 
       <section className="content-grid">
         <form onSubmit={saveProfile} className="surface rounded-[2rem] p-6 md:p-8">
-          <p className="text-xs font-semibold uppercase tracking-[0.3em] muted">Edit profile</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.3em] muted">{t("editProfile")}</p>
           <div className="mt-5 space-y-4">
             <div className="rounded-[1.4rem] border p-4" style={{ borderColor: "var(--border)", background: "var(--bg-strong)" }}>
-              <p className="text-sm font-semibold">Profile photo</p>
+              <p className="text-sm font-semibold">{t("profilePhoto")}</p>
               <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-center">
                 {profile?.image ? (
                   <img alt={profile.name ?? profile.email ?? "Profile avatar"} className="h-20 w-20 rounded-full object-cover" src={profile.image} />
@@ -131,55 +133,55 @@ export default function DashboardProfilePage() {
                 )}
                 <div className="space-y-2">
                   <label className="inline-flex cursor-pointer rounded-[1rem] border px-4 py-3 text-sm font-semibold" style={{ borderColor: "var(--border)", background: "var(--bg)" }}>
-                    <span>{uploading ? "Uploading..." : "Upload image"}</span>
+                    <span>{uploading ? t("uploading") : t("uploadImage")}</span>
                     <input accept="image/png,image/jpeg,image/webp" className="hidden" disabled={uploading} onChange={uploadAvatar} type="file" />
                   </label>
-                  <p className="text-xs muted">Optional. JPG, PNG, or WEBP up to 2MB. Google/Facebook sign-in uses the provider photo automatically.</p>
+                  <p className="text-xs muted">{t("uploadNote")}</p>
                 </div>
               </div>
             </div>
             <div>
-              <label className="mb-2 block text-sm font-semibold">Display name</label>
-              <input className="field" onChange={(event) => setName(event.target.value)} placeholder="Your name" value={name} />
+              <label className="mb-2 block text-sm font-semibold">{t("displayName")}</label>
+              <input className="field" onChange={(event) => setName(event.target.value)} placeholder={t("displayNamePlaceholder")} value={name} />
             </div>
             <div className="rounded-[1.4rem] border p-4" style={{ borderColor: "var(--border)", background: "var(--bg-strong)" }}>
-              <p className="text-sm font-semibold">Change password</p>
+              <p className="text-sm font-semibold">{t("changePassword")}</p>
               <div className="mt-4 space-y-3">
                 <div>
-                  <label className="mb-2 block text-sm font-semibold">Current password</label>
+                  <label className="mb-2 block text-sm font-semibold">{t("currentPassword")}</label>
                   <input
                     className="field"
                     onChange={(event) => setCurrentPassword(event.target.value)}
-                    placeholder="Current password"
+                    placeholder={t("currentPassword")}
                     type="password"
                     value={currentPassword}
                   />
                 </div>
                 <div>
-                  <label className="mb-2 block text-sm font-semibold">New password</label>
+                  <label className="mb-2 block text-sm font-semibold">{t("newPassword")}</label>
                   <input
                     className="field"
                     onChange={(event) => setNewPassword(event.target.value)}
-                    placeholder="New password"
+                    placeholder={t("newPassword")}
                     type="password"
                     value={newPassword}
                   />
                 </div>
                 <div>
-                  <label className="mb-2 block text-sm font-semibold">Confirm new password</label>
+                  <label className="mb-2 block text-sm font-semibold">{t("confirmNewPassword")}</label>
                   <input
                     className="field"
                     onChange={(event) => setConfirmPassword(event.target.value)}
-                    placeholder="Confirm new password"
+                    placeholder={t("confirmNewPassword")}
                     type="password"
                     value={confirmPassword}
                   />
                 </div>
-                <p className="text-xs muted">Leave the password fields empty if you only want to update your profile details.</p>
+                <p className="text-xs muted">{t("passwordNote")}</p>
               </div>
             </div>
             <button className="rounded-[1.3rem] px-5 py-4 text-sm font-extrabold uppercase tracking-[0.2em] text-white" disabled={saving} style={{ background: "linear-gradient(135deg, var(--accent), var(--accent-strong))" }} type="submit">
-              {saving ? "Saving..." : "Save profile"}
+              {saving ? t("saving") : t("saveButton")}
             </button>
             {message ? <p className="text-sm" style={{ color: "var(--accent-strong)" }}>{message}</p> : null}
             {error ? <p className="text-sm" style={{ color: "var(--danger)" }}>{error}</p> : null}
@@ -187,23 +189,23 @@ export default function DashboardProfilePage() {
         </form>
 
         <div className="surface rounded-[2rem] p-6 md:p-8">
-          <p className="text-xs font-semibold uppercase tracking-[0.3em] muted">Current details</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.3em] muted">{t("currentDetails")}</p>
           <div className="mt-5 space-y-3">
             <div className="rounded-[1.3rem] border p-4" style={{ borderColor: "var(--border)" }}>
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] muted">Email</p>
-              <p className="mt-2 text-base font-bold">{profile?.email ?? "Loading..."}</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] muted">{t("emailLabel")}</p>
+              <p className="mt-2 text-base font-bold">{profile?.email ?? t("loading")}</p>
             </div>
             <div className="rounded-[1.3rem] border p-4" style={{ borderColor: "var(--border)" }}>
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] muted">Display name</p>
-              <p className="mt-2 text-base font-bold">{profile?.name ?? "Not set"}</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] muted">{t("displayNameLabel")}</p>
+              <p className="mt-2 text-base font-bold">{profile?.name ?? t("notSet")}</p>
             </div>
             <div className="rounded-[1.3rem] border p-4" style={{ borderColor: "var(--border)" }}>
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] muted">Profile image</p>
-              <p className="mt-2 text-base font-bold">{profile?.image ? "Configured" : "Optional"}</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] muted">{t("profileImageLabel")}</p>
+              <p className="mt-2 text-base font-bold">{profile?.image ? t("configured") : t("optional")}</p>
             </div>
             <div className="rounded-[1.3rem] border p-4" style={{ borderColor: "var(--border)" }}>
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] muted">Role</p>
-              <p className="mt-2 text-base font-bold">{profile?.role ?? "Loading..."}</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] muted">{t("roleLabel")}</p>
+              <p className="mt-2 text-base font-bold">{profile?.role ?? t("loading")}</p>
             </div>
           </div>
         </div>

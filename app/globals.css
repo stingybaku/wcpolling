@@ -215,3 +215,8 @@ html[data-theme="dark"] .landing-hero-media::after {
     grid-template-columns: 1.4fr 1fr;
   }
 }
+
+.drag-item[data-drag-over="true"] {
+  border-color: var(--accent) !important;
+  background: var(--accent-soft) !important;
+}

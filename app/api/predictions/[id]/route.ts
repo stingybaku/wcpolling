@@ -48,7 +48,7 @@ export async function PUT(request: NextRequest, context: { params: Promise<{ id:
   const groupStandings = Array.isArray(body.groupStandings) ? (body.groupStandings as StandingData[]) : [];
   const tieBreakerAnswers = Array.isArray(body.tieBreakerAnswers) ? (body.tieBreakerAnswers as TieBreakerData[]) : [];
 
-  if (!name || entries.length === 0) return badRequest("Name and entries are required");
+  if (!name) return badRequest("Prediction name is required");
 
   const updatedPrediction = await prisma.prediction.update({
     where: { id },
@@ -97,8 +97,9 @@ export async function PUT(request: NextRequest, context: { params: Promise<{ id:
     await recalculateSubmissionByPrediction(prediction.id);
   }
 
-  // Auto-populate R32 bracket from predicted group standings (fire-and-forget — never fails the save)
-  populatePredictionR32Bracket(prediction.id).catch(() => {});
+  if (!body.skipBracketPopulation) {
+    populatePredictionR32Bracket(prediction.id).catch(() => {});
+  }
 
   return new Response(JSON.stringify({ prediction: updatedPrediction }), { status: 200 });
 }

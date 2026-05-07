@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useTranslations } from "next-intl";
 
 type TournamentOption = {
   id: string;
@@ -16,6 +17,7 @@ export function TournamentSwitcher({
   currentTournamentId?: string | null;
   tournaments: TournamentOption[];
 }) {
+  const t = useTranslations("tournamentSwitcher");
   const [selectedTournamentId, setSelectedTournamentId] = useState(currentTournamentId ?? tournaments[0]?.id ?? "");
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -69,8 +71,8 @@ export function TournamentSwitcher({
         className="rounded-[1.4rem] border px-4 py-4"
         style={{ borderColor: "var(--border)", background: "var(--bg-strong)" }}
       >
-        <p className="text-xs font-semibold uppercase tracking-[0.3em] muted">Tournament</p>
-        <p className="mt-2 text-sm font-bold">No tournaments</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.3em] muted">{t("label")}</p>
+        <p className="mt-2 text-sm font-bold">{t("noTournaments")}</p>
       </div>
     );
   }
@@ -87,12 +89,12 @@ export function TournamentSwitcher({
       }}
     >
       <div className="flex items-center justify-between gap-3">
-        <p className="text-xs font-semibold uppercase tracking-[0.3em] muted">Tournament</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.3em] muted">{t("label")}</p>
         <span
           className="rounded-full px-2 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.24em]"
           style={{ background: "var(--accent-soft)", color: "var(--accent-strong)" }}
         >
-          Context
+          {t("context")}
         </span>
       </div>
 
@@ -119,7 +121,7 @@ export function TournamentSwitcher({
                 "linear-gradient(135deg, color-mix(in srgb, var(--accent-soft) 88%, transparent 12%), transparent 55%)",
             }}
           />
-          <span className="relative block min-w-0 flex-1 truncate">{selectedTournament?.name ?? "Select tournament"}</span>
+          <span className="relative block min-w-0 flex-1 truncate">{selectedTournament?.name ?? t("selectTournament")}</span>
           <span
             aria-hidden="true"
             className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition"
@@ -152,7 +154,7 @@ export function TournamentSwitcher({
             }}
           >
             <div className="mb-2 px-2 pt-1 text-[0.65rem] font-semibold uppercase tracking-[0.24em] muted">
-              Choose tournament
+              {t("chooseTournament")}
             </div>
             <div className="grid gap-1" role="listbox">
               {tournaments.map((tournament) => {
@@ -181,9 +183,7 @@ export function TournamentSwitcher({
         ) : null}
       </div>
 
-      <p className="mt-3 text-xs muted">
-        Switch tournament context for groups, predictions, fixtures, and scoring.
-      </p>
+      <p className="mt-3 text-xs muted">{t("switchHint")}</p>
     </div>
   );
 }

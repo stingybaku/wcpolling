@@ -87,7 +87,7 @@ export async function POST(request: NextRequest) {
   const entries = Array.isArray(body.entries) ? body.entries : [];
   const groupStandings = Array.isArray(body.groupStandings) ? (body.groupStandings as StandingData[]) : [];
   const tieBreakerAnswers = Array.isArray(body.tieBreakerAnswers) ? (body.tieBreakerAnswers as TieBreakerData[]) : [];
-  if (!name || entries.length === 0) return badRequest("Name and entries are required");
+  if (!name) return badRequest("Prediction name is required");
 
   const prediction = await prisma.prediction.create({
     data: {
@@ -129,8 +129,9 @@ export async function POST(request: NextRequest) {
     },
   });
 
-  // Auto-populate R32 bracket from predicted group standings (fire-and-forget — never fails the save)
-  populatePredictionR32Bracket(prediction.id).catch(() => {});
+  if (!body.skipBracketPopulation) {
+    populatePredictionR32Bracket(prediction.id).catch(() => {});
+  }
 
   return new Response(JSON.stringify({ prediction }), { status: 201 });
 }

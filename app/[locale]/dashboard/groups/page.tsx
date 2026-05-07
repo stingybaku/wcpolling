@@ -1,8 +1,9 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
-import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { useSearchParams } from "next/navigation";
+import { Link } from "@/lib/navigation";
 
 type Group = {
   id: string;
@@ -15,11 +16,13 @@ type Group = {
 };
 
 function GroupsPageInner() {
+  const t = useTranslations("groups");
+  const tCommon = useTranslations("common");
   const searchParams = useSearchParams();
   const redirectError = searchParams.get("error");
 
   const [groups, setGroups] = useState<Group[]>([]);
-  const [error, setError] = useState<string>(redirectError === "not-member" ? "You are not a member of that group." : "");
+  const [error, setError] = useState<string>(redirectError === "not-member" ? t("notMember") : "");
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [inviteCode, setInviteCode] = useState("");
@@ -29,7 +32,7 @@ function GroupsPageInner() {
   async function fetchGroups() {
     const res = await fetch("/api/groups");
     if (!res.ok) {
-      setError("Unable to load groups. Are you signed in?");
+      setError(t("loadError"));
       return;
     }
     const data = await res.json();
@@ -51,7 +54,7 @@ function GroupsPageInner() {
     });
     setLoading(false);
     if (!res.ok) {
-      setError("Failed to create group.");
+      setError(t("createError"));
       return;
     }
     setName("");
@@ -70,7 +73,7 @@ function GroupsPageInner() {
     });
     setLoading(false);
     if (!res.ok) {
-      setError("Could not join group. Check your invite code.");
+      setError(t("joinError"));
       return;
     }
     setInviteCode("");
@@ -88,30 +91,30 @@ function GroupsPageInner() {
       <section className="hero-surface rounded-[2rem] border px-5 py-6 md:px-8 md:py-8" style={{ borderColor: "var(--border)" }}>
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-3xl">
-            <p className="text-xs font-semibold uppercase tracking-[0.34em]" style={{ color: "var(--accent-strong)" }}>Groups</p>
-            <h2 className="display-title mt-3 text-5xl leading-none md:text-7xl">Build rivalries, not spreadsheets.</h2>
-            <p className="mt-4 max-w-2xl text-base leading-7 muted">Create tournament-specific leagues, join with invite codes, and control which room gets which locked prediction.</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.34em]" style={{ color: "var(--accent-strong)" }}>{t("tagline")}</p>
+            <h2 className="display-title mt-3 text-5xl leading-none md:text-7xl">{t("title")}</h2>
+            <p className="mt-4 max-w-2xl text-base leading-7 muted">{t("subtitle")}</p>
           </div>
-          <Link className="surface rounded-[1.4rem] px-5 py-4 text-sm font-bold uppercase tracking-[0.2em]" href="/dashboard">Back to dashboard</Link>
+          <Link className="surface rounded-[1.4rem] px-5 py-4 text-sm font-bold uppercase tracking-[0.2em]" href="/dashboard">{t("backToDashboard")}</Link>
         </div>
       </section>
 
       <section className="grid gap-5 xl:grid-cols-2">
         <form onSubmit={createGroup} className="surface rounded-[2rem] p-6 md:p-8">
-          <p className="text-xs font-semibold uppercase tracking-[0.3em] muted">Create group</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.3em] muted">{t("createGroup")}</p>
           <div className="mt-5 space-y-4">
-            <input className="field" placeholder="Group name" value={name} onChange={(e) => setName(e.target.value)} />
-            <textarea className="field min-h-[7.5rem]" placeholder="Description (optional)" value={description} onChange={(e) => setDescription(e.target.value)} />
-            <p className="text-sm muted">This group will be created for the tournament currently selected in the header.</p>
-            <button className="rounded-[1.3rem] px-5 py-4 text-sm font-extrabold uppercase tracking-[0.2em] text-white" disabled={loading} style={{ background: "linear-gradient(135deg, var(--accent), var(--accent-strong))" }} type="submit">Create Group</button>
+            <input className="field" placeholder={t("groupNamePlaceholder")} value={name} onChange={(e) => setName(e.target.value)} />
+            <textarea className="field min-h-[7.5rem]" placeholder={t("descriptionPlaceholder")} value={description} onChange={(e) => setDescription(e.target.value)} />
+            <p className="text-sm muted">{t("createGroupNote")}</p>
+            <button className="rounded-[1.3rem] px-5 py-4 text-sm font-extrabold uppercase tracking-[0.2em] text-white" disabled={loading} style={{ background: "linear-gradient(135deg, var(--accent), var(--accent-strong))" }} type="submit">{t("createButton")}</button>
           </div>
         </form>
 
         <form onSubmit={joinGroup} className="surface rounded-[2rem] p-6 md:p-8">
-          <p className="text-xs font-semibold uppercase tracking-[0.3em] muted">Join group</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.3em] muted">{t("joinGroup")}</p>
           <div className="mt-5 space-y-4">
-            <input className="field" placeholder="Invite code" value={inviteCode} onChange={(e) => setInviteCode(e.target.value)} />
-            <button className="rounded-[1.3rem] border px-5 py-4 text-sm font-extrabold uppercase tracking-[0.2em]" disabled={loading} style={{ borderColor: "var(--border)", background: "var(--bg-strong)" }} type="submit">Join with code</button>
+            <input className="field" placeholder={t("inviteCodePlaceholder")} value={inviteCode} onChange={(e) => setInviteCode(e.target.value)} />
+            <button className="rounded-[1.3rem] border px-5 py-4 text-sm font-extrabold uppercase tracking-[0.2em]" disabled={loading} style={{ borderColor: "var(--border)", background: "var(--bg-strong)" }} type="submit">{t("joinButton")}</button>
           </div>
         </form>
       </section>
@@ -121,14 +124,14 @@ function GroupsPageInner() {
       <section className="surface rounded-[2rem] p-6 md:p-8">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] muted">Your leagues</p>
-            <h3 className="mt-2 text-3xl font-extrabold">Active group rooms</h3>
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] muted">{t("yourLeagues")}</p>
+            <h3 className="mt-2 text-3xl font-extrabold">{t("activeGroupRooms")}</h3>
           </div>
-          <p className="rounded-full px-4 py-2 text-sm font-bold" style={{ background: "var(--accent-soft)", color: "var(--accent-strong)" }}>{groups.length} total</p>
+          <p className="rounded-full px-4 py-2 text-sm font-bold" style={{ background: "var(--accent-soft)", color: "var(--accent-strong)" }}>{t("total", { count: groups.length })}</p>
         </div>
 
         {groups.length === 0 ? (
-          <p className="mt-5 text-base muted">No groups yet. Create one or join an existing room to start competing.</p>
+          <p className="mt-5 text-base muted">{t("noGroups")}</p>
         ) : (
           <div className="mt-5 grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
             {groups.map((group) => (
@@ -136,17 +139,17 @@ function GroupsPageInner() {
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-xl font-extrabold">{group.name}</p>
-                    <p className="mt-1 text-sm muted">Owner: {group.owner?.name ?? group.owner?.email ?? "Unknown"}</p>
-                    <p className="mt-1 text-sm muted">Tournament: {group.tournament?.name ?? "Unknown"}</p>
+                    <p className="mt-1 text-sm muted">{t("owner", { name: group.owner?.name ?? group.owner?.email ?? tCommon("unknown") })}</p>
+                    <p className="mt-1 text-sm muted">{t("tournament", { name: group.tournament?.name ?? tCommon("unknown") })}</p>
                   </div>
                   <Link href={`/dashboard/groups/${group.id}`} className="rounded-full px-4 py-2 text-xs font-extrabold uppercase tracking-[0.2em] text-white" style={{ background: "linear-gradient(135deg, var(--accent), var(--accent-strong))" }}>
-                    Open
+                    {tCommon("open")}
                   </Link>
                 </div>
-                <p className="mt-4 text-sm muted">{group.description || "No group description yet."}</p>
+                <p className="mt-4 text-sm muted">{group.description || t("noDescription")}</p>
                 <div className="mt-5 flex items-center justify-between rounded-[1.2rem] border px-4 py-3" style={{ borderColor: "var(--border)" }}>
                   <div className="flex items-center gap-3">
-                    <span className="text-xs font-semibold uppercase tracking-[0.24em] muted">Invite code</span>
+                    <span className="text-xs font-semibold uppercase tracking-[0.24em] muted">{t("inviteCode")}</span>
                     <span className="text-sm font-extrabold">{group.inviteCode}</span>
                   </div>
                   <button
@@ -155,10 +158,10 @@ function GroupsPageInner() {
                     className="rounded-full border px-3 py-1 text-xs font-bold"
                     style={{ borderColor: "var(--border)", background: "var(--bg)" }}
                   >
-                    {copiedId === group.id ? "Copied!" : "Copy"}
+                    {copiedId === group.id ? tCommon("copied") : tCommon("copy")}
                   </button>
                 </div>
-                <p className="mt-4 text-sm muted">{group.memberships.length} members</p>
+                <p className="mt-4 text-sm muted">{t("members", { count: group.memberships.length })}</p>
               </article>
             ))}
           </div>

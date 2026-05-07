@@ -1,7 +1,7 @@
 "use client";
 
 import { ReactNode, useEffect, useState } from "react";
-import Link from "next/link";
+import { Link } from "@/lib/navigation";
 
 type TournamentGroup = { id: string; name: string; sortOrder: number };
 type TournamentPhase = { id: string; name: string; slug: string; sortOrder: number; isKnockout: boolean; teamCount?: number | null };

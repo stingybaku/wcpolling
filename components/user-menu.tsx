@@ -2,10 +2,12 @@
 /* eslint-disable @next/next/no-img-element */
 
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import { signOut } from "next-auth/react";
+import { useTranslations } from "next-intl";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { LocaleSwitcher } from "@/components/locale-switcher";
 import { TournamentSwitcher } from "@/components/tournament-switcher";
+import { Link } from "@/lib/navigation";
 
 type TournamentOption = {
   id: string;
@@ -43,6 +45,7 @@ export function UserMenu({
   currentTournamentId?: string | null;
   tournaments: TournamentOption[];
 }) {
+  const t = useTranslations("userMenu");
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
@@ -99,16 +102,16 @@ export function UserMenu({
           <p className="truncate text-xs muted">{email ?? ""}</p>
           <p className="text-xs uppercase tracking-[0.2em] muted">{role ?? "USER"}</p>
         </div>
-        <span className="hidden text-xs font-semibold uppercase tracking-[0.22em] muted sm:block">Menu</span>
+        <span className="hidden text-xs font-semibold uppercase tracking-[0.22em] muted sm:block">{t("menu")}</span>
       </button>
 
       {open ? (
         <div className="surface absolute right-0 top-[calc(100%+0.75rem)] z-50 w-[min(18rem,calc(100vw-1.5rem))] rounded-[1.4rem] p-3 sm:w-[20rem] sm:rounded-[1.6rem]">
           <div className="rounded-[1.2rem] border px-4 py-3" style={{ borderColor: "var(--border)", background: "var(--bg-strong)" }}>
-            <p className="text-xs font-semibold uppercase tracking-[0.26em] muted">Account</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.26em] muted">{t("account")}</p>
             <p className="mt-2 truncate text-sm font-bold">{name ?? email ?? "Unknown user"}</p>
             <p className="mt-1 truncate text-xs muted">{email ?? ""}</p>
-            <p className="mt-1 text-xs uppercase tracking-[0.18em] muted">Role: {role ?? "USER"}</p>
+            <p className="mt-1 text-xs uppercase tracking-[0.18em] muted">{t("role", { role: role ?? "USER" })}</p>
           </div>
 
           <div className="mt-3 grid gap-2">
@@ -117,12 +120,13 @@ export function UserMenu({
             </div>
             {role === "ADMIN" ? (
               <Link className="rounded-[1.2rem] border px-4 py-3 text-sm font-semibold transition hover:opacity-90" href="/dashboard/admin" onClick={() => setOpen(false)} style={{ borderColor: "var(--border)", background: "var(--bg-strong)" }}>
-                Admin Dashboard
+                {t("adminDashboard")}
               </Link>
             ) : null}
             <Link className="rounded-[1.2rem] border px-4 py-3 text-sm font-semibold transition hover:opacity-90" href="/dashboard/profile" onClick={() => setOpen(false)} style={{ borderColor: "var(--border)", background: "var(--bg-strong)" }}>
-              View or edit profile
+              {t("viewProfile")}
             </Link>
+            <LocaleSwitcher className="flex w-full items-center justify-center rounded-[1.2rem] border px-4 py-3 text-sm font-semibold transition hover:opacity-90" />
             <ThemeToggle className="flex w-full items-center justify-center rounded-[1.2rem] border px-4 py-3 text-sm font-semibold transition hover:opacity-90" />
             <button
               className="w-full rounded-[1.2rem] px-4 py-3 text-sm font-semibold text-white transition hover:opacity-90"
@@ -133,7 +137,7 @@ export function UserMenu({
               style={{ background: "linear-gradient(135deg, var(--danger), #d48a3a)" }}
               type="button"
             >
-              Sign out
+              {t("signOut")}
             </button>
           </div>
         </div>

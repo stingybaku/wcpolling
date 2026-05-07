@@ -17,6 +17,8 @@ export async function GET(request: Request) {
       group: true,
       homeTeam: true,
       awayTeam: true,
+      homeSourceGroup: { select: { name: true } },
+      awaySourceGroup: { select: { name: true } },
     },
     orderBy: [{ phase: { sortOrder: "asc" } }, { sortOrder: "asc" }, { scheduledAt: "asc" }],
   });

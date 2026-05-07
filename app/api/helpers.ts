@@ -47,6 +47,7 @@ export async function getTournamentById(tournamentId: string) {
             include: {
               team: true,
             },
+            orderBy: { seed: "asc" },
           },
         },
         orderBy: { sortOrder: "asc" },

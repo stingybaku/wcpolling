@@ -1,9 +1,11 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { useTranslations } from "next-intl";
+import { useRouter } from "@/lib/navigation";
 
 export function NewsSyncButton({ tournamentId }: { tournamentId?: string | null }) {
+  const t = useTranslations("newsSyncButton");
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
@@ -24,11 +26,11 @@ export function NewsSyncButton({ tournamentId }: { tournamentId?: string | null 
 
     const payload = await response.json().catch(() => null);
     if (!response.ok) {
-      setError(payload?.error ?? "Could not sync newsroom.");
+      setError(payload?.error ?? t("syncError"));
       return;
     }
 
-    setMessage(`Synced ${payload?.totalSynced ?? 0} articles.`);
+    setMessage(t("synced", { count: payload?.totalSynced ?? 0 }));
     router.refresh();
   }
 
@@ -41,7 +43,7 @@ export function NewsSyncButton({ tournamentId }: { tournamentId?: string | null 
         style={{ background: "linear-gradient(135deg, var(--accent), var(--accent-strong))" }}
         type="button"
       >
-        {loading ? "Syncing newsroom..." : "Sync newsroom"}
+        {loading ? t("syncing") : t("sync")}
       </button>
       {message ? <p className="text-xs" style={{ color: "var(--accent-strong)" }}>{message}</p> : null}
       {error ? <p className="text-xs" style={{ color: "var(--danger)" }}>{error}</p> : null}
