@@ -8,6 +8,7 @@ import {
   THIRD_PLACE_MATCH_SLOTS,
   ThirdPlaceSlot,
 } from "@/lib/third-place-scenarios";
+import { flagEmoji } from "@/lib/fifa-flags";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -650,8 +651,8 @@ export default function PredictionsWizard() {
                         >
                           {index + 1}
                         </span>
+                        {team && <span className="text-base leading-none" aria-hidden>{flagEmoji(team.fifaCode)}</span>}
                         <span className="text-sm font-semibold">{team?.name ?? teamId}</span>
-                        <span className="text-xs muted ml-1">{team?.fifaCode}</span>
                       </div>
                     </DraggableItem>
                   );
@@ -706,8 +707,8 @@ export default function PredictionsWizard() {
                       >
                         {index + 1}
                       </span>
+                      {team && <span className="text-base leading-none" aria-hidden>{flagEmoji(team.fifaCode)}</span>}
                       <span className="text-sm font-semibold">{team?.name ?? teamId}</span>
-                      <span className="text-xs muted">{team?.fifaCode}</span>
                       <span className="text-xs muted ml-1">({t("groupStage")} {groupName})</span>
                     </div>
                   </DraggableItem>
@@ -794,9 +795,9 @@ export default function PredictionsWizard() {
                         }}
                       >
                         {team ? (
-                          <span>
-                            {team.name}{" "}
-                            <span style={{ opacity: 0.65, fontSize: "0.75em" }}>{team.fifaCode}</span>
+                          <span className="flex items-center gap-2">
+                            <span className="text-lg leading-none" aria-hidden>{flagEmoji(team.fifaCode)}</span>
+                            <span>{team.name}</span>
                           </span>
                         ) : (
                           <span className="muted">{t("wizard.tbd")}</span>
