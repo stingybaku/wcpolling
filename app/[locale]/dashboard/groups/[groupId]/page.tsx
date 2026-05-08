@@ -246,10 +246,7 @@ function PredictionPreviewModal({ predictionId, onClose }: { predictionId: strin
       style={{ backgroundColor: "rgba(0,0,0,0.75)" }}
       onClick={handleOverlayClick}
     >
-      <div
-        className="relative w-full max-w-5xl rounded-[2rem] p-6 md:p-8 my-6"
-        style={{ background: "var(--surface)", border: "1px solid var(--border)" }}
-      >
+      <div className="surface relative w-full max-w-5xl rounded-[2rem] p-6 md:p-8 my-6">
         <div className="mb-6 flex items-start justify-between gap-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.3em] muted">Prediction preview</p>
