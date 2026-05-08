@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Link } from "@/lib/navigation";
 import { flagEmoji } from "@/lib/fifa-flags";
 import {
@@ -70,6 +71,9 @@ function groupLabel(match: Match) {
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function AdminTournamentPage() {
+  const searchParams = useSearchParams();
+  const tournamentId = searchParams.get("tournamentId") ?? "";
+
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [matches, setMatches] = useState<Match[]>([]);
   const [officialGroupStandings, setOfficialGroupStandings] = useState<OfficialGroupStanding[]>([]);
@@ -97,7 +101,8 @@ export default function AdminTournamentPage() {
   // ─── Load ──────────────────────────────────────────────────────────────────
   const loadState = useCallback(async () => {
     setLoading(true);
-    const res = await fetch("/api/admin/tournament/state");
+    const query = tournamentId ? `?tournamentId=${tournamentId}` : "";
+    const res = await fetch(`/api/admin/tournament/state${query}`);
     if (!res.ok) { setLoading(false); return; }
     const data = await res.json();
     if (!data.tournament) { setLoading(false); return; }
@@ -143,7 +148,7 @@ export default function AdminTournamentPage() {
     setScores(scoreInit);
 
     setLoading(false);
-  }, []);
+  }, [tournamentId]);
 
   useEffect(() => { loadState(); }, [loadState]);
 
@@ -455,7 +460,7 @@ export default function AdminTournamentPage() {
   if (!tournament) {
     return (
       <div className="container py-8">
-        <p className="muted">No active tournament found.</p>
+        <p className="muted">Tournament not found.</p>
         <Link className="btn-secondary mt-4 inline-block" href="/dashboard/admin">← Back to Admin</Link>
       </div>
     );

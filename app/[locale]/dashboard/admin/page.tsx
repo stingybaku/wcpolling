@@ -1001,9 +1001,6 @@ export default function DashboardAdminPage() {
             <p className="mt-4 max-w-2xl text-base leading-7 muted">Manage tournaments, configure brackets, and control who has admin access. The selected tournament in this page drives the builder below.</p>
           </div>
           <div className="flex flex-wrap gap-3">
-            <Link href="/dashboard/admin/tournament" className="surface rounded-[1.4rem] px-5 py-4 text-sm font-bold uppercase tracking-[0.2em]" style={{ background: "var(--accent)", color: "var(--accent-fg, #fff)" }}>
-              Manage Results
-            </Link>
             <button className="surface rounded-[1.4rem] px-5 py-4 text-sm font-bold uppercase tracking-[0.2em]" onClick={startNewTournament} type="button">
               New tournament
             </button>
@@ -1057,6 +1054,9 @@ export default function DashboardAdminPage() {
                   <button className="rounded-[0.9rem] border px-3 py-2 text-xs font-bold uppercase tracking-[0.14em]" onClick={() => void editTournament(item.id)} style={{ borderColor: "var(--border)", background: "var(--bg)" }} type="button">
                     Edit
                   </button>
+                  <Link className="rounded-[0.9rem] px-3 py-2 text-xs font-bold uppercase tracking-[0.14em]" href={`/dashboard/admin/tournament?tournamentId=${item.id}`} style={{ background: "var(--accent)", color: "var(--accent-fg, #fff)" }}>
+                    Manage Results
+                  </Link>
                   {item.archivedAt ? (
                     <button className="rounded-[0.9rem] border px-3 py-2 text-xs font-bold uppercase tracking-[0.14em]" onClick={() => setModal({ type: "archiveTournament", tournament: item })} style={{ borderColor: "var(--border)", background: "var(--bg)" }} type="button">
                       Restore
