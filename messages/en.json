@@ -267,7 +267,8 @@
       "namePlaceholder": "e.g. My World Cup 2026",
       "descPlaceholder": "Optional notes",
       "groupStandings": "Group stage standings",
-      "groupStandingsHint": "Drag teams up or down to set your predicted standings for each group. Top 2 advance directly, 3rd may qualify via best third-place.",
+      "groupStandingsHint": "Set your predicted standings for each group. Top 2 advance directly, 3rd may qualify via best third-place.",
+      "dragHint": "Drag to reorder on desktop · Use ▲▼ arrows on mobile",
       "thirdPlace": "Third-place ranking",
       "thirdPlaceHint": "Rank all third-place teams by predicted performance. The top 8 advance to the Round of 32.",
       "advancingTop8": "Qualifying (top 8)",
@@ -287,8 +288,26 @@
       "doneDesc": "Your picks are locked in. Submit to a group room to compete on the leaderboard.",
       "goToGroups": "Go to group rooms",
       "newDraft": "Start new prediction",
+      "tieBreakers": "Tie-breakers",
+      "tieBreakersHint": "These questions are used to break ties on the leaderboard. Answer as precisely as you can — closest guess wins.",
+      "tieBreakersTextPlaceholder": "Your answer",
+      "completeTieBreakers": "Answer all tie-breaker questions before continuing.",
       "yourDrafts": "Saved predictions",
-      "editDraft": "Load"
+      "editDraft": "Load",
+      "viewPrediction": "View"
+    },
+    "view": {
+      "backToPredictions": "Back to predictions",
+      "groupStandings": "Group standings",
+      "thirdPlaceQualifiers": "Best third-place qualifiers",
+      "knockoutBracket": "Knockout bracket",
+      "qualified": "Qualified",
+      "eliminated": "Eliminated",
+      "champion": "Champion",
+      "tbd": "TBD",
+      "tieBreakers": "Tie-breakers",
+      "loading": "Loading prediction...",
+      "notFound": "Prediction not found."
     }
   },
   "profile": {

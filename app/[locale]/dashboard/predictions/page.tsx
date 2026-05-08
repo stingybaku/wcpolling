@@ -51,11 +51,19 @@ type MatchExtended = {
   awaySourceGroup?: { name: string } | null;
 };
 
+type TieBreakerQuestion = {
+  id: string;
+  prompt: string;
+  type: "NUMBER" | "TEXT";
+  sortOrder: number;
+};
+
 type Tournament = {
   id: string;
   name: string;
   groups: TournamentGroup[];
   phases: TournamentPhase[];
+  tieBreakers: TieBreakerQuestion[];
 };
 
 type SavedPrediction = {
@@ -72,6 +80,7 @@ type SavedPrediction = {
     match: { phase: { isKnockout: boolean }; groupId?: string | null };
   }[];
   groupStandings: { groupId: string; teamId: string; position: number }[];
+  thirdPlaceRankings: { teamId: string; rank: number }[];
   tieBreakerAnswers: { questionId: string; answer: string }[];
   submissions: { id: string; group: { name: string }; scores: { points: number; scoreType: string }[] }[];
 };
@@ -185,6 +194,8 @@ export default function PredictionsWizard() {
   const [thirdPlaceRanking, setThirdPlaceRanking] = useState<string[]>([]);
   // matchId → winnerTeamId
   const [knockoutPicks, setKnockoutPicks] = useState<Record<string, string>>({});
+  // questionId → answer string
+  const [tieBreakerAnswers, setTieBreakerAnswers] = useState<Record<string, string>>({});
 
   // ── UI state ──────────────────────────────────────────────────────────
   const [saving, setSaving] = useState(false);
@@ -203,7 +214,11 @@ export default function PredictionsWizard() {
     [tournament]
   );
 
-  const totalSteps = 3 + knockoutPhases.length; // steps 0..totalSteps-1, then "done"
+  const tieBreakers = tournament?.tieBreakers ?? [];
+  const hasTieBreakers = tieBreakers.length > 0;
+  // steps: 0=name, 1=groups, 2=third-place, 3..N=knockout phases, N+1=tie-breakers (if any)
+  const totalSteps = 3 + knockoutPhases.length + (hasTieBreakers ? 1 : 0);
+  const tieBreakerStep = hasTieBreakers ? totalSteps - 1 : -1;
 
   const teamById = useMemo(() => {
     const map = new Map<string, Team>();
@@ -350,6 +365,9 @@ export default function PredictionsWizard() {
       if (thirdPlaceRanking.length !== (tournament?.groups.length ?? 12)) {
         return t("wizard.completeThirdPlace");
       }
+    } else if (step === tieBreakerStep) {
+      const unanswered = tieBreakers.filter((q) => !tieBreakerAnswers[q.id]?.trim());
+      if (unanswered.length > 0) return t("wizard.completeTieBreakers");
     } else {
       const phaseIndex = step - 3;
       const phase = knockoutPhases[phaseIndex];
@@ -405,8 +423,11 @@ export default function PredictionsWizard() {
       name: name.trim(),
       description: description.trim(),
       groupStandings: standingsPayload,
+      thirdPlaceRanking: thirdPlaceRanking,
       entries: entriesPayload,
-      tieBreakerAnswers: [],
+      tieBreakerAnswers: Object.entries(tieBreakerAnswers)
+        .filter(([, answer]) => answer.trim() !== "")
+        .map(([questionId, answer]) => ({ questionId, answer: answer.trim() })),
       skipBracketPopulation: opts?.skipBracket ?? false,
     };
   }
@@ -459,6 +480,7 @@ export default function PredictionsWizard() {
     } else {
       setStep(nextStep);
     }
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   // ── Load existing draft ───────────────────────────────────────────────
@@ -467,6 +489,7 @@ export default function PredictionsWizard() {
     setName(pred.name);
     setDescription(pred.description ?? "");
 
+    // ── Group standings ─────────────────────────────────────────────
     const newStandings: Record<string, string[]> = {};
     const groups = tournament?.groups ?? [];
     for (const group of groups) {
@@ -478,27 +501,66 @@ export default function PredictionsWizard() {
     }
     setGroupStandings(newStandings);
 
-    const thirdTeams = groups
-      .map((g) => newStandings[g.id]?.[2])
-      .filter(Boolean) as string[];
-    setThirdPlaceRanking(thirdTeams);
+    // ── Third-place ranking — use saved order, fallback to group order ──
+    const newThirdPlaceRanking =
+      pred.thirdPlaceRankings.length > 0
+        ? pred.thirdPlaceRankings.map((r) => r.teamId)
+        : (groups.map((g) => newStandings[g.id]?.[2]).filter(Boolean) as string[]);
+    setThirdPlaceRanking(newThirdPlaceRanking);
 
+    // ── Knockout picks ──────────────────────────────────────────────
     const newPicks: Record<string, string> = {};
     for (const entry of pred.entries) {
       if (!entry.match.phase.isKnockout) continue;
       const hs = entry.predictedHomeScore;
       const as_ = entry.predictedAwayScore;
       if (hs != null && as_ != null && hs !== as_) {
-        const winner =
-          hs > as_
-            ? entry.predictedHomeTeamId
-            : entry.predictedAwayTeamId;
+        const winner = hs > as_ ? entry.predictedHomeTeamId : entry.predictedAwayTeamId;
         if (winner) newPicks[entry.matchId] = winner;
       }
     }
     setKnockoutPicks(newPicks);
 
-    setStep(1);
+    // ── Tie-breaker answers ─────────────────────────────────────────
+    const newTieBreakerAnswers: Record<string, string> = {};
+    for (const ans of pred.tieBreakerAnswers) {
+      newTieBreakerAnswers[ans.questionId] = ans.answer;
+    }
+    setTieBreakerAnswers(newTieBreakerAnswers);
+
+    // ── Determine resume step ───────────────────────────────────────
+    // Walk forward through steps to find the first one that needs work.
+    let resumeStep = 1;
+
+    const groupsComplete = groups.length > 0 && groups.every(
+      (g) => (newStandings[g.id] ?? []).filter(Boolean).length >= g.teams.length
+    );
+
+    if (groupsComplete) {
+      const thirdComplete = newThirdPlaceRanking.length >= groups.length;
+      if (thirdComplete) {
+        // Find first knockout phase with any missing pick
+        let firstIncomplete = -1;
+        for (let i = 0; i < knockoutPhases.length; i++) {
+          const phaseMatches = matches.filter((m) => m.phase.id === knockoutPhases[i].id);
+          if (phaseMatches.some((m) => !newPicks[m.id])) {
+            firstIncomplete = i;
+            break;
+          }
+        }
+
+        if (firstIncomplete >= 0) {
+          resumeStep = 3 + firstIncomplete;
+        } else {
+          // All knockout phases done — land on tie-breaker step if present, else last knockout step
+          resumeStep = hasTieBreakers ? tieBreakerStep : 3 + knockoutPhases.length - 1;
+        }
+      } else {
+        resumeStep = 2;
+      }
+    }
+
+    setStep(resumeStep);
     setDone(false);
     setError("");
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -511,6 +573,7 @@ export default function PredictionsWizard() {
     setGroupStandings({});
     setThirdPlaceRanking([]);
     setKnockoutPicks({});
+    setTieBreakerAnswers({});
     setStep(0);
     setDone(false);
     setError("");
@@ -625,6 +688,7 @@ export default function PredictionsWizard() {
       <div className="space-y-5">
         <div className="surface rounded-[2rem] p-5 md:p-6">
           <p className="text-sm muted">{t("wizard.groupStandingsHint")}</p>
+          <p className="mt-2 text-xs" style={{ color: "var(--accent-strong)" }}>{t("wizard.dragHint")}</p>
         </div>
         {groups.map((group) => {
           const teamIds = groupStandings[group.id] ?? group.teams.map(({ team }) => team.id);
@@ -678,6 +742,7 @@ export default function PredictionsWizard() {
       <div className="space-y-5">
         <div className="surface rounded-[2rem] p-5 md:p-6">
           <p className="text-sm muted">{t("wizard.thirdPlaceHint")}</p>
+          <p className="mt-2 text-xs" style={{ color: "var(--accent-strong)" }}>{t("wizard.dragHint")}</p>
         </div>
         <div className="surface rounded-[2rem] p-5 md:p-6">
           <div className="space-y-2">
@@ -814,6 +879,36 @@ export default function PredictionsWizard() {
     );
   }
 
+  function StepTieBreakers() {
+    return (
+      <div className="space-y-5">
+        <div className="surface rounded-[2rem] p-5 md:p-6">
+          <p className="text-sm muted">{t("wizard.tieBreakersHint")}</p>
+        </div>
+        <div className="surface rounded-[2rem] p-5 md:p-6 space-y-5">
+          {tieBreakers.map((q, i) => (
+            <div key={q.id}>
+              {i > 0 && <div className="h-px mb-5" style={{ background: "var(--border)" }} />}
+              <label className="block">
+                <span className="text-sm font-semibold">{q.prompt}</span>
+                <input
+                  type={q.type === "NUMBER" ? "number" : "text"}
+                  min={q.type === "NUMBER" ? 0 : undefined}
+                  className="field mt-2"
+                  placeholder={q.type === "NUMBER" ? "0" : t("wizard.tieBreakersTextPlaceholder")}
+                  value={tieBreakerAnswers[q.id] ?? ""}
+                  onChange={(e) =>
+                    setTieBreakerAnswers((prev) => ({ ...prev, [q.id]: e.target.value }))
+                  }
+                />
+              </label>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   function StepDone() {
     return (
       <div className="surface rounded-[2rem] p-8 text-center">
@@ -834,6 +929,15 @@ export default function PredictionsWizard() {
           >
             {t("wizard.newDraft")}
           </button>
+          {predictionId && (
+            <Link
+              href={`/dashboard/predictions/${predictionId}`}
+              className="rounded-[1.2rem] border px-5 py-3 text-sm font-bold"
+              style={{ borderColor: "var(--accent)", color: "var(--accent-strong)", background: "var(--bg-strong)" }}
+            >
+              {t("wizard.viewPrediction")}
+            </Link>
+          )}
           <Link
             href="/dashboard/groups"
             className="rounded-[1.2rem] px-5 py-3 text-sm font-extrabold text-white"
@@ -872,6 +976,8 @@ export default function PredictionsWizard() {
       ? t("wizard.groupStandings")
       : step === 2
       ? t("wizard.thirdPlace")
+      : step === tieBreakerStep
+      ? t("wizard.tieBreakers")
       : knockoutPhases[step - 3]?.name ?? "";
 
   const progressSteps = [
@@ -879,6 +985,7 @@ export default function PredictionsWizard() {
     t("wizard.groupStandings"),
     t("wizard.thirdPlace"),
     ...knockoutPhases.map((p) => p.name),
+    ...(hasTieBreakers ? [t("wizard.tieBreakers")] : []),
   ];
 
   return (
@@ -965,15 +1072,17 @@ export default function PredictionsWizard() {
       {/* Step content */}
       <div>
         {done ? (
-          <StepDone />
+          StepDone()
         ) : step === 0 ? (
-          <StepName />
+          StepName()
         ) : step === 1 ? (
-          <StepGroups />
+          StepGroups()
         ) : step === 2 ? (
-          <StepThirdPlace />
+          StepThirdPlace()
+        ) : step === tieBreakerStep ? (
+          StepTieBreakers()
         ) : (
-          <StepKnockout phaseIndex={step - 3} />
+          StepKnockout({ phaseIndex: step - 3 })
         )}
       </div>
 
@@ -1073,6 +1182,13 @@ export default function PredictionsWizard() {
                     >
                       {t("wizard.editDraft")}
                     </button>
+                    <Link
+                      href={`/dashboard/predictions/${pred.id}`}
+                      className="rounded-full border px-3 py-1.5 text-xs font-extrabold uppercase tracking-[0.18em]"
+                      style={{ borderColor: "var(--accent)", color: "var(--accent-strong)", background: "var(--bg)" }}
+                    >
+                      {t("wizard.viewPrediction")}
+                    </Link>
                     {!pred.selected ? (
                       <button
                         type="button"

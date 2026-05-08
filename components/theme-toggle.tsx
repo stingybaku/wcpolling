@@ -29,11 +29,13 @@ export function ThemeInitializer() {
 }
 
 export function ThemeToggle({ className = "" }: { className?: string }) {
-  const [theme, setTheme] = useState<"light" | "dark">(() => getPreferredTheme() as "light" | "dark");
+  const [theme, setTheme] = useState<"light" | "dark" | null>(null);
 
   useEffect(() => {
-    applyTheme(theme);
-  }, [theme]);
+    const resolved = getPreferredTheme() as "light" | "dark";
+    setTheme(resolved);
+    applyTheme(resolved);
+  }, []);
 
   function toggleTheme() {
     const nextTheme = theme === "dark" ? "light" : "dark";
@@ -48,8 +50,11 @@ export function ThemeToggle({ className = "" }: { className?: string }) {
       className={className}
       onClick={toggleTheme}
       type="button"
+      suppressHydrationWarning
     >
-      <span aria-hidden="true">{theme === "dark" ? "Light mode" : "Dark mode"}</span>
+      <span aria-hidden="true" suppressHydrationWarning>
+        {theme === "dark" ? "Light mode" : "Dark mode"}
+      </span>
     </button>
   );
 }

@@ -267,7 +267,8 @@
       "namePlaceholder": "ej. Mi Mundial 2026",
       "descPlaceholder": "Notas opcionales",
       "groupStandings": "Clasificación de grupos",
-      "groupStandingsHint": "Arrastra los equipos para establecer tu clasificación predicha en cada grupo. Los 2 primeros pasan directo, el 3.º puede clasificar como mejor tercero.",
+      "groupStandingsHint": "Establece la clasificación predicha en cada grupo. Los 2 primeros pasan directo, el 3.º puede clasificar como mejor tercero.",
+      "dragHint": "Arrastra para reordenar en escritorio · Usa las flechas ▲▼ en móvil",
       "thirdPlace": "Ranking de terceros puestos",
       "thirdPlaceHint": "Ordena todos los equipos de tercer lugar según su rendimiento predicho. Los 8 mejores avanzan a los octavos de final.",
       "advancingTop8": "Clasificados (top 8)",
@@ -287,8 +288,26 @@
       "doneDesc": "Tus picks están guardados. Envíalos a un grupo para competir en el marcador.",
       "goToGroups": "Ir a grupos",
       "newDraft": "Nueva predicción",
+      "tieBreakers": "Desempates",
+      "tieBreakersHint": "Estas preguntas se usan para desempatar en la clasificación. Responde con la mayor precisión posible — gana el que más se acerque.",
+      "tieBreakersTextPlaceholder": "Tu respuesta",
+      "completeTieBreakers": "Responde todas las preguntas de desempate antes de continuar.",
       "yourDrafts": "Predicciones guardadas",
-      "editDraft": "Cargar"
+      "editDraft": "Cargar",
+      "viewPrediction": "Ver"
+    },
+    "view": {
+      "backToPredictions": "Volver a predicciones",
+      "groupStandings": "Clasificación de grupos",
+      "thirdPlaceQualifiers": "Mejores terceros clasificados",
+      "knockoutBracket": "Bracket de eliminación",
+      "qualified": "Clasificado",
+      "eliminated": "Eliminado",
+      "champion": "Campeón",
+      "tbd": "Por definir",
+      "tieBreakers": "Desempates",
+      "loading": "Cargando predicción...",
+      "notFound": "Predicción no encontrada."
     }
   },
   "profile": {

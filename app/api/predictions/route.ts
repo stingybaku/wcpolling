@@ -38,6 +38,9 @@ export async function GET(request: NextRequest) {
         },
         orderBy: [{ group: { sortOrder: "asc" } }, { position: "asc" }],
       },
+      thirdPlaceRankings: {
+        orderBy: { rank: "asc" },
+      },
       tieBreakerAnswers: {
         include: {
           question: true,
@@ -87,6 +90,7 @@ export async function POST(request: NextRequest) {
   const entries = Array.isArray(body.entries) ? body.entries : [];
   const groupStandings = Array.isArray(body.groupStandings) ? (body.groupStandings as StandingData[]) : [];
   const tieBreakerAnswers = Array.isArray(body.tieBreakerAnswers) ? (body.tieBreakerAnswers as TieBreakerData[]) : [];
+  const thirdPlaceRankingIds: string[] = Array.isArray(body.thirdPlaceRanking) ? body.thirdPlaceRanking.map(String) : [];
   if (!name) return badRequest("Prediction name is required");
 
   const prediction = await prisma.prediction.create({
@@ -113,6 +117,11 @@ export async function POST(request: NextRequest) {
             position: Number(standing.position),
           })),
       },
+      thirdPlaceRankings: {
+        create: thirdPlaceRankingIds
+          .filter((teamId) => teamId.trim())
+          .map((teamId, i) => ({ teamId, rank: i + 1 })),
+      },
       tieBreakerAnswers: {
         create: tieBreakerAnswers
           .filter((answer) => String(answer.answer ?? "").trim())
@@ -125,6 +134,7 @@ export async function POST(request: NextRequest) {
     include: {
       entries: true,
       groupStandings: true,
+      thirdPlaceRankings: true,
       tieBreakerAnswers: true,
     },
   });

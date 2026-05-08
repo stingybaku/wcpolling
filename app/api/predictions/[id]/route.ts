@@ -1,8 +1,52 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { badRequest, forbidden, getCurrentUser, unauthorized } from "@/app/api/helpers";
+import { badRequest, forbidden, getCurrentUser, getTournamentById, unauthorized } from "@/app/api/helpers";
 import { recalculateSubmissionByPrediction } from "@/lib/scoring";
 import { populatePredictionR32Bracket } from "@/lib/prediction-bracket";
+
+export async function GET(_request: NextRequest, context: { params: Promise<{ id: string }> }) {
+  const user = await getCurrentUser();
+  if (!user) return unauthorized();
+
+  const { id } = await context.params;
+  if (!id) return badRequest("Missing prediction id");
+
+  const prediction = await prisma.prediction.findUnique({
+    where: { id },
+    include: {
+      groupStandings: true,
+      thirdPlaceRankings: { orderBy: { rank: "asc" } },
+      tieBreakerAnswers: true,
+      entries: {
+        include: {
+          match: { include: { phase: true } },
+        },
+      },
+    },
+  });
+
+  if (!prediction || prediction.userId !== user.id) {
+    return forbidden("Prediction not found");
+  }
+
+  const [tournament, matches] = await Promise.all([
+    getTournamentById(prediction.tournamentId),
+    prisma.match.findMany({
+      where: { tournamentId: prediction.tournamentId },
+      include: {
+        phase: true,
+        group: true,
+        homeTeam: true,
+        awayTeam: true,
+        homeSourceGroup: { select: { name: true } },
+        awaySourceGroup: { select: { name: true } },
+      },
+      orderBy: [{ phase: { sortOrder: "asc" } }, { sortOrder: "asc" }],
+    }),
+  ]);
+
+  return new Response(JSON.stringify({ prediction, tournament, matches }), { status: 200 });
+}
 
 type PredictionEntryData = {
   matchId: string;
@@ -47,6 +91,7 @@ export async function PUT(request: NextRequest, context: { params: Promise<{ id:
   const entries = Array.isArray(body.entries) ? (body.entries as PredictionEntryData[]) : [];
   const groupStandings = Array.isArray(body.groupStandings) ? (body.groupStandings as StandingData[]) : [];
   const tieBreakerAnswers = Array.isArray(body.tieBreakerAnswers) ? (body.tieBreakerAnswers as TieBreakerData[]) : [];
+  const thirdPlaceRankingIds: string[] = Array.isArray(body.thirdPlaceRanking) ? body.thirdPlaceRanking.map(String) : [];
 
   if (!name) return badRequest("Prediction name is required");
 
@@ -75,6 +120,12 @@ export async function PUT(request: NextRequest, context: { params: Promise<{ id:
             position: Number(standing.position),
           })),
       },
+      thirdPlaceRankings: {
+        deleteMany: {},
+        create: thirdPlaceRankingIds
+          .filter((teamId) => teamId.trim())
+          .map((teamId, i) => ({ teamId, rank: i + 1 })),
+      },
       tieBreakerAnswers: {
         deleteMany: {},
         create: tieBreakerAnswers
@@ -88,6 +139,7 @@ export async function PUT(request: NextRequest, context: { params: Promise<{ id:
     include: {
       entries: true,
       groupStandings: true,
+      thirdPlaceRankings: true,
       tieBreakerAnswers: true,
       submissions: true,
     },
