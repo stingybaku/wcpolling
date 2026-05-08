@@ -51,7 +51,23 @@ type SubmissionWithPrediction = Prisma.PredictionSubmissionGetPayload<{
   };
 }>;
 
-function computeActualGroupStandings(tournament: TournamentSnapshot) {
+function computeActualGroupStandings(
+  tournament: TournamentSnapshot,
+  officialOverrides?: { groupId: string; teamId: string; position: number }[]
+) {
+  const overrideByGroup = new Map<string, string[]>();
+  if (officialOverrides?.length) {
+    const byGroup = new Map<string, { teamId: string; position: number }[]>();
+    for (const o of officialOverrides) {
+      const arr = byGroup.get(o.groupId) ?? [];
+      arr.push(o);
+      byGroup.set(o.groupId, arr);
+    }
+    for (const [groupId, entries] of byGroup) {
+      overrideByGroup.set(groupId, entries.sort((a, b) => a.position - b.position).map((e) => e.teamId));
+    }
+  }
+
   const byGroup = new Map<
     string,
     {
@@ -61,6 +77,12 @@ function computeActualGroupStandings(tournament: TournamentSnapshot) {
   >();
 
   for (const group of tournament.groups) {
+    // If official standings exist for this group, use them (and mark as complete)
+    if (overrideByGroup.has(group.id)) {
+      byGroup.set(group.id, { complete: true, orderedTeamIds: overrideByGroup.get(group.id)! });
+      continue;
+    }
+
     const table = new Map<string, { points: number; goalDiff: number; goalsFor: number; teamName: string }>();
 
     for (const membership of group.teams) {
@@ -295,24 +317,23 @@ export async function recalculateTournamentScores(tournamentId: string) {
 
   if (!tournament) return;
 
-  const submissions = await prisma.predictionSubmission.findMany({
-    where: {
-      prediction: {
-        tournamentId,
-      },
-    },
-    include: {
-      prediction: {
-        include: {
-          entries: true,
-          groupStandings: true,
-          tieBreakerAnswers: true,
+  const [submissions, officialGroupStandings] = await Promise.all([
+    prisma.predictionSubmission.findMany({
+      where: { prediction: { tournamentId } },
+      include: {
+        prediction: {
+          include: {
+            entries: true,
+            groupStandings: true,
+            tieBreakerAnswers: true,
+          },
         },
       },
-    },
-  });
+    }),
+    prisma.officialGroupStanding.findMany({ where: { tournamentId } }),
+  ]);
 
-  const actualStandings = computeActualGroupStandings(tournament);
+  const actualStandings = computeActualGroupStandings(tournament, officialGroupStandings);
 
   await Promise.all(
     submissions.map((submission) => recalculateSubmissionScores(submission, tournament, actualStandings))

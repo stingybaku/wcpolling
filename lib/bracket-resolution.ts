@@ -36,10 +36,30 @@ type TeamGroupStats = {
   goalsFor: number;
 };
 
-function buildGroupStandings(groups: TournamentSnapshot["groups"]): {
+type OfficialStandingOverride = { groupId: string; teamId: string; position: number };
+type OfficialThirdOverride = { teamId: string; rank: number };
+
+function buildGroupStandings(
+  groups: TournamentSnapshot["groups"],
+  officialOverrides?: OfficialStandingOverride[],
+  officialThirdOverrides?: OfficialThirdOverride[]
+): {
   standings: Map<string, string[]>;
   teamStats: Map<string, TeamGroupStats>;
 } {
+  const overrideByGroup = new Map<string, string[]>();
+  if (officialOverrides?.length) {
+    const byGroup = new Map<string, { teamId: string; position: number }[]>();
+    for (const o of officialOverrides) {
+      const arr = byGroup.get(o.groupId) ?? [];
+      arr.push(o);
+      byGroup.set(o.groupId, arr);
+    }
+    for (const [groupId, entries] of byGroup) {
+      overrideByGroup.set(groupId, entries.sort((a, b) => a.position - b.position).map((e) => e.teamId));
+    }
+  }
+
   const standings = new Map<string, string[]>();
   const teamStats = new Map<string, TeamGroupStats>();
 
@@ -79,7 +99,8 @@ function buildGroupStandings(groups: TournamentSnapshot["groups"]): {
       }
     }
 
-    const ordered = [...table.entries()]
+    // Use official override if set for this group, otherwise compute from match results
+    const ordered = overrideByGroup.get(group.id) ?? [...table.entries()]
       .sort((a, b) => {
         const [teamIdA, statsA] = a;
         const [teamIdB, statsB] = b;
@@ -331,8 +352,20 @@ export async function resolveTournamentBracketParticipants(tournamentId: string)
 
   if (!snapshot) return 0;
 
-  const { standings, teamStats } = buildGroupStandings(snapshot.groups);
-  const thirdPlaceRanking = buildThirdPlaceRanking(snapshot.groups, standings, teamStats);
+  const [officialGroupStandings, officialThirdPlace] = await Promise.all([
+    prisma.officialGroupStanding.findMany({ where: { tournamentId } }),
+    prisma.officialThirdPlaceRanking.findMany({ where: { tournamentId }, orderBy: { rank: "asc" } }),
+  ]);
+
+  const { standings, teamStats } = buildGroupStandings(snapshot.groups, officialGroupStandings);
+  const thirdPlaceRanking = officialThirdPlace.length > 0
+    ? officialThirdPlace.map((r) => {
+        const groupName = snapshot.groups.find((g) =>
+          g.teams.some((t) => t.team.id === r.teamId)
+        )?.name ?? "";
+        return { teamId: r.teamId, groupName };
+      })
+    : buildThirdPlaceRanking(snapshot.groups, standings, teamStats);
   let updatedCount = 0;
 
   for (let i = 0; i < snapshot.matches.length; i += 1) {

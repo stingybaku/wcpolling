@@ -113,6 +113,8 @@ model Tournament {
   sponsoredPlacements SponsoredPlacement[]
   predictions      Prediction[]
   groupRooms       GroupRoom[]
+  officialGroupStandings OfficialGroupStanding[]
+  officialThirdPlace     OfficialThirdPlaceRanking[]
 }
 
 model TournamentTag {
@@ -182,6 +184,7 @@ model TournamentGroup {
   awaySourceMatches Match[]           @relation("awaySourceGroup")
   standings    PredictionGroupStanding[]
   scores       PredictionScore[]
+  officialStandings OfficialGroupStanding[]
 
   @@unique([tournamentId, name])
 }
@@ -216,6 +219,8 @@ model Team {
   predictedAwayFor      PredictionEntry[]            @relation("predictedAwayTeam")
   standings             PredictionGroupStanding[]
   thirdPlaceRankings    PredictionThirdPlaceRanking[]
+  officialGroupStandings   OfficialGroupStanding[]
+  officialThirdPlace       OfficialThirdPlaceRanking[]
 }
 
 model TournamentGroupTeam {
@@ -429,4 +434,33 @@ model PredictionScore {
   question     TieBreakerQuestion?  @relation(fields: [questionId], references: [id], onDelete: Cascade)
 
   @@unique([submissionId, scoreKey])
+}
+
+model OfficialGroupStanding {
+  id           String          @id @default(cuid())
+  tournamentId String
+  groupId      String
+  teamId       String
+  position     Int
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  tournament   Tournament      @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  group        TournamentGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  team         Team            @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([tournamentId, groupId, position])
+  @@unique([tournamentId, groupId, teamId])
+}
+
+model OfficialThirdPlaceRanking {
+  id           String     @id @default(cuid())
+  tournamentId String
+  teamId       String
+  rank         Int
+  createdAt    DateTime   @default(now())
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  team         Team       @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([tournamentId, teamId])
+  @@unique([tournamentId, rank])
 }

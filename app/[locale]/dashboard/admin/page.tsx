@@ -288,7 +288,7 @@ export default function DashboardAdminPage() {
     });
 
     const rows = Array.from({ length: slotCount }, (_, index) => {
-      const seededEntry = seededEntries.get(index);
+      const seededEntry = seededEntries.get(index + 1); // seeds are 1-based
       if (seededEntry) {
         return { slot: index, entry: seededEntry };
       }
@@ -1001,6 +1001,9 @@ export default function DashboardAdminPage() {
             <p className="mt-4 max-w-2xl text-base leading-7 muted">Manage tournaments, configure brackets, and control who has admin access. The selected tournament in this page drives the builder below.</p>
           </div>
           <div className="flex flex-wrap gap-3">
+            <Link href="/dashboard/admin/tournament" className="surface rounded-[1.4rem] px-5 py-4 text-sm font-bold uppercase tracking-[0.2em]" style={{ background: "var(--accent)", color: "var(--accent-fg, #fff)" }}>
+              Manage Results
+            </Link>
             <button className="surface rounded-[1.4rem] px-5 py-4 text-sm font-bold uppercase tracking-[0.2em]" onClick={startNewTournament} type="button">
               New tournament
             </button>
