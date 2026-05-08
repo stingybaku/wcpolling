@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { Link } from "@/lib/navigation";
@@ -85,12 +86,84 @@ function buildLeaderboard(submissions: GroupDetail["submissions"]): LeaderboardR
     .sort((a, b) => b.points - a.points);
 }
 
+// ─── Bracket constants ────────────────────────────────────────────────────────
+
+const SLOT_H = 50;
+const MATCH_H = 44;
+const MATCH_W = 150;
+const R_GAP = 20;
+const HEADER_H = 24;
+
+function roundX(r: number) { return r * (MATCH_W + R_GAP); }
+function matchCenterY(roundIdx: number, matchIdx: number, totalSlots: number): number {
+  const slotsPerMatch = totalSlots / (totalSlots / Math.pow(2, roundIdx));
+  return (matchIdx + 0.5) * slotsPerMatch * SLOT_H;
+}
+function matchTopY(roundIdx: number, matchIdx: number, totalSlots: number): number {
+  return matchCenterY(roundIdx, matchIdx, totalSlots) - MATCH_H / 2;
+}
+
+function BracketMatchCard({
+  homeTeam, awayTeam, winner, top, left,
+}: {
+  homeTeam: PredictionTeam | null | undefined;
+  awayTeam: PredictionTeam | null | undefined;
+  winner: string | undefined;
+  top: number;
+  left: number;
+}) {
+  const rowH = (MATCH_H - 2) / 2;
+  function TeamRow({ team }: { team: PredictionTeam | null | undefined }) {
+    const tid = team?.id ?? null;
+    const isWinner = !!winner && winner === tid;
+    const isLoser = !!winner && !!tid && winner !== tid;
+    return (
+      <div
+        className="flex items-center gap-1.5 px-2"
+        style={{
+          height: rowH,
+          background: isWinner ? "linear-gradient(90deg, var(--accent), var(--accent-strong))" : "transparent",
+          color: isWinner ? "white" : isLoser ? "var(--text-muted)" : undefined,
+          opacity: isLoser ? 0.55 : 1,
+        }}
+      >
+        {team ? (
+          <>
+            <span className="text-sm leading-none shrink-0">{flagEmoji(team.fifaCode)}</span>
+            <span className="text-xs font-semibold truncate">{team.name}</span>
+          </>
+        ) : (
+          <span className="text-xs" style={{ color: "var(--text-muted)" }}>TBD</span>
+        )}
+      </div>
+    );
+  }
+  return (
+    <div
+      style={{ position: "absolute", top: HEADER_H + top, left, width: MATCH_W, height: MATCH_H }}
+      className="rounded-[0.7rem] overflow-hidden"
+    >
+      <div
+        className="h-full flex flex-col"
+        style={{ border: "1px solid var(--border)", background: "var(--bg-strong)", borderRadius: "0.7rem", overflow: "hidden" }}
+      >
+        <TeamRow team={homeTeam} />
+        <div style={{ height: 2, background: "var(--border)", flexShrink: 0 }} />
+        <TeamRow team={awayTeam} />
+      </div>
+    </div>
+  );
+}
+
 // ─── Preview modal ────────────────────────────────────────────────────────────
 
 function PredictionPreviewModal({ predictionId, onClose }: { predictionId: string; onClose: () => void }) {
   const [data, setData] = useState<PreviewData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [mounted, setMounted] = useState(false);
   const overlayRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => { setMounted(true); }, []);
 
   useEffect(() => {
     fetch(`/api/predictions/${predictionId}`)
@@ -99,12 +172,10 @@ function PredictionPreviewModal({ predictionId, onClose }: { predictionId: strin
       .catch(() => setLoading(false));
   }, [predictionId]);
 
-  // Close on backdrop click
   function handleOverlayClick(e: React.MouseEvent) {
     if (e.target === overlayRef.current) onClose();
   }
 
-  // Close on Escape
   useEffect(() => {
     function onKey(e: KeyboardEvent) { if (e.key === "Escape") onClose(); }
     document.addEventListener("keydown", onKey);
@@ -137,21 +208,46 @@ function PredictionPreviewModal({ predictionId, onClose }: { predictionId: strin
     .filter((p, i, arr) => arr.findIndex((x) => x.id === p.id) === i)
     .sort((a, b) => a.sortOrder - b.sortOrder);
 
-  function teamName(id: string | null | undefined) {
-    if (!id) return null;
-    const t = allTeams.get(id);
-    return t ? `${flagEmoji(t.fifaCode)} ${t.name}` : null;
+  const matchesByPhase: Record<string, PredictionMatch[]> = {};
+  for (const m of matches) {
+    if (!m.phase.isKnockout) continue;
+    if (!matchesByPhase[m.phase.id]) matchesByPhase[m.phase.id] = [];
+    matchesByPhase[m.phase.id].push(m);
+  }
+  for (const key of Object.keys(matchesByPhase)) {
+    matchesByPhase[key].sort((a, b) => a.sortOrder - b.sortOrder);
   }
 
-  return (
+  const totalSlots = knockoutPhases.length > 0 ? (matchesByPhase[knockoutPhases[0].id]?.length ?? 16) : 16;
+  const bracketH = totalSlots * SLOT_H;
+  const bracketW = knockoutPhases.length * (MATCH_W + R_GAP) - R_GAP;
+
+  const connectorPaths: string[] = [];
+  for (let r = 0; r < knockoutPhases.length - 1; r++) {
+    const roundMatches = matchesByPhase[knockoutPhases[r].id] ?? [];
+    for (let k = 0; k < Math.floor(roundMatches.length / 2); k++) {
+      const topY = matchCenterY(r, 2 * k, totalSlots);
+      const botY = matchCenterY(r, 2 * k + 1, totalSlots);
+      const nextY = matchCenterY(r + 1, k, totalSlots);
+      const x1 = roundX(r) + MATCH_W;
+      const x2 = roundX(r + 1);
+      const xMid = x1 + (x2 - x1) * 0.45;
+      connectorPaths.push(`M ${x1} ${topY} H ${xMid} V ${botY} M ${x1} ${botY} H ${xMid}`);
+      connectorPaths.push(`M ${xMid} ${nextY} H ${x2}`);
+    }
+  }
+
+  if (!mounted) return null;
+
+  return createPortal(
     <div
       ref={overlayRef}
       className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4 pt-10"
-      style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)" }}
+      style={{ backgroundColor: "rgba(0,0,0,0.75)" }}
       onClick={handleOverlayClick}
     >
       <div
-        className="relative w-full max-w-3xl rounded-[2rem] p-6 md:p-8"
+        className="relative w-full max-w-5xl rounded-[2rem] p-6 md:p-8 my-6"
         style={{ background: "var(--surface)", border: "1px solid var(--border)" }}
       >
         <div className="mb-6 flex items-start justify-between gap-4">
@@ -161,7 +257,7 @@ function PredictionPreviewModal({ predictionId, onClose }: { predictionId: strin
             {pred?.description && <p className="mt-1 text-sm muted">{pred.description}</p>}
           </div>
           <button
-            className="rounded-full p-2 text-lg font-bold"
+            className="rounded-full p-2 text-lg font-bold shrink-0"
             style={{ background: "var(--bg-strong)" }}
             onClick={onClose}
           >✕</button>
@@ -222,60 +318,47 @@ function PredictionPreviewModal({ predictionId, onClose }: { predictionId: strin
               </div>
             )}
 
-            {/* Knockout picks */}
-            {knockoutPhases.map((phase) => {
-              const phaseMatches = matches
-                .filter((m) => m.phase.id === phase.id)
-                .sort((a, b) => a.sortOrder - b.sortOrder);
-              return (
-                <div key={phase.id}>
-                  <p className="mb-3 text-xs font-semibold uppercase tracking-[0.3em] muted">{phase.name}</p>
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    {phaseMatches.map((match) => {
-                      const resolved = resolvedTeams[match.id];
-                      const homeTeamId = resolved?.home;
-                      const awayTeamId = resolved?.away;
-                      const entry = pred.entries.find((e) => e.matchId === match.id);
-                      const predHomeId = entry?.predictedHomeTeamId;
-                      const predAwayId = entry?.predictedAwayTeamId;
-                      const hs = entry?.predictedHomeScore;
-                      const as_ = entry?.predictedAwayScore;
-                      const hasScore = hs != null && as_ != null;
-                      const winnerId = hasScore && hs !== as_ ? (hs! > as_! ? predHomeId : predAwayId) : null;
-
-                      return (
-                        <div
-                          key={match.id}
-                          className="rounded-[1.1rem] border px-3 py-2.5 text-sm"
-                          style={{ borderColor: "var(--border)" }}
-                        >
-                          {[
-                            { teamId: homeTeamId, predTeamId: predHomeId, score: hs },
-                            { teamId: awayTeamId, predTeamId: predAwayId, score: as_ },
-                          ].map(({ teamId, predTeamId, score }, ri) => {
-                            const isWinner = !!winnerId && winnerId === predTeamId;
-                            const isLoser = !!winnerId && !!predTeamId && winnerId !== predTeamId;
-                            const t = allTeams.get(predTeamId ?? teamId ?? "");
-                            return (
-                              <div
-                                key={ri}
-                                className="flex items-center justify-between gap-2 py-0.5"
-                                style={{ opacity: isLoser ? 0.45 : 1, fontWeight: isWinner ? 700 : 400 }}
-                              >
-                                <span className="truncate">
-                                  {t ? `${flagEmoji(t.fifaCode)} ${t.name}` : <span className="muted">TBD</span>}
-                                </span>
-                                {hasScore && <span className="tabular-nums font-bold">{ri === 0 ? hs : as_}</span>}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      );
+            {/* Knockout bracket */}
+            {knockoutPhases.length > 0 && (
+              <div>
+                <p className="mb-3 text-xs font-semibold uppercase tracking-[0.3em] muted">Knockout bracket</p>
+                <div className="overflow-x-auto">
+                  <div style={{ position: "relative", width: bracketW, height: HEADER_H + bracketH, minWidth: bracketW }}>
+                    {knockoutPhases.map((phase, r) => (
+                      <div
+                        key={phase.id}
+                        style={{ position: "absolute", left: roundX(r), top: 0, width: MATCH_W, height: HEADER_H, display: "flex", alignItems: "center", justifyContent: "center" }}
+                      >
+                        <span className="text-[10px] font-bold uppercase tracking-[0.2em] muted">{phase.name}</span>
+                      </div>
+                    ))}
+                    <svg style={{ position: "absolute", top: HEADER_H, left: 0, width: bracketW, height: bracketH, overflow: "visible", pointerEvents: "none" }}>
+                      {connectorPaths.map((d, i) => (
+                        <path key={i} d={d} fill="none" stroke="var(--border)" strokeWidth="1.5" strokeLinecap="round" />
+                      ))}
+                    </svg>
+                    {knockoutPhases.map((phase, r) => {
+                      const phaseMatches = matchesByPhase[phase.id] ?? [];
+                      return phaseMatches.map((match, i) => {
+                        const resolved = resolvedTeams[match.id];
+                        const homeId = resolved?.home ?? null;
+                        const awayId = resolved?.away ?? null;
+                        return (
+                          <BracketMatchCard
+                            key={match.id}
+                            homeTeam={homeId ? allTeams.get(homeId) : undefined}
+                            awayTeam={awayId ? allTeams.get(awayId) : undefined}
+                            winner={knockoutPicks[match.id]}
+                            top={matchTopY(r, i, totalSlots)}
+                            left={roundX(r)}
+                          />
+                        );
+                      });
                     })}
                   </div>
                 </div>
-              );
-            })}
+              </div>
+            )}
 
             {/* Tie-breakers */}
             {pred.tieBreakerAnswers.length > 0 && (
@@ -303,7 +386,8 @@ function PredictionPreviewModal({ predictionId, onClose }: { predictionId: strin
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
