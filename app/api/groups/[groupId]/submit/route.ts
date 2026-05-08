@@ -39,16 +39,28 @@ export async function POST(request: NextRequest, context: { params: Promise<{ gr
   if (resolved.error) return badRequest(resolved.error);
   const tournamentId = resolved.tournamentId!;
 
-  const selectedPrediction = await prisma.prediction.findFirst({
-    where: { userId: user.id, selected: true, tournamentId },
-  });
-  if (!selectedPrediction) return badRequest("No selected prediction found. Select one in your predictions first.");
+  const body = await request.json().catch(() => ({}));
+  const bodyPredictionId = String(body.predictionId ?? "").trim();
+
+  let predictionId: string;
+  if (bodyPredictionId) {
+    const prediction = await prisma.prediction.findUnique({ where: { id: bodyPredictionId } });
+    if (!prediction || prediction.userId !== user.id) return forbidden("Prediction not found");
+    if (prediction.tournamentId !== tournamentId) return badRequest("Prediction does not belong to this tournament");
+    predictionId = prediction.id;
+  } else {
+    const selected = await prisma.prediction.findFirst({
+      where: { userId: user.id, selected: true, tournamentId },
+    });
+    if (!selected) return badRequest("No prediction selected. Please choose a prediction to submit.");
+    predictionId = selected.id;
+  }
 
   const submission = await prisma.predictionSubmission.create({
     data: {
       userId: user.id,
       groupId,
-      predictionId: selectedPrediction.id,
+      predictionId,
     },
   });
 

@@ -104,13 +104,19 @@ export default function GroupDetailPage() {
 
   useEffect(() => {
     void loadGroup();
+    void loadMyPredictions();
   }, [params.groupId]);
 
   async function submitPrediction() {
+    if (!newPredictionId) { setError("Please select a prediction first."); return; }
     setError("");
     setSuccess("");
     setSubmitting(true);
-    const res = await fetch(`/api/groups/${params.groupId}/submit`, { method: "POST" });
+    const res = await fetch(`/api/groups/${params.groupId}/submit`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ predictionId: newPredictionId }),
+    });
     setSubmitting(false);
     if (!res.ok) {
       const data = await res.json().catch(() => null);
@@ -251,14 +257,33 @@ export default function GroupDetailPage() {
                 )}
               </div>
             ) : (
-              <button
-                onClick={() => void submitPrediction()}
-                disabled={submitting}
-                className="rounded-[1.3rem] px-5 py-4 text-sm font-extrabold uppercase tracking-[0.2em] text-white"
-                style={{ background: "linear-gradient(135deg, var(--accent), var(--accent-strong))" }}
-              >
-                {submitting ? "Submitting..." : "Submit selected prediction"}
-              </button>
+              <div className="space-y-3">
+                <p className="text-sm font-semibold">Submit your prediction</p>
+                {myPredictions.length === 0 ? (
+                  <p className="text-sm muted">You don't have any predictions yet. <Link href="/dashboard/predictions" className="underline">Create one first.</Link></p>
+                ) : (
+                  <div className="flex flex-wrap items-center gap-3">
+                    <select
+                      className="field"
+                      value={newPredictionId}
+                      onChange={(e) => setNewPredictionId(e.target.value)}
+                    >
+                      <option value="">Select a prediction…</option>
+                      {myPredictions.map((p) => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={() => void submitPrediction()}
+                      disabled={submitting || !newPredictionId}
+                      className="rounded-[1.3rem] px-5 py-4 text-sm font-extrabold uppercase tracking-[0.2em] text-white"
+                      style={{ background: "linear-gradient(135deg, var(--accent), var(--accent-strong))", opacity: !newPredictionId ? 0.5 : 1 }}
+                    >
+                      {submitting ? "Submitting…" : "Submit prediction"}
+                    </button>
+                  </div>
+                )}
+              </div>
             )}
 
             {!isOwner && group && (
