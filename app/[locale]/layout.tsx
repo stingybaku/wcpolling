@@ -5,6 +5,7 @@ import { getMessages } from "next-intl/server";
 import { notFound } from "next/navigation";
 import { routing } from "@/i18n/routing";
 import { ThemeInitializer } from "@/components/theme-toggle";
+import { SessionProvider } from "@/components/session-provider";
 import "../globals.css";
 
 const displayFont = Bebas_Neue({
@@ -42,8 +43,10 @@ export default async function LocaleLayout({
     <html lang={locale} suppressHydrationWarning>
       <body className={`${displayFont.variable} ${bodyFont.variable} app-body`}>
         <NextIntlClientProvider messages={messages}>
-          <ThemeInitializer />
-          {children}
+          <SessionProvider>
+            <ThemeInitializer />
+            {children}
+          </SessionProvider>
         </NextIntlClientProvider>
       </body>
     </html>
