@@ -40,6 +40,7 @@ type UserPrediction = { id: string; name: string };
 type LeaderboardRow = {
   userId: string;
   userName: string;
+  predictionId: string;
   predictionName: string;
   points: number;
   breakdown: Record<"MATCH" | "GROUP_STANDING" | "KNOCKOUT" | "TIEBREAKER", number>;
@@ -78,6 +79,7 @@ function buildLeaderboard(submissions: GroupDetail["submissions"]): LeaderboardR
       return {
         userId: sub.user.id,
         userName: sub.user.name ?? sub.user.email ?? "Unknown",
+        predictionId: sub.prediction.id,
         predictionName: sub.prediction.name,
         points: sub.scores.reduce((sum, s) => sum + s.points, 0),
         breakdown,
@@ -575,11 +577,21 @@ export default function GroupDetailPage() {
             {leaderboard.length > 0 ? leaderboard.map((row, idx) => (
               <div key={idx} className="rounded-[1.2rem] border px-4 py-3" style={{ borderColor: "var(--border)" }}>
                 <div className="flex items-center justify-between gap-3">
-                  <div>
+                  <div className="min-w-0">
                     <p className="font-semibold">{idx + 1}. {row.userName}</p>
-                    <p className="text-xs muted">{row.predictionName}</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <p className="text-xs muted truncate">{row.predictionName}</p>
+                      <button
+                        type="button"
+                        className="shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-bold"
+                        style={{ borderColor: "var(--border)", background: "var(--bg-strong)" }}
+                        onClick={() => setPreviewId(row.predictionId)}
+                      >
+                        Preview
+                      </button>
+                    </div>
                   </div>
-                  <span className="text-xl font-extrabold" style={{ color: "var(--accent-strong)" }}>{row.points}</span>
+                  <span className="text-xl font-extrabold shrink-0" style={{ color: "var(--accent-strong)" }}>{row.points}</span>
                 </div>
                 <div className="mt-3 grid grid-cols-2 gap-2 text-xs xl:grid-cols-4">
                   <div className="rounded-full px-3 py-2" style={{ background: "var(--bg-strong)" }}>Matches: <strong>{row.breakdown.MATCH}</strong></div>

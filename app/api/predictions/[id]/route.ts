@@ -25,8 +25,17 @@ export async function GET(_request: NextRequest, context: { params: Promise<{ id
     },
   });
 
-  if (!prediction || prediction.userId !== user.id) {
-    return forbidden("Prediction not found");
+  if (!prediction) return forbidden("Prediction not found");
+
+  if (prediction.userId !== user.id) {
+    // Allow access if the prediction is submitted to a group the requester belongs to
+    const sharedSubmission = await prisma.predictionSubmission.findFirst({
+      where: {
+        predictionId: id,
+        group: { memberships: { some: { userId: user.id } } },
+      },
+    });
+    if (!sharedSubmission) return forbidden("Prediction not found");
   }
 
   const [tournament, matches] = await Promise.all([
