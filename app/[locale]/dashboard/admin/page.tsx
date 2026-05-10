@@ -1,6 +1,8 @@
 "use client";
 
 import { ReactNode, useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import { Link } from "@/lib/navigation";
 
 type TournamentGroup = { id: string; name: string; sortOrder: number };
@@ -181,6 +183,16 @@ function CollapsibleSection({
 }
 
 export default function DashboardAdminPage() {
+  const { data: session, status } = useSession();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (status === "loading") return;
+    if ((session?.user as { role?: string } | undefined)?.role !== "ADMIN") {
+      router.replace("/dashboard");
+    }
+  }, [session, status, router]);
+
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [tournaments, setTournaments] = useState<TournamentListItem[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);

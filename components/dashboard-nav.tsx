@@ -22,10 +22,12 @@ export function DashboardNav({
   currentTournamentId,
   dailyTip,
   tournaments,
+  role,
 }: {
   currentTournamentId?: string | null;
   dailyTip: string;
   tournaments: TournamentOption[];
+  role?: string | null;
 }) {
   const t = useTranslations("nav");
   const pathname = usePathname();
@@ -34,6 +36,7 @@ export function DashboardNav({
     { href: "/dashboard" as const, label: t("dashboard") },
     { href: "/dashboard/groups" as const, label: t("groups") },
     { href: "/dashboard/predictions" as const, label: t("predictions") },
+    ...(role === "ADMIN" ? [{ href: "/dashboard/admin" as const, label: "Admin" }] : []),
   ];
 
   return (

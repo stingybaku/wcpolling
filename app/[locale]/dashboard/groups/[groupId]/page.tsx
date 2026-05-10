@@ -24,7 +24,7 @@ type GroupDetail = {
   description?: string;
   inviteCode: string;
   ownerId: string;
-  tournament?: { name: string } | null;
+  tournament?: { name: string; submissionDeadline?: string | null } | null;
   owner: { email?: string | null; name?: string | null };
   memberships: Array<{ user: { id: string; email?: string | null; name?: string | null } }>;
   submissions: Array<{
@@ -405,6 +405,7 @@ export default function GroupDetailPage() {
   const [leaving, setLeaving] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
   const [myPredictions, setMyPredictions] = useState<UserPrediction[]>([]);
   const [previewId, setPreviewId] = useState<string | null>(null);
 
@@ -495,11 +496,23 @@ export default function GroupDetailPage() {
     router.push("/dashboard/groups");
   }
 
+  const deadline = group?.tournament?.submissionDeadline ? new Date(group.tournament.submissionDeadline) : null;
+  const deadlinePassed = deadline ? new Date() > deadline : false;
+  const deadlineSoon = !deadlinePassed && deadline ? deadline.getTime() - Date.now() < 48 * 60 * 60 * 1000 : false;
+
   function copyInviteCode() {
     if (!group?.inviteCode) return;
     void navigator.clipboard.writeText(group.inviteCode);
     setCopiedCode(true);
     setTimeout(() => setCopiedCode(false), 2000);
+  }
+
+  function copyInviteLink() {
+    if (!group?.inviteCode) return;
+    const base = window.location.href.split("/dashboard")[0];
+    void navigator.clipboard.writeText(`${base}/dashboard/groups?code=${group.inviteCode}`);
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 2000);
   }
 
   return (
@@ -519,12 +532,27 @@ export default function GroupDetailPage() {
             <p className="text-xs font-semibold uppercase tracking-[0.34em]" style={{ color: "var(--accent-strong)" }}>Group room</p>
             <h2 className="display-title mt-3 text-5xl leading-none md:text-7xl">{group?.name ?? "Loading"}</h2>
             <p className="mt-4 text-base muted">Tournament: {group?.tournament?.name ?? "-"}</p>
-            <div className="mt-2 flex items-center gap-3">
+            {deadline && (
+              <div className="mt-2 inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold"
+                style={{
+                  background: deadlinePassed ? "color-mix(in srgb, var(--danger) 12%, transparent)" : deadlineSoon ? "color-mix(in srgb, #f59e0b 14%, transparent)" : "var(--accent-soft)",
+                  color: deadlinePassed ? "var(--danger)" : deadlineSoon ? "#b45309" : "var(--accent-strong)",
+                }}>
+                {deadlinePassed ? "⏰ Submissions closed" : "⏰ Deadline: "}
+                {!deadlinePassed && <span className="font-bold">{deadline.toLocaleDateString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>}
+              </div>
+            )}
+            <div className="mt-2 flex flex-wrap items-center gap-2">
               <p className="text-base muted">Invite code: <span className="font-bold">{group?.inviteCode ?? "-"}</span></p>
               {group?.inviteCode && (
-                <button type="button" onClick={copyInviteCode} className="rounded-full border px-3 py-1 text-xs font-bold" style={{ borderColor: "var(--border)", background: "var(--bg-strong)" }}>
-                  {copiedCode ? "Copied!" : "Copy"}
-                </button>
+                <>
+                  <button type="button" onClick={copyInviteCode} className="rounded-full border px-3 py-1 text-xs font-bold" style={{ borderColor: "var(--border)", background: "var(--bg-strong)" }}>
+                    {copiedCode ? "Copied!" : "Copy code"}
+                  </button>
+                  <button type="button" onClick={copyInviteLink} className="rounded-full border px-3 py-1 text-xs font-bold" style={{ borderColor: "var(--border)", background: "var(--bg-strong)" }}>
+                    {copiedLink ? "Link copied!" : "Copy invite link"}
+                  </button>
+                </>
               )}
             </div>
           </div>
@@ -614,7 +642,7 @@ export default function GroupDetailPage() {
               {mySubmission ? mySubmission.prediction.name : "Not submitted yet"}
             </h3>
           </div>
-          {mySubmission && (
+          {mySubmission && !deadlinePassed && (
             <button
               type="button"
               className="rounded-full border px-4 py-2 text-sm font-bold uppercase tracking-[0.2em]"
@@ -686,50 +714,59 @@ export default function GroupDetailPage() {
         {/* No submission yet */}
         {!mySubmission && (
           <>
-            <p className="text-sm muted mb-5">You haven't submitted a prediction for this group yet.</p>
-            {myPredictions.length === 0 ? (
-              <div className="rounded-[1.4rem] border p-6 text-center" style={{ borderColor: "var(--border)" }}>
-                <p className="font-semibold mb-2">No predictions yet</p>
-                <p className="text-sm muted mb-4">Create a prediction first, then come back to submit it here.</p>
-                <Link
-                  href="/dashboard/predictions"
-                  className="inline-block rounded-[1.2rem] px-5 py-3 text-sm font-extrabold uppercase tracking-[0.2em] text-white"
-                  style={{ background: "linear-gradient(135deg, var(--accent), var(--accent-strong))" }}
-                >
-                  Create a prediction
-                </Link>
+            {deadlinePassed ? (
+              <div className="rounded-[1.4rem] border p-5 text-center" style={{ borderColor: "var(--danger)", background: "color-mix(in srgb, var(--danger) 8%, transparent)" }}>
+                <p className="font-semibold" style={{ color: "var(--danger)" }}>Submissions are closed</p>
+                <p className="mt-1 text-sm muted">The deadline for this group has passed. No prediction was submitted.</p>
               </div>
             ) : (
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {myPredictions.map((p) => (
-                  <div
-                    key={p.id}
-                    className="rounded-[1.3rem] border p-4 flex flex-col gap-3"
-                    style={{ borderColor: "var(--border)" }}
-                  >
-                    <p className="font-bold text-sm">{p.name}</p>
-                    <div className="flex gap-2 mt-auto">
-                      <button
-                        type="button"
-                        className="rounded-full border px-3 py-1.5 text-xs font-bold flex-1"
-                        style={{ borderColor: "var(--border)", background: "var(--bg-strong)" }}
-                        onClick={() => setPreviewId(p.id)}
-                      >
-                        Preview
-                      </button>
-                      <button
-                        type="button"
-                        className="rounded-full px-3 py-1.5 text-xs font-extrabold flex-1 text-white"
-                        style={{ background: "linear-gradient(135deg, var(--accent), var(--accent-strong))", opacity: submitting === p.id ? 0.7 : 1 }}
-                        disabled={submitting !== null}
-                        onClick={() => void submitPrediction(p.id)}
-                      >
-                        {submitting === p.id ? "Submitting…" : "Submit"}
-                      </button>
-                    </div>
+              <>
+                <p className="text-sm muted mb-5">You haven't submitted a prediction for this group yet.</p>
+                {myPredictions.length === 0 ? (
+                  <div className="rounded-[1.4rem] border p-6 text-center" style={{ borderColor: "var(--border)" }}>
+                    <p className="font-semibold mb-2">No predictions yet</p>
+                    <p className="text-sm muted mb-4">Create a prediction first, then come back to submit it here.</p>
+                    <Link
+                      href="/dashboard/predictions"
+                      className="inline-block rounded-[1.2rem] px-5 py-3 text-sm font-extrabold uppercase tracking-[0.2em] text-white"
+                      style={{ background: "linear-gradient(135deg, var(--accent), var(--accent-strong))" }}
+                    >
+                      Create a prediction
+                    </Link>
                   </div>
-                ))}
-              </div>
+                ) : (
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {myPredictions.map((p) => (
+                      <div
+                        key={p.id}
+                        className="rounded-[1.3rem] border p-4 flex flex-col gap-3"
+                        style={{ borderColor: "var(--border)" }}
+                      >
+                        <p className="font-bold text-sm">{p.name}</p>
+                        <div className="flex gap-2 mt-auto">
+                          <button
+                            type="button"
+                            className="rounded-full border px-3 py-1.5 text-xs font-bold flex-1"
+                            style={{ borderColor: "var(--border)", background: "var(--bg-strong)" }}
+                            onClick={() => setPreviewId(p.id)}
+                          >
+                            Preview
+                          </button>
+                          <button
+                            type="button"
+                            className="rounded-full px-3 py-1.5 text-xs font-extrabold flex-1 text-white"
+                            style={{ background: "linear-gradient(135deg, var(--accent), var(--accent-strong))", opacity: submitting === p.id ? 0.7 : 1 }}
+                            disabled={submitting !== null}
+                            onClick={() => void submitPrediction(p.id)}
+                          >
+                            {submitting === p.id ? "Submitting…" : "Submit"}
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
             )}
           </>
         )}

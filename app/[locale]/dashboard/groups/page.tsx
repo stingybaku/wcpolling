@@ -25,7 +25,7 @@ function GroupsPageInner() {
   const [error, setError] = useState<string>(redirectError === "not-member" ? t("notMember") : "");
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [inviteCode, setInviteCode] = useState("");
+  const [inviteCode, setInviteCode] = useState(searchParams.get("code") ?? "");
   const [loading, setLoading] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 

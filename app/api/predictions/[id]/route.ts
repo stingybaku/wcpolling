@@ -86,12 +86,22 @@ export async function PUT(request: NextRequest, context: { params: Promise<{ id:
   const prediction = await prisma.prediction.findUnique({
     where: { id },
     include: {
-      submissions: true,
+      submissions: {
+        include: { group: { include: { tournament: { select: { submissionDeadline: true } } } } },
+      },
     },
   });
 
   if (!prediction || prediction.userId !== user.id) {
     return forbidden("Prediction not found");
+  }
+
+  // Block edits if the prediction is submitted to any group whose deadline has passed
+  for (const sub of prediction.submissions) {
+    const dl = sub.group?.tournament?.submissionDeadline;
+    if (dl && new Date() > dl) {
+      return badRequest("The submission deadline has passed — this prediction can no longer be edited.");
+    }
   }
 
   const body = await request.json();
