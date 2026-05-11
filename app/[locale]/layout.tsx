@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Bebas_Neue, Manrope } from "next/font/google";
+import { Inter, JetBrains_Mono, Manrope } from "next/font/google";
 import { NextIntlClientProvider } from "next-intl";
 import { getMessages } from "next-intl/server";
 import { notFound } from "next/navigation";
@@ -8,15 +8,28 @@ import { ThemeInitializer } from "@/components/theme-toggle";
 import { SessionProvider } from "@/components/session-provider";
 import "../globals.css";
 
-const displayFont = Bebas_Neue({
+// Manrope — display / headlines / KPI numbers
+const displayFont = Manrope({
   variable: "--font-display",
-  weight: "400",
+  weight: ["500", "600", "700", "800"],
   subsets: ["latin"],
+  display: "swap",
 });
 
-const bodyFont = Manrope({
+// Inter — body copy / UI labels
+const bodyFont = Inter({
   variable: "--font-body",
+  weight: ["400", "500", "600", "700"],
   subsets: ["latin"],
+  display: "swap",
+});
+
+// JetBrains Mono — scores, points, codes, eyebrows
+const monoFont = JetBrains_Mono({
+  variable: "--font-mono",
+  weight: ["500", "700"],
+  subsets: ["latin"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -41,7 +54,7 @@ export default async function LocaleLayout({
 
   return (
     <html lang={locale} suppressHydrationWarning>
-      <body className={`${displayFont.variable} ${bodyFont.variable} app-body`}>
+      <body className={`${displayFont.variable} ${bodyFont.variable} ${monoFont.variable} app-body`}>
         <NextIntlClientProvider messages={messages}>
           <SessionProvider>
             <ThemeInitializer />
