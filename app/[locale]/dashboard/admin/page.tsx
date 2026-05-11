@@ -1004,22 +1004,44 @@ export default function DashboardAdminPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <section className="hero-surface rounded-[2rem] border px-5 py-6 md:px-8 md:py-8" style={{ borderColor: "var(--border)" }}>
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div className="max-w-3xl">
-            <p className="text-xs font-semibold uppercase tracking-[0.34em]" style={{ color: "var(--accent-strong)" }}>Admin</p>
-            <h2 className="display-title mt-3 text-5xl leading-none md:text-7xl">Control room.</h2>
-            <p className="mt-4 max-w-2xl text-base leading-7 muted">Manage tournaments, configure brackets, and control who has admin access. The selected tournament in this page drives the builder below.</p>
-          </div>
-          <div className="flex flex-wrap gap-3">
-            <button className="surface rounded-[1.4rem] px-5 py-4 text-sm font-bold uppercase tracking-[0.2em]" onClick={startNewTournament} type="button">
-              New tournament
-            </button>
-            <Link href="/dashboard" className="surface rounded-[1.4rem] px-5 py-4 text-sm font-bold uppercase tracking-[0.2em]">Back</Link>
-          </div>
+    <div className="-mx-4 -mt-5 md:-mx-6 lg:-mx-8">
+      {/* Operator chrome header */}
+      <div
+        className="row pad-4"
+        style={{
+          alignItems: "center",
+          justifyContent: "space-between",
+          background: "var(--ink)",
+          color: "#fff",
+          borderBottom: "1px solid #1f2937",
+        }}
+      >
+        <div className="row gap-3" style={{ alignItems: "center" }}>
+          <span className="chip" style={{ background: "var(--gold)", color: "#0c1118", fontWeight: 800, letterSpacing: "0.12em" }}>
+            ADMIN
+          </span>
+          <span className="bold text-md" style={{ color: "#fff" }}>Control Room</span>
+          <span className="text-xs mono" style={{ color: "#94a3b8", letterSpacing: "0.16em" }}>· Tournament management &amp; configuration</span>
         </div>
-      </section>
+        <div className="row gap-3" style={{ alignItems: "center" }}>
+          <button
+            className="btn btn-sm btn-accent"
+            onClick={startNewTournament}
+            type="button"
+          >
+            New tournament
+          </button>
+          <Link
+            href="/dashboard"
+            className="btn btn-sm"
+            style={{ background: "transparent", borderColor: "#334155", color: "#94a3b8" }}
+          >
+            ← Dashboard
+          </Link>
+        </div>
+      </div>
+
+      <div className="space-y-6" style={{ padding: "24px" }}>
 
       {message ? <div className="rounded-[1.5rem] border px-4 py-3 text-sm" style={{ borderColor: "var(--accent)", color: "var(--accent-strong)", background: "var(--accent-soft)" }}>{message}</div> : null}
       {error ? <div className="rounded-[1.5rem] border px-4 py-3 text-sm" style={{ borderColor: "var(--danger)", color: "var(--danger)" }}>{error}</div> : null}
@@ -1933,6 +1955,7 @@ export default function DashboardAdminPage() {
           </div>
         </div>
       ) : null}
+    </div>
     </div>
   );
 }

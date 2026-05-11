@@ -253,23 +253,30 @@ export default function TournamentManager({ tournamentId }: { tournamentId: stri
     const groups = tournament?.groups ?? [];
     return (
       <div>
-        <h2 className="text-xl font-bold mb-1">Group Stage Standings</h2>
-        <p className="text-sm muted mb-6">Drag teams within each group to set the final standings, then click Finalize.</p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+        <h3 className="display text-xl" style={{ margin: "0 0 4px" }}>Group Stage Standings</h3>
+        <p className="text-sm muted" style={{ marginBottom: 20 }}>Drag teams within each group to set the final standings, then click Finalize.</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" style={{ marginBottom: 24 }}>
           {groups.map((group) => {
             const teamIds = groupStandings[group.id] ?? group.teams.map((t) => t.team.id);
             return (
-              <div key={group.id} className="card p-4">
-                <div className="font-bold mb-3">Group {group.name}</div>
-                <ol className="space-y-1">
+              <div key={group.id} className="surface" style={{ padding: 16 }}>
+                <div className="bold" style={{ marginBottom: 10 }}>Group {group.name}</div>
+                <ol className="col gap-1">
                   {teamIds.map((teamId, idx) => {
                     const team = allTeamsById.get(teamId);
                     if (!team) return null;
                     return (
                       <li
                         key={teamId}
-                        className="flex items-center gap-2 p-2 rounded cursor-grab active:cursor-grabbing"
-                        style={{ background: "var(--card-bg)", border: "1px solid var(--border)" }}
+                        className="row gap-2"
+                        style={{
+                          alignItems: "center",
+                          padding: "7px 8px",
+                          background: "var(--bg)",
+                          border: "1px solid var(--border)",
+                          borderRadius: 6,
+                          cursor: "grab",
+                        }}
                         draggable
                         onDragStart={() => { dragGroupRef.current = { groupId: group.id, fromIdx: idx }; }}
                         onDragOver={(e) => e.preventDefault()}
@@ -280,12 +287,12 @@ export default function TournamentManager({ tournamentId }: { tournamentId: stri
                           dragGroupRef.current = null;
                         }}
                       >
-                        <span className="text-xs muted w-4">{idx + 1}.</span>
-                        <span className="text-base">{flagEmoji(team.fifaCode)}</span>
-                        <span className="text-sm font-medium flex-1">{team.name}</span>
-                        <span className="flex gap-1">
-                          <button className="btn-ghost px-1 py-0 text-xs" disabled={idx === 0} onClick={() => moveGroupTeam(group.id, idx, idx - 1)}>↑</button>
-                          <button className="btn-ghost px-1 py-0 text-xs" disabled={idx === teamIds.length - 1} onClick={() => moveGroupTeam(group.id, idx, idx + 1)}>↓</button>
+                        <span className="text-xs mono muted" style={{ width: 16 }}>{idx + 1}.</span>
+                        <span>{flagEmoji(team.fifaCode)}</span>
+                        <span className="text-sm bold" style={{ flex: 1 }}>{team.name}</span>
+                        <span className="row gap-1">
+                          <button className="btn btn-ghost btn-sm" disabled={idx === 0} style={{ padding: "2px 6px" }} onClick={() => moveGroupTeam(group.id, idx, idx - 1)}>↑</button>
+                          <button className="btn btn-ghost btn-sm" disabled={idx === teamIds.length - 1} style={{ padding: "2px 6px" }} onClick={() => moveGroupTeam(group.id, idx, idx + 1)}>↓</button>
                         </span>
                       </li>
                     );
@@ -295,9 +302,7 @@ export default function TournamentManager({ tournamentId }: { tournamentId: stri
             );
           })}
         </div>
-        {saveError && <p className="text-sm text-red-500 mb-3">{saveError}</p>}
-        {saveSuccess && <p className="text-sm text-green-500 mb-3">{saveSuccess}</p>}
-        <button className="btn-primary" disabled={saving} onClick={saveGroupStandings}>
+        <button className="btn btn-accent" disabled={saving} onClick={saveGroupStandings}>
           {saving ? "Saving…" : "Finalize Group Stage & Advance →"}
         </button>
       </div>
@@ -322,21 +327,29 @@ export default function TournamentManager({ tournamentId }: { tournamentId: stri
 
     return (
       <div>
-        <h2 className="text-xl font-bold mb-1">Best Third-Place Teams</h2>
-        <p className="text-sm muted mb-6">Rank all {candidates.length} third-place teams. The top {THIRD_PLACE_MATCH_SLOTS.length} qualify for the Round of 32.</p>
-        <div className="card p-4 max-w-md mb-8">
-          <ol className="space-y-1">
+        <h3 className="display text-xl" style={{ margin: "0 0 4px" }}>Best Third-Place Teams</h3>
+        <p className="text-sm muted" style={{ marginBottom: 20 }}>Rank all {candidates.length} third-place teams. The top {THIRD_PLACE_MATCH_SLOTS.length} qualify for the Round of 32.</p>
+        <div className="surface" style={{ padding: 16, maxWidth: 480, marginBottom: 24 }}>
+          <ol className="col gap-1">
             {thirdPlaceRanking.map((teamId, idx) => {
               const team = allTeamsById.get(teamId);
               if (!team) return null;
               const slot = scenario && idx < THIRD_PLACE_MATCH_SLOTS.length
                 ? (scenario as Record<string, string>)[THIRD_PLACE_MATCH_SLOTS[idx]] ?? null
                 : null;
+              const qualifies = idx < THIRD_PLACE_MATCH_SLOTS.length;
               return (
                 <li
                   key={teamId}
-                  className="flex items-center gap-2 p-2 rounded cursor-grab active:cursor-grabbing"
-                  style={{ background: "var(--card-bg)", border: "1px solid var(--border)" }}
+                  className="row gap-2"
+                  style={{
+                    alignItems: "center",
+                    padding: "7px 8px",
+                    background: qualifies ? "var(--accent-soft)" : "var(--bg)",
+                    border: `1px solid ${qualifies ? "var(--accent)" : "var(--border)"}`,
+                    borderRadius: 6,
+                    cursor: "grab",
+                  }}
                   draggable
                   onDragStart={() => { dragThirdRef.current = idx; }}
                   onDragOver={(e) => e.preventDefault()}
@@ -345,24 +358,23 @@ export default function TournamentManager({ tournamentId }: { tournamentId: stri
                     dragThirdRef.current = null;
                   }}
                 >
-                  <span className="text-xs muted w-5">{idx + 1}.</span>
-                  <span className="text-base">{flagEmoji(team.fifaCode)}</span>
-                  <span className="text-sm font-medium flex-1">{team.name}</span>
-                  {idx < THIRD_PLACE_MATCH_SLOTS.length
-                    ? <span className="text-xs muted">→ slot {slot ?? "?"}</span>
-                    : <span className="text-xs muted line-through">eliminated</span>}
-                  <span className="flex gap-1">
-                    <button className="btn-ghost px-1 py-0 text-xs" disabled={idx === 0} onClick={() => moveThirdPlace(idx, idx - 1)}>↑</button>
-                    <button className="btn-ghost px-1 py-0 text-xs" disabled={idx === thirdPlaceRanking.length - 1} onClick={() => moveThirdPlace(idx, idx + 1)}>↓</button>
+                  <span className="text-xs mono muted" style={{ width: 20 }}>{idx + 1}.</span>
+                  <span>{flagEmoji(team.fifaCode)}</span>
+                  <span className="text-sm bold" style={{ flex: 1 }}>{team.name}</span>
+                  {qualifies
+                    ? <span className="text-xs mono" style={{ color: "var(--accent-strong)" }}>→ slot {slot ?? "?"}</span>
+                    : <span className="text-xs muted" style={{ textDecoration: "line-through" }}>eliminated</span>
+                  }
+                  <span className="row gap-1">
+                    <button className="btn btn-ghost btn-sm" disabled={idx === 0} style={{ padding: "2px 6px" }} onClick={() => moveThirdPlace(idx, idx - 1)}>↑</button>
+                    <button className="btn btn-ghost btn-sm" disabled={idx === thirdPlaceRanking.length - 1} style={{ padding: "2px 6px" }} onClick={() => moveThirdPlace(idx, idx + 1)}>↓</button>
                   </span>
                 </li>
               );
             })}
           </ol>
         </div>
-        {saveError && <p className="text-sm text-red-500 mb-3">{saveError}</p>}
-        {saveSuccess && <p className="text-sm text-green-500 mb-3">{saveSuccess}</p>}
-        <button className="btn-primary" disabled={saving} onClick={saveThirdPlace}>
+        <button className="btn btn-accent" disabled={saving} onClick={saveThirdPlace}>
           {saving ? "Saving…" : "Finalize Third-Place Rankings & Advance →"}
         </button>
       </div>
@@ -374,9 +386,12 @@ export default function TournamentManager({ tournamentId }: { tournamentId: stri
     const allDone = currentPhaseMatches.every((m) => m.status === "FINISHED");
     return (
       <div>
-        <h2 className="text-xl font-bold mb-1">{currentPhase.name}</h2>
-        <p className="text-sm muted mb-6">Enter the final score for each match and save individually. All results trigger bracket resolution and score recalculation.</p>
-        <div className="space-y-4 mb-8">
+        <h3 className="display text-xl" style={{ margin: "0 0 4px" }}>{currentPhase.name}</h3>
+        <p className="text-sm muted" style={{ marginBottom: 20 }}>Enter the final score for each match and save individually. Results trigger bracket resolution and score recalculation.</p>
+        <div
+          className="grid gap-4"
+          style={{ gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))", marginBottom: 24 }}
+        >
           {currentPhaseMatches.map((match) => {
             const home = match.homeTeam;
             const away = match.awayTeam;
@@ -385,50 +400,70 @@ export default function TournamentManager({ tournamentId }: { tournamentId: stri
             return (
               <div
                 key={match.id}
-                className="card p-4 flex flex-col sm:flex-row sm:items-center gap-4"
-                style={{ opacity: finished && !saving ? 0.85 : 1 }}
+                className="surface"
+                style={{ padding: 16, opacity: finished && !saving ? 0.88 : 1 }}
               >
-                <div className="flex-1 font-medium text-sm">
-                  {home ? <>{flagEmoji(home.fifaCode)} {home.name}</> : <span className="muted">TBD</span>}
-                  <span className="mx-2 muted">vs</span>
-                  {away ? <>{flagEmoji(away.fifaCode)} {away.name}</> : <span className="muted">TBD</span>}
+                {/* Match label */}
+                <div className="row" style={{ justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                  <span className="text-xs mono muted" style={{ letterSpacing: "0.14em" }}>
+                    {match.group ? `${match.group.name} · ` : ""}{match.label ?? currentPhase.name}
+                  </span>
+                  {finished && (
+                    <span className="chip chip-accent" style={{ fontSize: 9 }}>✓ Scored</span>
+                  )}
                 </div>
-                <div className="flex items-center gap-2">
-                  <input
-                    className="field w-16 text-center"
-                    min={0}
-                    placeholder="0"
-                    type="number"
-                    value={s.home}
-                    onChange={(e) => setScores((prev) => ({ ...prev, [match.id]: { ...s, home: e.target.value } }))}
-                  />
-                  <span className="muted font-bold">–</span>
-                  <input
-                    className="field w-16 text-center"
-                    min={0}
-                    placeholder="0"
-                    type="number"
-                    value={s.away}
-                    onChange={(e) => setScores((prev) => ({ ...prev, [match.id]: { ...s, away: e.target.value } }))}
-                  />
+
+                {/* Teams + score inputs */}
+                <div className="row gap-3" style={{ alignItems: "center" }}>
+                  <div className="row gap-2" style={{ alignItems: "center", flex: 1 }}>
+                    <span>{home ? flagEmoji(home.fifaCode) : "🏳"}</span>
+                    <span className="bold text-sm">{home?.name ?? groupLabel(match).split(" vs ")[0]}</span>
+                  </div>
+                  <div className="row gap-2" style={{ alignItems: "center" }}>
+                    <input
+                      className="field mono tabnum"
+                      type="number"
+                      min={0}
+                      placeholder="0"
+                      value={s.home}
+                      style={{ width: 52, fontSize: 22, fontWeight: 800, padding: "6px 8px", textAlign: "center" }}
+                      onChange={(e) => setScores((prev) => ({ ...prev, [match.id]: { ...s, home: e.target.value } }))}
+                    />
+                    <span className="muted-2 text-xl bold">—</span>
+                    <input
+                      className="field mono tabnum"
+                      type="number"
+                      min={0}
+                      placeholder="0"
+                      value={s.away}
+                      style={{ width: 52, fontSize: 22, fontWeight: 800, padding: "6px 8px", textAlign: "center" }}
+                      onChange={(e) => setScores((prev) => ({ ...prev, [match.id]: { ...s, away: e.target.value } }))}
+                    />
+                  </div>
+                  <div className="row gap-2" style={{ alignItems: "center", flex: 1, justifyContent: "flex-end" }}>
+                    <span className="bold text-sm">{away?.name ?? groupLabel(match).split(" vs ")[1]}</span>
+                    <span>{away ? flagEmoji(away.fifaCode) : "🏳"}</span>
+                  </div>
+                </div>
+
+                {/* Save button */}
+                <div className="row gap-2" style={{ marginTop: 12, paddingTop: 10, borderTop: "1px dashed var(--border)" }}>
                   <button
-                    className={finished ? "btn-secondary text-xs" : "btn-primary text-xs"}
-                    disabled={saving || !home || !away}
+                    className={finished ? "btn btn-sm" : "btn btn-sm btn-accent"}
+                    disabled={saving || (!home && !away)}
                     onClick={() => saveMatchResult(match.id)}
                   >
-                    {finished ? "Update" : "Save"}
+                    {saving ? "Saving…" : finished ? "Update result" : "Save result"}
                   </button>
-                  {finished && <span className="text-xs text-green-500">✓</span>}
                 </div>
               </div>
             );
           })}
         </div>
-        {saveError && <p className="text-sm text-red-500 mb-3">{saveError}</p>}
-        {saveSuccess && <p className="text-sm text-green-500 mb-3">{saveSuccess}</p>}
+
         {step < totalSteps - 1 && (
           <button
-            className="btn-primary"
+            className="btn btn-accent"
             disabled={!allDone}
             title={!allDone ? "Record all match results first" : undefined}
             onClick={advancePhase}
@@ -437,7 +472,9 @@ export default function TournamentManager({ tournamentId }: { tournamentId: stri
           </button>
         )}
         {step === totalSteps - 1 && allDone && (
-          <p className="text-sm text-green-500 font-semibold mt-4">🏆 Tournament complete! All results recorded.</p>
+          <p className="bold" style={{ color: "var(--accent-strong)", marginTop: 16 }}>
+            Tournament complete — all results recorded.
+          </p>
         )}
       </div>
     );
@@ -447,7 +484,7 @@ export default function TournamentManager({ tournamentId }: { tournamentId: stri
 
   if (loading) {
     return (
-      <div className="container py-8">
+      <div style={{ padding: 40 }}>
         <p className="muted">Loading tournament state…</p>
       </div>
     );
@@ -455,9 +492,9 @@ export default function TournamentManager({ tournamentId }: { tournamentId: stri
 
   if (!tournament) {
     return (
-      <div className="container py-8">
+      <div style={{ padding: 40 }}>
         <p className="muted">Tournament not found.</p>
-        <Link className="btn-secondary mt-4 inline-block" href="/dashboard/admin">← Back to Admin</Link>
+        <Link className="btn btn-sm" href="/dashboard/admin" style={{ marginTop: 16, display: "inline-flex" }}>← Back to Admin</Link>
       </div>
     );
   }
@@ -465,28 +502,75 @@ export default function TournamentManager({ tournamentId }: { tournamentId: stri
   const stepLabels = ["Groups", "3rd Place", ...knockoutPhases.map((p) => p.name)];
 
   return (
-    <div className="container py-8">
-      <div className="flex items-center gap-4 mb-6">
-        <Link className="btn-secondary text-sm" href="/dashboard/admin">← Admin</Link>
-        <h1 className="text-2xl font-bold">{tournament.name} — Manage Results</h1>
+    <div className="-mx-4 -mt-5 md:-mx-6 lg:-mx-8">
+      {/* Operator chrome */}
+      <div
+        className="row pad-4"
+        style={{
+          alignItems: "center",
+          justifyContent: "space-between",
+          background: "var(--ink)",
+          color: "#fff",
+          borderBottom: "1px solid #1f2937",
+        }}
+      >
+        <div className="row gap-3" style={{ alignItems: "center" }}>
+          <span className="chip" style={{ background: "var(--gold)", color: "#0c1118", fontWeight: 800, letterSpacing: "0.12em" }}>
+            ADMIN
+          </span>
+          <span className="bold text-md" style={{ color: "#fff" }}>Match Center</span>
+          <span className="text-xs mono" style={{ color: "#94a3b8", letterSpacing: "0.16em" }}>· {tournament.name}</span>
+        </div>
+        <div className="row gap-3" style={{ alignItems: "center" }}>
+          <Link
+            href="/dashboard/admin"
+            className="btn btn-sm"
+            style={{ background: "transparent", borderColor: "#334155", color: "#94a3b8" }}
+          >
+            ← Admin
+          </Link>
+        </div>
       </div>
 
-      {/* Step tabs */}
-      <div className="flex gap-2 flex-wrap mb-8">
+      {/* Sub-nav (step tabs) */}
+      <div className="row" style={{ borderBottom: "1px solid var(--border)", background: "var(--paper)", overflowX: "auto" }}>
         {stepLabels.map((label, i) => (
           <button
             key={i}
-            className={i === step ? "btn-primary text-sm" : "btn-secondary text-sm"}
+            className="btn btn-ghost"
+            style={{
+              borderRadius: 0,
+              borderBottom: i === step ? "2px solid var(--ink)" : "2px solid transparent",
+              padding: "12px 18px",
+              fontWeight: i === step ? 800 : 500,
+              flexShrink: 0,
+            }}
             onClick={() => setStep(i)}
           >
-            {i < step ? "✓ " : ""}{label}
+            {i < step ? <span style={{ color: "var(--accent-strong)" }}>✓ </span> : null}
+            {label}
           </button>
         ))}
       </div>
 
-      {step === 0 && GroupStep()}
-      {step === 1 && ThirdPlaceStep()}
-      {step >= 2 && KnockoutStep()}
+      {/* Status messages */}
+      {saveError ? (
+        <div className="row gap-2 pad-3" style={{ background: "var(--live-soft)", borderBottom: "1px solid var(--live)", color: "var(--live)" }}>
+          <span className="text-sm">{saveError}</span>
+        </div>
+      ) : null}
+      {saveSuccess ? (
+        <div className="row gap-2 pad-3" style={{ background: "var(--accent-soft)", borderBottom: "1px solid var(--accent)", color: "var(--accent-strong)" }}>
+          <span className="text-sm">{saveSuccess}</span>
+        </div>
+      ) : null}
+
+      {/* Step content */}
+      <div style={{ padding: "24px" }}>
+        {step === 0 && GroupStep()}
+        {step === 1 && ThirdPlaceStep()}
+        {step >= 2 && KnockoutStep()}
+      </div>
     </div>
   );
 }
