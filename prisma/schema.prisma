@@ -286,7 +286,7 @@ model Match {
 model TieBreakerQuestion {
   id           String          @id @default(cuid())
   tournamentId String
-  prompt       String
+  prompt       Json
   type         TieBreakerType  @default(NUMBER)
   correctAnswer String?
   sortOrder    Int             @default(0)

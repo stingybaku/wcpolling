@@ -11,7 +11,7 @@ async function requireAdmin() {
 
 type GroupInput = { name: string; sortOrder?: number };
 type PhaseInput = { name: string; slug: string; sortOrder?: number; isKnockout?: boolean; teamCount?: number | null };
-type TieBreakerInput = { prompt: string; sortOrder?: number; type?: "NUMBER" | "TEXT" };
+type TieBreakerInput = { prompt: Record<string, string>; sortOrder?: number; type?: "NUMBER" | "TEXT" };
 type TagInput = { name: string };
 
 function slugify(value: string) {
@@ -108,14 +108,22 @@ export async function POST(request: NextRequest) {
       .filter((phase) => phase.name && phase.slug);
 
     const normalizedTieBreakers = tieBreakers
-      .map((question, index) => ({
-        id: question.id ? String(question.id) : undefined,
-        prompt: String(question.prompt ?? "").trim(),
-        sortOrder: Number(question.sortOrder ?? index),
-        type: (question.type === "TEXT" ? "TEXT" : "NUMBER") as "TEXT" | "NUMBER",
-        correctAnswer: question.correctAnswer == null ? null : String(question.correctAnswer),
-      }))
-      .filter((question) => question.prompt);
+      .map((question, index) => {
+        const prompt: Record<string, string> =
+          question.prompt && typeof question.prompt === "object"
+            ? Object.fromEntries(
+                Object.entries(question.prompt).map(([k, v]) => [k, String(v ?? "").trim()])
+              )
+            : { en: "" };
+        return {
+          id: question.id ? String(question.id) : undefined,
+          prompt,
+          sortOrder: Number(question.sortOrder ?? index),
+          type: (question.type === "TEXT" ? "TEXT" : "NUMBER") as "TEXT" | "NUMBER",
+          correctAnswer: question.correctAnswer == null ? null : String(question.correctAnswer),
+        };
+      })
+      .filter((question) => Object.values(question.prompt).some((v) => v));
 
     const normalizedTags = Array.from(
       new Map(
@@ -230,7 +238,7 @@ export async function POST(request: NextRequest) {
         await prisma.tieBreakerQuestion.update({
           where: { id: question.id },
           data: {
-            prompt: question.prompt,
+            prompt: question.prompt as Record<string, string>,
             sortOrder: question.sortOrder,
             type: question.type,
             correctAnswer: question.correctAnswer,
@@ -240,7 +248,7 @@ export async function POST(request: NextRequest) {
         await prisma.tieBreakerQuestion.create({
           data: {
             tournamentId: targetTournament.id,
-            prompt: question.prompt,
+            prompt: question.prompt as Record<string, string>,
             sortOrder: question.sortOrder,
             type: question.type,
             correctAnswer: question.correctAnswer,

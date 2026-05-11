@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { Link } from "@/lib/navigation";
 import { flagEmoji } from "@/lib/fifa-flags";
 import {
@@ -42,7 +42,7 @@ type PredictionData = {
   }[];
 };
 
-type TieBreakerQuestion = { id: string; prompt: string; type: "NUMBER" | "TEXT"; sortOrder: number };
+type TieBreakerQuestion = { id: string; prompt: Record<string, string>; type: "NUMBER" | "TEXT"; sortOrder: number };
 
 type ViewData = {
   prediction: PredictionData;
@@ -152,6 +152,7 @@ function BracketCard({
 
 export default function PredictionView() {
   const t = useTranslations("predictions");
+  const locale = useLocale();
   const params = useParams();
   const id = typeof params.id === "string" ? params.id : Array.isArray(params.id) ? params.id[0] : "";
 
@@ -483,7 +484,7 @@ export default function PredictionView() {
                   className="flex items-center justify-between gap-4 py-3"
                   style={{ borderTop: i > 0 ? "1px solid var(--border)" : undefined }}
                 >
-                  <span className="text-sm">{q.prompt}</span>
+                  <span className="text-sm">{q.prompt[locale] ?? q.prompt["en"] ?? Object.values(q.prompt)[0] ?? ""}</span>
                   <span
                     className="shrink-0 rounded-full px-3 py-1 text-sm font-bold"
                     style={{

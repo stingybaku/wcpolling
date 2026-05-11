@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { Link } from "@/lib/navigation";
 import { flagEmoji } from "@/lib/fifa-flags";
 import {
@@ -64,7 +64,7 @@ type PreviewData = {
       match: { phase: { isKnockout: boolean }; homeSourceType?: string; awaySourceType?: string };
     }[];
   };
-  tournament: { id: string; name: string; groups: PredictionGroup[]; tieBreakers: { id: string; prompt: string }[] };
+  tournament: { id: string; name: string; groups: PredictionGroup[]; tieBreakers: { id: string; prompt: Record<string, string> }[] };
   matches: PredictionMatch[];
 };
 
@@ -232,6 +232,7 @@ function BracketMatchCard({ homeTeam, awayTeam, winner, top, left }: {
 // ─── Prediction preview modal ─────────────────────────────────────────────────
 
 function PredictionPreviewModal({ predictionId, onClose }: { predictionId: string; onClose: () => void }) {
+  const locale = useLocale();
   const [data, setData] = useState<PreviewData | null>(null);
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
@@ -373,7 +374,7 @@ function PredictionPreviewModal({ predictionId, onClose }: { predictionId: strin
                     const q = tournament?.tieBreakers.find(tb => tb.id === a.questionId);
                     return (
                       <div key={a.questionId} className="flex items-center justify-between gap-4 rounded-[var(--r-md)] border px-4 py-2.5" style={{ borderColor: "var(--border)", fontSize: 13 }}>
-                        <span className="muted">{q?.prompt ?? a.questionId}</span>
+                        <span className="muted">{q ? (q.prompt[locale] ?? q.prompt["en"] ?? Object.values(q.prompt)[0] ?? a.questionId) : a.questionId}</span>
                         <span className="font-bold mono">{a.answer}</span>
                       </div>
                     );

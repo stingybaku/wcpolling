@@ -7,11 +7,11 @@ import { Link } from "@/lib/navigation";
 
 type TournamentGroup = { id: string; name: string; sortOrder: number };
 type TournamentPhase = { id: string; name: string; slug: string; sortOrder: number; isKnockout: boolean; teamCount?: number | null };
-type TieBreaker = { id: string; prompt: string; sortOrder: number; type: "NUMBER" | "TEXT"; correctAnswer?: string | null };
+type TieBreaker = { id: string; prompt: Record<string, string>; sortOrder: number; type: "NUMBER" | "TEXT"; correctAnswer?: string | null };
 type TournamentTag = { id: string; name: string; slug: string };
 type GroupRow = { id?: string; clientId: string; name: string; sortOrder: number };
 type PhaseRow = { id?: string; clientId: string; name: string; slug: string; sortOrder: number; isKnockout: boolean; teamCount?: number | null };
-type TieBreakerRow = { id?: string; clientId: string; prompt: string; sortOrder: number; type: "NUMBER" | "TEXT"; correctAnswer?: string | null };
+type TieBreakerRow = { id?: string; clientId: string; prompt: Record<string, string>; sortOrder: number; type: "NUMBER" | "TEXT"; correctAnswer?: string | null };
 type Tournament = {
   id: string;
   name: string;
@@ -145,8 +145,8 @@ function createDefaultPhaseRows(): PhaseRow[] {
 
 function createDefaultTieBreakerRows(): TieBreakerRow[] {
   return [
-    { clientId: createClientId("tiebreaker"), type: "NUMBER", prompt: "In what minute will the first goal be scored in the final?", sortOrder: 0, correctAnswer: "" },
-    { clientId: createClientId("tiebreaker"), type: "NUMBER", prompt: "What will be the combined score of the final?", sortOrder: 1, correctAnswer: "" },
+    { clientId: createClientId("tiebreaker"), type: "NUMBER", prompt: { en: "In what minute will the first goal be scored in the final?", es: "¿En qué minuto se marcará el primer gol de la final?" }, sortOrder: 0, correctAnswer: "" },
+    { clientId: createClientId("tiebreaker"), type: "NUMBER", prompt: { en: "What will be the combined score of the final?", es: "¿Cuál será el marcador combinado de la final?" }, sortOrder: 1, correctAnswer: "" },
   ];
 }
 
@@ -563,11 +563,11 @@ export default function DashboardAdminPage() {
           .map((question, index) => ({
             id: question.id,
             type: question.type,
-            prompt: question.prompt.trim(),
+            prompt: question.prompt,
             sortOrder: index,
             correctAnswer: question.correctAnswer ?? "",
           }))
-          .filter((question) => question.prompt),
+          .filter((question) => Object.values(question.prompt).some((v) => v)),
       }),
     });
 
@@ -1306,7 +1306,7 @@ export default function DashboardAdminPage() {
                 <button
                   className="rounded-[0.9rem] border px-3 py-2 text-xs font-bold uppercase tracking-[0.16em]"
                   style={{ borderColor: "var(--border)", background: "var(--bg)" }}
-                  onClick={() => setTieBreakerRows((current) => [...current, { clientId: createClientId("tiebreaker"), prompt: "", type: "NUMBER", sortOrder: current.length, correctAnswer: "" }])}
+                  onClick={() => setTieBreakerRows((current) => [...current, { clientId: createClientId("tiebreaker"), prompt: { en: "", es: "" }, type: "NUMBER", sortOrder: current.length, correctAnswer: "" }])}
                   type="button"
                 >
                   Add tie-breaker
@@ -1317,7 +1317,16 @@ export default function DashboardAdminPage() {
                   <div key={question.clientId} className="rounded-[1rem] border p-3" style={{ borderColor: "var(--border)" }}>
                     <div className="grid gap-3 xl:grid-cols-[auto_1fr_10rem_auto] xl:items-center">
                       <span className="text-xs font-bold uppercase tracking-[0.2em] muted">#{index + 1}</span>
-                      <input className="field" placeholder="Tie-breaker prompt" value={question.prompt} onChange={(event) => updateTieBreakerRow(question.clientId, { prompt: event.target.value })} />
+                      <div className="flex flex-col gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold uppercase tracking-[0.16em] muted w-6 shrink-0">EN</span>
+                          <input className="field flex-1" placeholder="Tie-breaker prompt (English)" value={question.prompt.en ?? ""} onChange={(event) => updateTieBreakerRow(question.clientId, { prompt: { ...question.prompt, en: event.target.value } })} />
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold uppercase tracking-[0.16em] muted w-6 shrink-0">ES</span>
+                          <input className="field flex-1" placeholder="Pregunta de desempate (español)" value={question.prompt.es ?? ""} onChange={(event) => updateTieBreakerRow(question.clientId, { prompt: { ...question.prompt, es: event.target.value } })} />
+                        </div>
+                      </div>
                       <select className="field" value={question.type} onChange={(event) => updateTieBreakerRow(question.clientId, { type: event.target.value as TieBreakerRow["type"] })}>
                         <option value="NUMBER">Number</option>
                         <option value="TEXT">Text</option>
@@ -1683,7 +1692,7 @@ export default function DashboardAdminPage() {
                 <div className="mt-3 space-y-3">
                   {tournament.tieBreakers.length === 0 ? <p className="muted">No tie-breakers configured.</p> : tournament.tieBreakers.map((question) => (
                     <div key={question.id} className="rounded-[1rem] border p-3" style={{ borderColor: "var(--border)" }}>
-                      <p className="text-sm font-bold">{question.prompt}</p>
+                      <p className="text-sm font-bold">{question.prompt["en"] ?? Object.values(question.prompt)[0] ?? ""}</p>
                       <div className="mt-3 flex flex-col gap-3 md:flex-row">
                         <input
                           className="field"

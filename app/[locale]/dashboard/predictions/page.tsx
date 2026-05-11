@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { Link } from "@/lib/navigation";
 import {
   lookupThirdPlaceScenario,
@@ -53,7 +53,7 @@ type MatchExtended = {
 
 type TieBreakerQuestion = {
   id: string;
-  prompt: string;
+  prompt: Record<string, string>;
   type: "NUMBER" | "TEXT";
   sortOrder: number;
 };
@@ -175,6 +175,7 @@ function reorderArray<T>(arr: T[], from: number, to: number): T[] {
 export default function PredictionsWizard() {
   const t = useTranslations("predictions");
   const tCommon = useTranslations("common");
+  const locale = useLocale();
 
   // ── Data ─────────────────────────────────────────────────────────────
   const [tournament, setTournament] = useState<Tournament | null>(null);
@@ -890,7 +891,7 @@ export default function PredictionsWizard() {
             <div key={q.id}>
               {i > 0 && <div className="h-px mb-5" style={{ background: "var(--border)" }} />}
               <label className="block">
-                <span className="text-sm font-semibold">{q.prompt}</span>
+                <span className="text-sm font-semibold">{q.prompt[locale] ?? q.prompt["en"] ?? Object.values(q.prompt)[0] ?? ""}</span>
                 <input
                   type={q.type === "NUMBER" ? "number" : "text"}
                   min={q.type === "NUMBER" ? 0 : undefined}

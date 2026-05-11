@@ -278,7 +278,9 @@ async function recalculateSubmissionScores(
     scoreOps.push(
       upsertScore(submission.id, `tiebreaker:${question.id}`, PredictionScoreType.TIEBREAKER, points, {
         questionId: question.id,
-        label: question.prompt,
+        label: typeof question.prompt === "object" && question.prompt !== null
+          ? (question.prompt as Record<string, string>)["en"] ?? Object.values(question.prompt as Record<string, string>)[0] ?? null
+          : String(question.prompt ?? ""),
       })
     );
   }
