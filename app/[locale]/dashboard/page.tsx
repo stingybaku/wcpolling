@@ -4,39 +4,65 @@ import { getTranslations } from "next-intl/server";
 import { Link } from "@/lib/navigation";
 import { getCurrentTournament, getCurrentUser } from "@/app/api/helpers";
 import { NewsSyncButton } from "@/components/news-sync-button";
+import { CountUp } from "@/components/count-up";
 import { prisma } from "@/lib/prisma";
 
 type ScoreType = "MATCH" | "GROUP_STANDING" | "KNOCKOUT" | "TIEBREAKER";
 
-type NewsFeedItem =
-  | ({ kind: "article" } & Awaited<ReturnType<typeof prisma.newsArticle.findMany>>[number])
-  | {
-      kind: "sponsored";
-      id: string;
-      title: string;
-      summary: string | null;
-      imageUrl: string | null;
-      targetUrl: string;
-      ctaLabel: string | null;
-      sponsorName: string | null;
-      badgeLabel: string;
-    };
-
 function summarizeScores(scores: Array<{ points: number; scoreType: ScoreType }>) {
   return scores.reduce(
-    (accumulator, score) => {
-      accumulator.total += score.points;
-      accumulator[score.scoreType] += score.points;
-      return accumulator;
+    (acc, s) => {
+      acc.total += s.points;
+      acc[s.scoreType] += s.points;
+      return acc;
     },
-    {
-      total: 0,
-      MATCH: 0,
-      GROUP_STANDING: 0,
-      KNOCKOUT: 0,
-      TIEBREAKER: 0,
-    },
+    { total: 0, MATCH: 0, GROUP_STANDING: 0, KNOCKOUT: 0, TIEBREAKER: 0 },
   );
+}
+
+function memberColor(userId: string): string {
+  const palette = [
+    "#10b981", "#f59e0b", "#a855f7", "#0ea5e9",
+    "#ef4444", "#14b8a6", "#f97316", "#6366f1",
+  ];
+  let h = 0;
+  for (let i = 0; i < userId.length; i++) h = (Math.imul(31, h) + userId.charCodeAt(i)) | 0;
+  return palette[Math.abs(h) % palette.length];
+}
+
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  return parts.length > 1
+    ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+    : name.slice(0, 2).toUpperCase();
+}
+
+function Avatar({ userId, name, size = 22 }: { userId: string; name: string; size?: number }) {
+  const color = memberColor(userId);
+  return (
+    <span
+      style={{
+        width: size,
+        height: size,
+        borderRadius: 999,
+        background: color,
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontSize: size * 0.38,
+        fontWeight: 700,
+        fontFamily: "var(--font-mono)",
+        color: "#fff",
+        flexShrink: 0,
+      }}
+    >
+      {initials(name)}
+    </span>
+  );
+}
+
+function LiveDot() {
+  return <span className="live-dot" />;
 }
 
 export default async function DashboardPage() {
@@ -45,307 +71,595 @@ export default async function DashboardPage() {
   const user = await getCurrentUser();
   const currentTournament = await getCurrentTournament();
 
-  if (!user) {
-    return null;
-  }
+  if (!user) return null;
 
-  const groups = await prisma.groupRoom.findMany({
-    where: {
-      memberships: { some: { userId: user.id } },
-      ...(currentTournament?.id ? { tournamentId: currentTournament.id } : {}),
-    },
-    include: {
-      tournament: {
-        include: {
-          tags: {
-            orderBy: { name: "asc" },
+  // ── Data fetching ──────────────────────────────────────────────
+  const [groups, todayMatches, submissionCount] = await Promise.all([
+    prisma.groupRoom.findMany({
+      where: {
+        memberships: { some: { userId: user.id } },
+        ...(currentTournament?.id ? { tournamentId: currentTournament.id } : {}),
+      },
+      include: {
+        tournament: {
+          select: {
+            name: true,
+            tags: { orderBy: { name: "asc" } },
+            submissionDeadline: true,
+          },
+        },
+        memberships: { select: { userId: true } },
+        submissions: {
+          include: {
+            user: { select: { id: true, name: true, email: true } },
+            prediction: { select: { name: true } },
+            scores: { select: { points: true, scoreType: true } },
           },
         },
       },
-      memberships: {
-        select: { userId: true },
+      orderBy: { updatedAt: "desc" },
+    }),
+    currentTournament?.id
+      ? prisma.match.findMany({
+          where: {
+            tournamentId: currentTournament.id,
+            scheduledAt: {
+              gte: new Date(new Date().toISOString().slice(0, 10) + "T00:00:00Z"),
+              lt: new Date(new Date().toISOString().slice(0, 10) + "T23:59:59Z"),
+            },
+          },
+          include: {
+            homeTeam: { select: { name: true, fifaCode: true } },
+            awayTeam: { select: { name: true, fifaCode: true } },
+          },
+          orderBy: { scheduledAt: "asc" },
+          take: 6,
+        })
+      : Promise.resolve([]),
+    prisma.predictionSubmission.count({
+      where: {
+        userId: user.id,
+        ...(currentTournament?.id
+          ? { group: { tournamentId: currentTournament.id } }
+          : {}),
       },
-      submissions: {
-        include: {
-          user: {
-            select: { id: true, name: true, email: true },
-          },
-          prediction: {
-            select: { name: true },
-          },
-          scores: {
-            select: { points: true, scoreType: true },
-          },
-        },
-      },
-    },
-    orderBy: { updatedAt: "desc" },
-  });
+    }),
+  ]);
 
+  // ── Group performance ──────────────────────────────────────────
   const groupPerformance = groups.map((group) => {
     const leaderboard = group.submissions
-      .map((submission) => {
-        const scoreSummary = summarizeScores(submission.scores as Array<{ points: number; scoreType: ScoreType }>);
+      .map((sub) => {
+        const s = summarizeScores(sub.scores as Array<{ points: number; scoreType: ScoreType }>);
         return {
-          userId: submission.user.id,
-          userName: submission.user.name ?? submission.user.email ?? tCommon("unknown"),
-          predictionName: submission.prediction.name,
-          points: scoreSummary.total,
-          breakdown: scoreSummary,
+          userId: sub.user.id,
+          userName: sub.user.name ?? sub.user.email ?? tCommon("unknown"),
+          predictionName: sub.prediction.name,
+          points: s.total,
+          breakdown: s,
         };
       })
-      .sort((a, b) => b.points - a.points || a.userName.localeCompare(b.userName));
+      .sort((a, b) => b.points - a.points || a.userName.localeCompare(b.userName))
+      .map((row, i) => ({ ...row, rank: i + 1 }));
 
-    const userRow = leaderboard.find((entry) => entry.userId === user.id) ?? null;
+    const userIdx = leaderboard.findIndex((e) => e.userId === user.id);
+    const userRow = userIdx >= 0 ? leaderboard[userIdx] : null;
+    const leaderPoints = leaderboard[0]?.points ?? 0;
+
+    const deadline = group.tournament?.submissionDeadline ?? null;
+    const deadlineSoon =
+      deadline && deadline > new Date() && deadline.getTime() - Date.now() < 6 * 60 * 60 * 1000;
+    const deadlineHours = deadline
+      ? Math.max(0, Math.floor((deadline.getTime() - Date.now()) / 3600000))
+      : null;
+    const deadlineMins = deadline
+      ? Math.max(0, Math.floor(((deadline.getTime() - Date.now()) % 3600000) / 60000))
+      : null;
 
     return {
       id: group.id,
       name: group.name,
       tournamentName: group.tournament?.name ?? t("unassignedTournament"),
       memberCount: group.memberships.length,
-      submissionCount: group.submissions.length,
-      rank: userRow ? leaderboard.findIndex((entry) => entry.userId === user.id) + 1 : null,
+      color: memberColor(group.id),
+      rank: userRow?.rank ?? null,
       predictionName: userRow?.predictionName ?? null,
       points: userRow?.points ?? 0,
-      breakdown: userRow?.breakdown ?? { total: 0, MATCH: 0, GROUP_STANDING: 0, KNOCKOUT: 0, TIEBREAKER: 0 },
+      leaderPoints,
+      leaderboard,
+      userIdx,
+      alert:
+        deadlineSoon && !userRow
+          ? `Deadline in ${deadlineHours}h ${deadlineMins}m — no draft selected`
+          : null,
     };
   });
 
-  const rankedGroups = groupPerformance.filter((group) => group.rank !== null);
-  const totalPoints = rankedGroups.reduce((sum, group) => sum + group.points, 0);
-  const bestRank = rankedGroups.reduce((best, group) => {
-    if (group.rank === null) return best;
-    if (best === null) return group.rank;
-    return Math.min(best, group.rank);
-  }, null as number | null);
+  // ── Aggregate KPIs ─────────────────────────────────────────────
+  const rankedGroups = groupPerformance.filter((g) => g.rank !== null);
+  const totalPoints = rankedGroups.reduce((sum, g) => sum + g.points, 0);
+  const bestRankEntry = rankedGroups.reduce(
+    (best, g) => (g.rank !== null && (best === null || g.rank < best.rank!) ? g : best),
+    null as (typeof groupPerformance)[0] | null,
+  );
 
-  const newsroomTags = currentTournament?.tags ?? [];
+  // ── Featured match (hero) ──────────────────────────────────────
+  const heroMatch = todayMatches[0] ?? null;
+
+  // ── News ────────────────────────────────────────────────────────
+  const newsroomTags = currentTournament?.tags ?? ([] as Array<{ id: string; name: string }>);
   const newsArticles = await prisma.newsArticle.findMany({
     where: currentTournament?.id ? { tournamentId: currentTournament.id } : undefined,
     orderBy: [{ publishedAt: "desc" }, { fetchedAt: "desc" }],
-    take: 12,
+    take: 6,
   });
-  const now = new Date();
-  const sponsoredPlacements = currentTournament?.id
-    ? await prisma.sponsoredPlacement.findMany({
-        where: {
-          tournamentId: currentTournament.id,
-          isActive: true,
-          OR: [
-            { activeFrom: null, activeTo: null },
-            { activeFrom: null, activeTo: { gte: now } },
-            { activeFrom: { lte: now }, activeTo: null },
-            { activeFrom: { lte: now }, activeTo: { gte: now } },
-          ],
-        },
-        orderBy: [{ priority: "desc" }, { updatedAt: "desc" }],
-        take: 4,
-      })
-    : [];
-
-  const newsFeed: NewsFeedItem[] = [];
-  const adEvery = 4;
-  let sponsoredIndex = 0;
-
-  newsArticles.forEach((article, index) => {
-    newsFeed.push({ kind: "article", ...article });
-    if ((index + 1) % adEvery === 0 && sponsoredIndex < sponsoredPlacements.length) {
-      const placement = sponsoredPlacements[sponsoredIndex++];
-      newsFeed.push({
-        kind: "sponsored",
-        id: placement.id,
-        title: placement.title,
-        summary: placement.summary,
-        imageUrl: placement.imageUrl,
-        targetUrl: placement.targetUrl,
-        ctaLabel: placement.ctaLabel,
-        sponsorName: placement.sponsorName,
-        badgeLabel: placement.badgeLabel,
-      });
-    }
-  });
-
-  while (sponsoredIndex < sponsoredPlacements.length && newsFeed.length < 12) {
-    const placement = sponsoredPlacements[sponsoredIndex++];
-    newsFeed.push({
-      kind: "sponsored",
-      id: placement.id,
-      title: placement.title,
-      summary: placement.summary,
-      imageUrl: placement.imageUrl,
-      targetUrl: placement.targetUrl,
-      ctaLabel: placement.ctaLabel,
-      sponsorName: placement.sponsorName,
-      badgeLabel: placement.badgeLabel,
-    });
-  }
 
   return (
-    <div className="space-y-6">
-      <section className="hero-surface rounded-[2rem] border px-5 py-5 md:px-8 md:py-6" style={{ borderColor: "var(--border)" }}>
-        <p className="text-xs font-semibold uppercase tracking-[0.34em]" style={{ color: "var(--accent-strong)" }}>{t("tagline")}</p>
-        <h2 className="display-title mt-2 text-4xl leading-none md:text-6xl xl:text-[4.6rem]">{t("title")}</h2>
-        <p className="mt-3 text-sm leading-6 muted md:text-base">{t("subtitle")}</p>
-      </section>
+    <div className="-mx-4 -mt-5 md:-mx-6 lg:-mx-8">
+      {/* Body grid */}
+      <div
+        className="grid gap-5 p-5 lg:p-6"
+        style={{ gridTemplateColumns: "1fr", gridAutoRows: "auto" }}
+      >
+        <div className="xl:col-span-full grid gap-5 xl:grid-cols-[1.55fr_1fr]">
+          {/* ── LEFT COLUMN ───────────────────────────────────────── */}
+          <div className="flex flex-col gap-4 min-w-0">
+            {/* Broadcast hero */}
+            <div className="surface-broadcast" style={{ padding: "20px 24px", position: "relative", overflow: "hidden" }}>
+              {heroMatch ? (
+                <>
+                  <div className="row" style={{ alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+                    <div className="row gap-2" style={{ alignItems: "center" }}>
+                      <LiveDot />
+                      <span className="text-xs mono" style={{ color: "#94a3b8", letterSpacing: "0.18em" }}>
+                        {heroMatch.status === "FINISHED" ? "LAST RESULT" : "UP NEXT"}
+                        {heroMatch.homeTeam && heroMatch.awayTeam
+                          ? ` · ${heroMatch.homeTeam.fifaCode} vs ${heroMatch.awayTeam.fifaCode}`
+                          : ""}
+                      </span>
+                    </div>
+                    {heroMatch.status === "FINISHED" && (
+                      <span className="text-xs mono" style={{ color: "#10b981", letterSpacing: "0.16em" }}>FULL TIME</span>
+                    )}
+                    {heroMatch.status === "SCHEDULED" && heroMatch.scheduledAt && (
+                      <span className="text-xs mono" style={{ color: "#94a3b8", letterSpacing: "0.16em" }}>
+                        {new Intl.DateTimeFormat("en-US", { hour: "2-digit", minute: "2-digit", timeZoneName: "short" }).format(heroMatch.scheduledAt)}
+                      </span>
+                    )}
+                  </div>
 
-      <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-        <div className="space-y-6">
-          <section className="surface rounded-[2rem] p-6 md:p-8">
-            <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.3em] muted">{t("performance")}</p>
-                <h3 className="mt-2 text-3xl font-extrabold">{t("performanceTitle")}</h3>
-              </div>
-              <Link className="rounded-[1.2rem] border px-4 py-3 text-sm font-semibold transition hover:opacity-90" href="/dashboard/groups" style={{ borderColor: "var(--border)", background: "var(--bg-strong)" }}>
-                {t("openGroups")}
-              </Link>
-            </div>
-
-            <div className="mt-5 grid gap-3 md:grid-cols-3">
-              <div className="rounded-[1.4rem] border p-4" style={{ borderColor: "var(--border)", background: "var(--bg-strong)" }}>
-                <p className="text-xs font-semibold uppercase tracking-[0.22em] muted">{t("joinedGroups")}</p>
-                <p className="mt-2 text-3xl font-extrabold">{groupPerformance.length}</p>
-              </div>
-              <div className="rounded-[1.4rem] border p-4" style={{ borderColor: "var(--border)", background: "var(--bg-strong)" }}>
-                <p className="text-xs font-semibold uppercase tracking-[0.22em] muted">{t("bestRank")}</p>
-                <p className="mt-2 text-3xl font-extrabold">{bestRank ? `#${bestRank}` : "-"}</p>
-              </div>
-              <div className="rounded-[1.4rem] border p-4" style={{ borderColor: "var(--border)", background: "var(--bg-strong)" }}>
-                <p className="text-xs font-semibold uppercase tracking-[0.22em] muted">{t("totalPoints")}</p>
-                <p className="mt-2 text-3xl font-extrabold">{totalPoints}</p>
-              </div>
-            </div>
-
-            <div className="mt-6 space-y-3">
-              {groupPerformance.length > 0 ? groupPerformance.map((group) => (
-                <article key={group.id} className="rounded-[1.5rem] border p-4" style={{ borderColor: "var(--border)", background: "var(--bg-strong)" }}>
-                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                    <div className="min-w-0">
-                      <p className="text-lg font-bold">{group.name}</p>
-                      <p className="mt-1 text-sm muted">{group.tournamentName}</p>
-                      <p className="mt-3 text-xs uppercase tracking-[0.18em] muted">
-                        {t("members", { count: group.memberCount })} • {t("submissions", { count: group.submissionCount })}
-                      </p>
-                      <p className="mt-2 text-sm muted">
-                        {group.predictionName ? t("livePick", { name: group.predictionName }) : t("noPrediction")}
-                      </p>
+                  <div className="row" style={{ alignItems: "center", justifyContent: "space-between", gap: 24 }}>
+                    <div className="col gap-1" style={{ flex: 1 }}>
+                      <span className="display" style={{ fontSize: 22, color: "#fff" }}>
+                        {heroMatch.homeTeam?.name ?? heroMatch.homePlaceholder ?? "TBD"}
+                      </span>
+                      <span className="text-xs mono" style={{ color: "#64748b", letterSpacing: "0.12em" }}>
+                        {heroMatch.homeTeam?.fifaCode ?? "—"}
+                      </span>
                     </div>
 
-                    <div className="flex items-center gap-3">
-                      <div className="rounded-[1.2rem] px-4 py-3 text-center" style={{ background: "var(--accent-soft)", color: "var(--accent-strong)" }}>
-                        <p className="text-[0.65rem] font-semibold uppercase tracking-[0.22em]">{t("rank")}</p>
-                        <p className="mt-1 text-2xl font-extrabold">{group.rank ? `#${group.rank}` : "-"}</p>
-                      </div>
-                      <div className="rounded-[1.2rem] border px-4 py-3 text-center" style={{ borderColor: "var(--border)" }}>
-                        <p className="text-[0.65rem] font-semibold uppercase tracking-[0.22em] muted">{t("points")}</p>
-                        <p className="mt-1 text-2xl font-extrabold">{group.points}</p>
-                      </div>
+                    <div className="col" style={{ alignItems: "center", gap: 4 }}>
+                      {heroMatch.status === "FINISHED" ? (
+                        <div className="row gap-2" style={{ alignItems: "baseline" }}>
+                          <span className="display tabnum" style={{ fontSize: 56, color: "#fff", lineHeight: 1 }}>
+                            {heroMatch.homeScore ?? 0}
+                          </span>
+                          <span style={{ fontSize: 24, color: "#334155" }}>—</span>
+                          <span className="display tabnum" style={{ fontSize: 56, color: "#fff", lineHeight: 1 }}>
+                            {heroMatch.awayScore ?? 0}
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="row gap-2" style={{ alignItems: "baseline" }}>
+                          <span className="display tabnum" style={{ fontSize: 56, color: "#334155", lineHeight: 1 }}>–</span>
+                          <span style={{ fontSize: 24, color: "#334155" }}>vs</span>
+                          <span className="display tabnum" style={{ fontSize: 56, color: "#334155", lineHeight: 1 }}>–</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="col gap-1" style={{ flex: 1, alignItems: "flex-end" }}>
+                      <span className="display" style={{ fontSize: 22, color: "#fff", textAlign: "right" }}>
+                        {heroMatch.awayTeam?.name ?? heroMatch.awayPlaceholder ?? "TBD"}
+                      </span>
+                      <span className="text-xs mono" style={{ color: "#64748b", letterSpacing: "0.12em" }}>
+                        {heroMatch.awayTeam?.fifaCode ?? "—"}
+                      </span>
                     </div>
                   </div>
 
-                  <div className="mt-4 grid gap-2 text-xs md:grid-cols-4">
-                    <div className="rounded-full px-3 py-2" style={{ background: "var(--bg)" }}>{t("matches", { count: group.breakdown.MATCH })}</div>
-                    <div className="rounded-full px-3 py-2" style={{ background: "var(--bg)" }}>{t("standings", { count: group.breakdown.GROUP_STANDING })}</div>
-                    <div className="rounded-full px-3 py-2" style={{ background: "var(--bg)" }}>{t("bracket", { count: group.breakdown.KNOCKOUT })}</div>
-                    <div className="rounded-full px-3 py-2" style={{ background: "var(--bg)" }}>{t("tieBreakers", { count: group.breakdown.TIEBREAKER })}</div>
-                  </div>
-
-                  <div className="mt-4">
-                    <Link className="text-sm font-semibold" href={`/dashboard/groups/${group.id}`} style={{ color: "var(--accent-strong)" }}>
-                      {t("openGroupRoom")}
+                  <div className="row gap-3" style={{ alignItems: "center", marginTop: 16, paddingTop: 12, borderTop: "1px solid #1c2434" }}>
+                    <Link
+                      href="/dashboard/predictions"
+                      className="btn btn-sm"
+                      style={{ background: "transparent", borderColor: "#334155", color: "#fff" }}
+                    >
+                      My predictions →
+                    </Link>
+                    <Link
+                      href="/dashboard/groups"
+                      className="btn btn-sm"
+                      style={{ background: "transparent", borderColor: "#334155", color: "#94a3b8" }}
+                    >
+                      Groups →
                     </Link>
                   </div>
-                </article>
-              )) : (
-                <div className="rounded-[1.5rem] border p-5" style={{ borderColor: "var(--border)", background: "var(--bg-strong)" }}>
-                  <p className="text-lg font-bold">{t("noGroupPerformance")}</p>
-                  <p className="mt-2 text-sm muted">{t("noGroupPerformanceDesc")}</p>
+                </>
+              ) : (
+                <div className="col gap-2" style={{ padding: "12px 0" }}>
+                  <span className="text-xs mono" style={{ color: "#64748b", letterSpacing: "0.18em" }}>
+                    {currentTournament ? "NO MATCHES SCHEDULED TODAY" : "NO ACTIVE TOURNAMENT"}
+                  </span>
+                  <span className="display" style={{ fontSize: 26, color: "#fff" }}>
+                    {currentTournament?.name ?? "World Cup 2026"}
+                  </span>
+                  <div className="row gap-3" style={{ marginTop: 8 }}>
+                    <Link href="/dashboard/predictions" className="btn btn-sm" style={{ background: "transparent", borderColor: "#334155", color: "#fff" }}>
+                      My predictions →
+                    </Link>
+                    <Link href="/dashboard/groups" className="btn btn-sm" style={{ background: "transparent", borderColor: "#334155", color: "#94a3b8" }}>
+                      Groups →
+                    </Link>
+                  </div>
                 </div>
               )}
             </div>
-          </section>
-        </div>
 
-        <aside className="space-y-6">
-          <section className="surface rounded-[2rem] p-6 md:p-8">
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] muted">{t("newsroom")}</p>
-            <div className="mt-5 flex flex-wrap gap-2">
-              {newsroomTags.length > 0 ? newsroomTags.map((tag) => (
-                <span
-                  key={tag.id}
-                  className="rounded-full px-3 py-2 text-[11px] font-bold uppercase tracking-[0.16em]"
-                  style={{ background: "var(--accent-soft)", color: "var(--accent-strong)" }}
+            {/* KPI strip */}
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <div className="surface" style={{ padding: "14px 16px" }}>
+                <span className="eyebrow">Your live total</span>
+                <div className="row gap-2" style={{ alignItems: "baseline", marginTop: 6 }}>
+                  <span className="display tabnum text-3xl">
+                    <CountUp value={totalPoints} />
+                  </span>
+                </div>
+                <span className="text-xs muted">
+                  across {groupPerformance.length} group{groupPerformance.length !== 1 ? "s" : ""}
+                </span>
+              </div>
+              <div className="surface" style={{ padding: "14px 16px" }}>
+                <span className="eyebrow">{t("bestRank")}</span>
+                <div className="row gap-2" style={{ alignItems: "baseline", marginTop: 6 }}>
+                  <span className="display tabnum text-3xl">
+                    {bestRankEntry ? `#${bestRankEntry.rank}` : "—"}
+                  </span>
+                </div>
+                <span className="text-xs muted">
+                  {bestRankEntry ? bestRankEntry.name : "No groups yet"}
+                </span>
+              </div>
+              <div className="surface" style={{ padding: "14px 16px" }}>
+                <span className="eyebrow">{t("joinedGroups")}</span>
+                <div className="row gap-2" style={{ alignItems: "baseline", marginTop: 6 }}>
+                  <span className="display tabnum text-3xl">{groupPerformance.length}</span>
+                </div>
+                <span className="text-xs muted">
+                  {submissionCount} submission{submissionCount !== 1 ? "s" : ""}
+                </span>
+              </div>
+              <div className="surface" style={{ padding: "14px 16px" }}>
+                <span className="eyebrow">Points lead</span>
+                <div className="row gap-2" style={{ alignItems: "baseline", marginTop: 6 }}>
+                  <span
+                    className="display tabnum text-3xl"
+                    style={{
+                      color: bestRankEntry && bestRankEntry.rank === 1
+                        ? "var(--accent-strong)"
+                        : bestRankEntry
+                        ? "var(--live)"
+                        : undefined,
+                    }}
+                  >
+                    {bestRankEntry
+                      ? bestRankEntry.rank === 1
+                        ? `+${bestRankEntry.points - (bestRankEntry.leaderboard[1]?.points ?? 0)}`
+                        : `−${bestRankEntry.leaderPoints - bestRankEntry.points}`
+                      : "—"}
+                  </span>
+                </div>
+                <span className="text-xs muted">
+                  {bestRankEntry
+                    ? bestRankEntry.rank === 1
+                      ? "ahead of #2"
+                      : `gap to #1 in ${bestRankEntry.name}`
+                    : "No ranked groups"}
+                </span>
+              </div>
+            </div>
+
+            {/* Groups grid */}
+            <div className="flex flex-col gap-3">
+              <div className="row" style={{ alignItems: "baseline", justifyContent: "space-between" }}>
+                <h3 className="display text-xl" style={{ margin: 0 }}>Your groups</h3>
+                <Link href="/dashboard/groups" className="btn btn-sm btn-ghost">
+                  All groups →
+                </Link>
+              </div>
+
+              {groupPerformance.length === 0 ? (
+                <div className="surface" style={{ padding: 20 }}>
+                  <p className="bold">{t("noGroupPerformance")}</p>
+                  <p className="text-sm muted" style={{ marginTop: 6 }}>{t("noGroupPerformanceDesc")}</p>
+                  <Link href="/dashboard/groups" className="btn btn-sm" style={{ marginTop: 12, display: "inline-flex" }}>
+                    Join or create a group →
+                  </Link>
+                </div>
+              ) : (
+                <div
+                  className="grid gap-3"
+                  style={{ gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))" }}
                 >
-                  {tag.name}
-                </span>
-              )) : (
-                <span className="rounded-full px-3 py-2 text-[11px] font-bold uppercase tracking-[0.16em]" style={{ background: "var(--bg-strong)", color: "var(--text-muted)" }}>
-                  {t("noTagsYet")}
-                </span>
-              )}
-            </div>
+                  {groupPerformance.map((g) => {
+                    // Build display rows: top 2 + user if not in top 2
+                    const top2 = g.leaderboard.slice(0, 2);
+                    const userInTop2 = g.userIdx >= 0 && g.userIdx < 2;
+                    const showDots = g.userIdx >= 2;
+                    const userRow = g.userIdx >= 0 ? g.leaderboard[g.userIdx] : null;
 
-            <div className="mt-5 max-h-[28rem] space-y-3 overflow-y-auto pr-1">
-              {newsFeed.length > 0 ? newsFeed.map((item) => (
-                <article key={item.id} className="rounded-[1.4rem] border p-4" style={{ borderColor: item.kind === "sponsored" ? "color-mix(in srgb, var(--accent) 45%, var(--border) 55%)" : "var(--border)", background: "var(--bg-strong)" }}>
-                  <div className="flex gap-4">
-                    {item.imageUrl ? (
-                      <img
-                        alt={item.title}
-                        className="hidden h-24 w-24 shrink-0 rounded-[1rem] object-cover sm:block"
-                        src={item.imageUrl}
-                      />
-                    ) : null}
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="text-xs font-semibold uppercase tracking-[0.22em] muted">
-                            {item.kind === "sponsored" ? `${item.badgeLabel}${item.sponsorName ? ` • ${item.sponsorName}` : ""}` : item.sourceName ?? item.provider}
-                          </p>
-                          <p className="mt-2 text-lg font-bold">{item.title}</p>
+                    return (
+                      <Link
+                        key={g.id}
+                        href={`/dashboard/groups/${g.id}`}
+                        style={{ textDecoration: "none", color: "inherit" }}
+                      >
+                        <div
+                          className="surface"
+                          style={{
+                            position: "relative",
+                            borderLeft: `3px solid ${g.color}`,
+                            display: "flex",
+                            flexDirection: "column",
+                            transition: "box-shadow 0.15s",
+                            cursor: "pointer",
+                          }}
+                        >
+                          {/* Group header */}
+                          <div
+                            className="row"
+                            style={{
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              padding: "12px 14px 8px",
+                            }}
+                          >
+                            <div className="col" style={{ minWidth: 0 }}>
+                              <span
+                                className="bold text-md"
+                                style={{ lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                              >
+                                {g.name}
+                              </span>
+                              <span className="text-xs muted mono" style={{ letterSpacing: "0.12em" }}>
+                                {g.memberCount} MEMBERS
+                              </span>
+                            </div>
+                            <div className="col" style={{ alignItems: "flex-end", flexShrink: 0 }}>
+                              <span className="text-xs muted mono">RANK</span>
+                              <span className="display tabnum text-xl">
+                                {g.rank ? `#${g.rank}` : "—"}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Mini leaderboard */}
+                          <div style={{ padding: "0 10px 10px" }}>
+                            {top2.map((row) => (
+                              <div
+                                key={row.userId}
+                                className="row gap-2"
+                                style={{
+                                  alignItems: "center",
+                                  padding: "4px 6px",
+                                  background: row.userId === user.id ? "var(--accent-soft)" : "transparent",
+                                  borderRadius: 5,
+                                }}
+                              >
+                                <span className="mono muted" style={{ width: 18, fontSize: 10 }}>
+                                  #{row.rank}
+                                </span>
+                                <Avatar userId={row.userId} name={row.userName} size={18} />
+                                <span className="bold text-xs" style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                  {row.userId === user.id ? "You" : row.userName}
+                                </span>
+                                <span className="mono extrabold tabnum text-sm">{row.points}</span>
+                              </div>
+                            ))}
+
+                            {showDots && (
+                              <>
+                                <div
+                                  className="text-xs mono muted"
+                                  style={{ textAlign: "center", padding: "2px 0" }}
+                                >
+                                  · · ·
+                                </div>
+                                {userRow && (
+                                  <div
+                                    className="row gap-2"
+                                    style={{
+                                      alignItems: "center",
+                                      padding: "4px 6px",
+                                      background: "var(--accent-soft)",
+                                      borderRadius: 5,
+                                    }}
+                                  >
+                                    <span className="mono muted" style={{ width: 18, fontSize: 10 }}>
+                                      #{userRow.rank}
+                                    </span>
+                                    <Avatar userId={user.id} name={user.name ?? user.email ?? "You"} size={18} />
+                                    <span className="bold text-xs" style={{ flex: 1 }}>You</span>
+                                    <span className="mono extrabold tabnum text-sm">{userRow.points}</span>
+                                  </div>
+                                )}
+                              </>
+                            )}
+
+                            {!userInTop2 && !showDots && !userRow && (
+                              <div
+                                className="text-xs muted"
+                                style={{ padding: "4px 6px", fontStyle: "italic" }}
+                              >
+                                {t("noPrediction")}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Alert banner */}
+                          {g.alert && (
+                            <div
+                              className="row gap-2"
+                              style={{
+                                alignItems: "center",
+                                padding: "6px 12px",
+                                background: "var(--gold-soft)",
+                                borderTop: "1px solid var(--gold)",
+                                color: "#7a4a00",
+                              }}
+                            >
+                              <span className="text-xs">⚠</span>
+                              <span className="text-xs bold">{g.alert}</span>
+                            </div>
+                          )}
                         </div>
-                        {item.kind === "article" ? (
-                          <span className="shrink-0 text-xs muted">
-                            {new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(item.publishedAt)}
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* ── RIGHT COLUMN ──────────────────────────────────────── */}
+          <div className="flex flex-col gap-4 min-w-0">
+            {/* Today's matches */}
+            <div className="surface" style={{ padding: "16px 18px" }}>
+              <div
+                className="row"
+                style={{ alignItems: "baseline", justifyContent: "space-between", marginBottom: 12 }}
+              >
+                <h3 className="display text-lg" style={{ margin: 0 }}>Today</h3>
+                <span className="text-xs muted mono">{todayMatches.length} MATCHES</span>
+              </div>
+
+              {todayMatches.length === 0 ? (
+                <p className="text-xs muted" style={{ padding: "4px 0" }}>
+                  No matches scheduled today.
+                </p>
+              ) : (
+                <div className="col gap-1">
+                  {todayMatches.map((m, i) => (
+                    <div
+                      key={m.id}
+                      className="row gap-2"
+                      style={{
+                        alignItems: "center",
+                        padding: "8px 4px",
+                        borderBottom: i === todayMatches.length - 1 ? 0 : "1px solid var(--border)",
+                      }}
+                    >
+                      <div style={{ width: 44, flexShrink: 0 }}>
+                        {m.status === "FINISHED" ? (
+                          <span className="chip chip-outline" style={{ fontSize: 9 }}>FT</span>
+                        ) : (
+                          <span className="text-xs mono muted">
+                            {m.scheduledAt
+                              ? new Intl.DateTimeFormat("en-US", { hour: "2-digit", minute: "2-digit" }).format(m.scheduledAt)
+                              : "TBD"}
                           </span>
-                        ) : null}
+                        )}
                       </div>
-                      {item.imageUrl ? (
-                        <img
-                          alt={item.title}
-                          className="mt-3 h-40 w-full rounded-[1rem] object-cover sm:hidden"
-                          src={item.imageUrl}
-                        />
-                      ) : null}
-                      {item.summary ? <p className="mt-3 text-sm muted">{item.summary}</p> : null}
-                      {item.kind === "article" && item.matchedTags ? <p className="mt-3 text-xs muted">{t("matchedTags", { tags: item.matchedTags })}</p> : null}
-                      <div className="mt-4">
-                        <a className="text-sm font-semibold" href={item.kind === "sponsored" ? item.targetUrl : item.url} rel="noreferrer" style={{ color: "var(--accent-strong)" }} target="_blank">
-                          {item.kind === "sponsored" ? item.ctaLabel ?? t("openSponsor") : t("openArticle")}
-                        </a>
-                      </div>
+                      <span
+                        className="text-xs bold tabnum"
+                        style={{ width: 32, textAlign: "right" }}
+                      >
+                        {m.homeTeam?.fifaCode ?? "—"}
+                      </span>
+                      <span
+                        className="mono extrabold text-md tabnum"
+                        style={{ minWidth: 48, textAlign: "center" }}
+                      >
+                        {m.status === "FINISHED"
+                          ? `${m.homeScore ?? 0} – ${m.awayScore ?? 0}`
+                          : "– –"}
+                      </span>
+                      <span className="text-xs bold tabnum" style={{ width: 32 }}>
+                        {m.awayTeam?.fifaCode ?? "—"}
+                      </span>
                     </div>
-                  </div>
-                </article>
-              )) : (
-                <>
-                  <div className="rounded-[1.4rem] border p-4" style={{ borderColor: "var(--border)", background: "var(--bg-strong)" }}>
-                    <p className="text-xs font-semibold uppercase tracking-[0.22em] muted">{t("feedEmpty")}</p>
-                    <p className="mt-2 text-lg font-bold">{t("feedEmptyTitle")}</p>
-                    <p className="mt-2 text-sm muted">{t("feedEmptyDesc")}</p>
-                  </div>
-                  <div className="rounded-[1.4rem] border p-4" style={{ borderColor: "var(--border)", background: "var(--bg-strong)" }}>
-                    <p className="text-xs font-semibold uppercase tracking-[0.22em] muted">{t("feedSetupTitle")}</p>
-                    <p className="mt-2 text-sm muted">{t("feedSetupDesc")}</p>
-                  </div>
-                </>
+                  ))}
+                </div>
               )}
             </div>
 
-            {user.role === "ADMIN" ? <NewsSyncButton tournamentId={currentTournament?.id} /> : null}
-          </section>
-        </aside>
-      </section>
+            {/* Newsroom */}
+            <div className="surface" style={{ padding: "16px 18px", flex: 1 }}>
+              <div
+                className="row"
+                style={{ alignItems: "baseline", justifyContent: "space-between", marginBottom: 12 }}
+              >
+                <h3 className="display text-md" style={{ margin: 0 }}>{t("newsroom")}</h3>
+                {newsroomTags.length > 0 && (
+                  <div className="row gap-1" style={{ flexWrap: "wrap" }}>
+                    {newsroomTags.slice(0, 3).map((tag) => (
+                      <span
+                        key={tag.id}
+                        className="chip chip-accent"
+                        style={{ fontSize: 9, padding: "2px 7px" }}
+                      >
+                        {tag.name}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {newsArticles.length === 0 ? (
+                <div>
+                  <p className="text-xs bold">{t("feedEmptyTitle")}</p>
+                  <p className="text-xs muted" style={{ marginTop: 4 }}>{t("feedEmptyDesc")}</p>
+                </div>
+              ) : (
+                <div className="col gap-3" style={{ overflow: "auto", maxHeight: 420 }}>
+                  {newsArticles.map((article) => (
+                    <a
+                      key={article.id}
+                      href={article.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{ color: "inherit", textDecoration: "none" }}
+                    >
+                      <div
+                        style={{
+                          padding: "10px 0",
+                          borderBottom: "1px dashed var(--border)",
+                        }}
+                      >
+                        <span
+                          className="text-xs mono muted"
+                          style={{ fontSize: 10, letterSpacing: "0.1em" }}
+                        >
+                          {article.sourceName ?? article.provider} ·{" "}
+                          {new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(article.publishedAt)}
+                        </span>
+                        <p className="bold text-sm" style={{ marginTop: 3, lineHeight: 1.35 }}>
+                          {article.title}
+                        </p>
+                      </div>
+                    </a>
+                  ))}
+                </div>
+              )}
+
+              {user.role === "ADMIN" && (
+                <div style={{ marginTop: 12 }}>
+                  <NewsSyncButton tournamentId={currentTournament?.id} />
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
