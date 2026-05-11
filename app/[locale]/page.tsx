@@ -121,7 +121,7 @@ export default async function Home() {
             href={hasSession ? "/dashboard/groups" : "/auth/signin"}
             className="btn btn-sm btn-accent"
           >
-            {hasSession ? "My groups →" : "Join with code"}
+            {hasSession ? t("myGroups") : t("joinWithCode")}
           </Link>
         </div>
       </nav>
@@ -168,9 +168,9 @@ export default async function Home() {
               lineHeight: 0.92,
             }}
           >
-            One bracket.<br />
-            Four weeks.<br />
-            <span style={{ color: "var(--accent-strong)" }}>Bragging rights.</span>
+            {t("heroLine1")}<br />
+            {t("heroLine2")}<br />
+            <span style={{ color: "var(--accent-strong)" }}>{t("heroLine3")}</span>
           </h1>
 
           <p className="text-lg muted" style={{ maxWidth: 520, lineHeight: 1.45, margin: 0 }}>
@@ -182,7 +182,7 @@ export default async function Home() {
               href={hasSession ? "/dashboard" : "/auth/signin"}
               className="btn btn-lg btn-accent"
             >
-              {hasSession ? t("openDashboard") : "Start a group →"}
+              {hasSession ? t("openDashboard") : t("startGroup")}
             </Link>
             {!hasSession && (
               <Link href="/auth/signin" className="btn btn-lg">
@@ -194,12 +194,12 @@ export default async function Home() {
           {/* Scoring + social proof */}
           <div className="row gap-8" style={{ marginTop: 8, alignItems: "flex-start", flexWrap: "wrap" }}>
             <div className="col gap-2">
-              <span className="eyebrow">Scoring</span>
+              <span className="eyebrow">{t("scoringLabel")}</span>
               <div className="row gap-4" style={{ alignItems: "baseline" }}>
                 {[
-                  { n: "5", l: "Exact score", accent: true },
-                  { n: "3", l: "Result", accent: false },
-                  { n: "2", l: "Standing", accent: false },
+                  { n: "5", l: t("exactScore"), accent: true },
+                  { n: "3", l: t("resultLabel"), accent: false },
+                  { n: "2", l: t("standingLabel"), accent: false },
                 ].map((s, i) => (
                   <div key={i} className="col" style={{ alignItems: "flex-start" }}>
                     <span
@@ -225,7 +225,7 @@ export default async function Home() {
                 ))}
               </div>
               <span className="text-xs muted" style={{ maxWidth: 220 }}>
-                1,284 prediction sets locked in this week
+                {t("socialProof")}
               </span>
             </div>
           </div>
@@ -243,7 +243,7 @@ export default async function Home() {
           }}
         >
           <div className="row" style={{ alignItems: "center", justifyContent: "space-between" }}>
-            <span className="eyebrow">A peek inside a live group</span>
+            <span className="eyebrow">{t("peekTitle")}</span>
             <span className="live-dot" />
           </div>
 
@@ -325,13 +325,13 @@ export default async function Home() {
 
           {/* Invite code CTA */}
           <div className="surface-broadcast row" style={{ alignItems: "center", gap: 12, padding: 16 }}>
-            <span className="text-xs mono" style={{ color: "#94a3b8", letterSpacing: "0.16em" }}>HAVE A CODE?</span>
+            <span className="text-xs mono" style={{ color: "#94a3b8", letterSpacing: "0.16em" }}>{t("haveCode")}</span>
             <Link
               href={hasSession ? "/dashboard/groups" : "/auth/signin"}
               className="btn btn-accent btn-sm"
               style={{ marginLeft: "auto" }}
             >
-              Join a group →
+              {t("joinGroup")}
             </Link>
           </div>
 

@@ -212,14 +212,14 @@ export default async function DashboardPage() {
                     <div className="row gap-2" style={{ alignItems: "center" }}>
                       <LiveDot />
                       <span className="text-xs mono" style={{ color: "#94a3b8", letterSpacing: "0.18em" }}>
-                        {heroMatch.status === "FINISHED" ? "LAST RESULT" : "UP NEXT"}
+                        {heroMatch.status === "FINISHED" ? t("lastResult") : t("upNext")}
                         {heroMatch.homeTeam && heroMatch.awayTeam
                           ? ` · ${heroMatch.homeTeam.fifaCode} vs ${heroMatch.awayTeam.fifaCode}`
                           : ""}
                       </span>
                     </div>
                     {heroMatch.status === "FINISHED" && (
-                      <span className="text-xs mono" style={{ color: "#10b981", letterSpacing: "0.16em" }}>FULL TIME</span>
+                      <span className="text-xs mono" style={{ color: "#10b981", letterSpacing: "0.16em" }}>{t("fullTime")}</span>
                     )}
                     {heroMatch.status === "SCHEDULED" && heroMatch.scheduledAt && (
                       <span className="text-xs mono" style={{ color: "#94a3b8", letterSpacing: "0.16em" }}>
@@ -274,31 +274,31 @@ export default async function DashboardPage() {
                       className="btn btn-sm"
                       style={{ background: "transparent", borderColor: "#334155", color: "#fff" }}
                     >
-                      My predictions →
+                      {t("myPredictionsLink")}
                     </Link>
                     <Link
                       href="/dashboard/groups"
                       className="btn btn-sm"
                       style={{ background: "transparent", borderColor: "#334155", color: "#94a3b8" }}
                     >
-                      Groups →
+                      {t("groupsLink")}
                     </Link>
                   </div>
                 </>
               ) : (
                 <div className="col gap-2" style={{ padding: "12px 0" }}>
                   <span className="text-xs mono" style={{ color: "#64748b", letterSpacing: "0.18em" }}>
-                    {currentTournament ? "NO MATCHES SCHEDULED TODAY" : "NO ACTIVE TOURNAMENT"}
+                    {currentTournament ? t("noMatchesScheduled") : t("noActiveTournament")}
                   </span>
                   <span className="display" style={{ fontSize: 26, color: "#fff" }}>
                     {currentTournament?.name ?? "World Cup 2026"}
                   </span>
                   <div className="row gap-3" style={{ marginTop: 8 }}>
                     <Link href="/dashboard/predictions" className="btn btn-sm" style={{ background: "transparent", borderColor: "#334155", color: "#fff" }}>
-                      My predictions →
+                      {t("myPredictionsLink")}
                     </Link>
                     <Link href="/dashboard/groups" className="btn btn-sm" style={{ background: "transparent", borderColor: "#334155", color: "#94a3b8" }}>
-                      Groups →
+                      {t("groupsLink")}
                     </Link>
                   </div>
                 </div>
@@ -308,14 +308,14 @@ export default async function DashboardPage() {
             {/* KPI strip */}
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               <div className="surface" style={{ padding: "14px 16px" }}>
-                <span className="eyebrow">Your live total</span>
+                <span className="eyebrow">{t("liveTotalLabel")}</span>
                 <div className="row gap-2" style={{ alignItems: "baseline", marginTop: 6 }}>
                   <span className="display tabnum text-3xl">
                     <CountUp value={totalPoints} />
                   </span>
                 </div>
                 <span className="text-xs muted">
-                  across {groupPerformance.length} group{groupPerformance.length !== 1 ? "s" : ""}
+                  {t("acrossGroups", { count: groupPerformance.length })}
                 </span>
               </div>
               <div className="surface" style={{ padding: "14px 16px" }}>
@@ -326,7 +326,7 @@ export default async function DashboardPage() {
                   </span>
                 </div>
                 <span className="text-xs muted">
-                  {bestRankEntry ? bestRankEntry.name : "No groups yet"}
+                  {bestRankEntry ? bestRankEntry.name : t("noGroupsYet")}
                 </span>
               </div>
               <div className="surface" style={{ padding: "14px 16px" }}>
@@ -339,7 +339,7 @@ export default async function DashboardPage() {
                 </span>
               </div>
               <div className="surface" style={{ padding: "14px 16px" }}>
-                <span className="eyebrow">Points lead</span>
+                <span className="eyebrow">{t("pointsLead")}</span>
                 <div className="row gap-2" style={{ alignItems: "baseline", marginTop: 6 }}>
                   <span
                     className="display tabnum text-3xl"
@@ -361,9 +361,9 @@ export default async function DashboardPage() {
                 <span className="text-xs muted">
                   {bestRankEntry
                     ? bestRankEntry.rank === 1
-                      ? "ahead of #2"
-                      : `gap to #1 in ${bestRankEntry.name}`
-                    : "No ranked groups"}
+                      ? t("aheadOf2")
+                      : t("gapTo1", { group: bestRankEntry.name })
+                    : t("noRankedGroups")}
                 </span>
               </div>
             </div>
@@ -371,9 +371,9 @@ export default async function DashboardPage() {
             {/* Groups grid */}
             <div className="flex flex-col gap-3">
               <div className="row" style={{ alignItems: "baseline", justifyContent: "space-between" }}>
-                <h3 className="display text-xl" style={{ margin: 0 }}>Your groups</h3>
+                <h3 className="display text-xl" style={{ margin: 0 }}>{t("yourGroups")}</h3>
                 <Link href="/dashboard/groups" className="btn btn-sm btn-ghost">
-                  All groups →
+                  {t("allGroups")}
                 </Link>
               </div>
 
@@ -382,7 +382,7 @@ export default async function DashboardPage() {
                   <p className="bold">{t("noGroupPerformance")}</p>
                   <p className="text-sm muted" style={{ marginTop: 6 }}>{t("noGroupPerformanceDesc")}</p>
                   <Link href="/dashboard/groups" className="btn btn-sm" style={{ marginTop: 12, display: "inline-flex" }}>
-                    Join or create a group →
+                    {t("joinOrCreate")}
                   </Link>
                 </div>
               ) : (
@@ -431,11 +431,11 @@ export default async function DashboardPage() {
                                 {g.name}
                               </span>
                               <span className="text-xs muted mono" style={{ letterSpacing: "0.12em" }}>
-                                {g.memberCount} MEMBERS
+                                {t("members", { count: g.memberCount })}
                               </span>
                             </div>
                             <div className="col" style={{ alignItems: "flex-end", flexShrink: 0 }}>
-                              <span className="text-xs muted mono">RANK</span>
+                              <span className="text-xs muted mono">{t("rank").toUpperCase()}</span>
                               <span className="display tabnum text-xl">
                                 {g.rank ? `#${g.rank}` : "—"}
                               </span>
@@ -460,7 +460,7 @@ export default async function DashboardPage() {
                                 </span>
                                 <Avatar userId={row.userId} name={row.userName} size={18} />
                                 <span className="bold text-xs" style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                  {row.userId === user.id ? "You" : row.userName}
+                                  {row.userId === user.id ? t("youLabel") : row.userName}
                                 </span>
                                 <span className="mono extrabold tabnum text-sm">{row.points}</span>
                               </div>
@@ -538,13 +538,13 @@ export default async function DashboardPage() {
                 className="row"
                 style={{ alignItems: "baseline", justifyContent: "space-between", marginBottom: 12 }}
               >
-                <h3 className="display text-lg" style={{ margin: 0 }}>Today</h3>
-                <span className="text-xs muted mono">{todayMatches.length} MATCHES</span>
+                <h3 className="display text-lg" style={{ margin: 0 }}>{t("today")}</h3>
+                <span className="text-xs muted mono">{t("matchCount", { count: todayMatches.length })}</span>
               </div>
 
               {todayMatches.length === 0 ? (
                 <p className="text-xs muted" style={{ padding: "4px 0" }}>
-                  No matches scheduled today.
+                  {t("noMatchesToday")}
                 </p>
               ) : (
                 <div className="col gap-1">
@@ -560,7 +560,7 @@ export default async function DashboardPage() {
                     >
                       <div style={{ width: 44, flexShrink: 0 }}>
                         {m.status === "FINISHED" ? (
-                          <span className="chip chip-outline" style={{ fontSize: 9 }}>FT</span>
+                          <span className="chip chip-outline" style={{ fontSize: 9 }}>{t("ftLabel")}</span>
                         ) : (
                           <span className="text-xs mono muted">
                             {m.scheduledAt

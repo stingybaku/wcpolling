@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
+import { useTranslations } from "next-intl";
 import { Link } from "@/lib/navigation";
 import { flagEmoji } from "@/lib/fifa-flags";
 import {
@@ -395,6 +396,7 @@ export default function GroupDetailPage() {
   const params = useParams() as { groupId: string };
   const router = useRouter();
   const { data: session } = useSession();
+  const t = useTranslations("groups.groupRoom");
 
   const [group, setGroup] = useState<GroupDetail | null>(null);
   const [error, setError] = useState("");
@@ -454,7 +456,7 @@ export default function GroupDetailPage() {
     });
     setSubmitting(null);
     if (!res.ok) { const d = await res.json().catch(() => null); setError(d?.error ?? "Submit failed."); return; }
-    setSuccess("Prediction submitted.");
+    setSuccess(t("predictionSubmitted"));
     await loadGroup();
   }
 
@@ -467,7 +469,7 @@ export default function GroupDetailPage() {
     });
     setUpdatingSubmission(false);
     if (!res.ok) { const d = await res.json().catch(() => null); setError(d?.error ?? "Could not update submission."); return; }
-    setSuccess("Submission updated.");
+    setSuccess(t("submissionUpdated"));
     setChangingSubmission(false); setNewPredictionId("");
     await loadGroup();
   }
@@ -502,22 +504,22 @@ export default function GroupDetailPage() {
         <div style={{ background: "var(--paper)", borderBottom: "1px solid var(--border)", padding: "20px 24px 16px" }}>
           {/* Top row: back + actions */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-            <Link href="/dashboard/groups" className="btn btn-sm btn-ghost">← Dashboard</Link>
+            <Link href="/dashboard/groups" className="btn btn-sm btn-ghost">{t("backToDashboard")}</Link>
             <div style={{ display: "flex", gap: 8 }}>
               <button className="btn btn-sm" onClick={copyInviteLink}>
-                {copiedLink ? "Copied!" : "Invite"}
+                {copiedLink ? t("copied") : t("invite")}
               </button>
               {!isOwner && group && (
                 confirmLeave ? (
                   <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                    <span style={{ fontSize: 12, color: "var(--muted)" }}>Leave?</span>
+                    <span style={{ fontSize: 12, color: "var(--muted)" }}>{t("leaveConfirm")}</span>
                     <button className="btn btn-sm" style={{ background: "var(--live)", color: "#fff", borderColor: "var(--live)" }} onClick={() => void leaveGroup()} disabled={leaving}>
-                      {leaving ? "…" : "Yes"}
+                      {leaving ? "…" : t("leaveYes")}
                     </button>
-                    <button className="btn btn-sm btn-ghost" onClick={() => setConfirmLeave(false)}>No</button>
+                    <button className="btn btn-sm btn-ghost" onClick={() => setConfirmLeave(false)}>{t("leaveNo")}</button>
                   </div>
                 ) : (
-                  <button className="btn btn-sm btn-ghost" style={{ color: "var(--live)" }} onClick={() => setConfirmLeave(true)}>Leave</button>
+                  <button className="btn btn-sm btn-ghost" style={{ color: "var(--live)" }} onClick={() => setConfirmLeave(true)}>{t("leaveButton")}</button>
                 )
               )}
             </div>
@@ -527,17 +529,17 @@ export default function GroupDetailPage() {
           <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
             <div>
               <p className="eyebrow" style={{ marginBottom: 6 }}>
-                {group ? `GROUP · ${memberCount} MEMBER${memberCount !== 1 ? "S" : ""} · INVITE ${group.inviteCode}` : "GROUP ROOM"}
+                {group ? `GROUP · ${memberCount} ${memberCount !== 1 ? t("members") : t("member")} · INVITE ${group.inviteCode}` : t("groupRoom")}
               </p>
               <h1 className="display" style={{ fontSize: 38, margin: 0, color: "var(--ink)" }}>
-                {group?.name ?? "Loading…"}
+                {group?.name ?? t("loading")}
               </h1>
               <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>
-                Created by {group ? displayName(group.owner) : "—"}
+                {group ? t("createdBy", { name: displayName(group.owner) }) : "—"}
                 {group?.tournament?.name && ` · ${group.tournament.name}`}
                 {deadline && (
                   <span style={{ marginLeft: 8, color: deadlinePassed ? "var(--live)" : deadlineSoon ? "#b45309" : "var(--accent-strong)", fontWeight: 600 }}>
-                    · {deadlinePassed ? "⏰ Closed" : `⏰ Deadline ${deadline.toLocaleDateString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}`}
+                    · {deadlinePassed ? t("deadlineClosed") : t("deadlineLabel", { date: deadline.toLocaleDateString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) })}
                   </span>
                 )}
               </p>
@@ -547,20 +549,20 @@ export default function GroupDetailPage() {
             {myRow && (
               <div style={{ display: "flex", gap: 28, alignItems: "flex-end", flexShrink: 0 }}>
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
-                  <span className="eyebrow">You</span>
+                  <span className="eyebrow">{t("youLabel")}</span>
                   <span className="display tabnum" style={{ fontSize: 32, lineHeight: 1 }}>
                     #{myRank} <span className="muted-2" style={{ fontSize: 18, fontWeight: 600 }}>/{memberCount}</span>
                   </span>
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
-                  <span className="eyebrow">Your points</span>
+                  <span className="eyebrow">{t("yourPoints")}</span>
                   <span className="display tabnum" style={{ fontSize: 32, lineHeight: 1 }}>
                     <CountUp value={myPoints} />
                   </span>
                 </div>
                 {myRank !== 1 && gap !== null && (
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
-                    <span className="eyebrow">Gap to #1</span>
+                    <span className="eyebrow">{t("gapTo1")}</span>
                     <span className="display tabnum" style={{ fontSize: 32, lineHeight: 1, color: "var(--live)" }}>
                       −{Math.abs(gap)}
                     </span>
@@ -568,7 +570,7 @@ export default function GroupDetailPage() {
                 )}
                 {myRank === 1 && leaderboard.length > 1 && (
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
-                    <span className="eyebrow">Lead</span>
+                    <span className="eyebrow">{t("lead")}</span>
                     <span className="display tabnum" style={{ fontSize: 32, lineHeight: 1, color: "var(--accent-strong)" }}>
                       +{myPoints - (leaderboard[1]?.points ?? 0)}
                     </span>
@@ -591,21 +593,21 @@ export default function GroupDetailPage() {
               <span style={{ width: 8, height: 8, borderRadius: 999, background: mySubmission ? "var(--accent-strong)" : "var(--gold)", flexShrink: 0 }} />
               {mySubmission ? (
                 <span style={{ fontSize: 13 }}>
-                  <strong>Submitted:</strong>{" "}
+                  <strong>{t("submittedBar")}</strong>{" "}
                   <span style={{ color: "var(--accent-ink)" }}>&ldquo;{mySubmission.prediction.name}&rdquo;</span>
                   {myRow && <span className="muted" style={{ marginLeft: 6 }}>· {myPoints} pts</span>}
                 </span>
               ) : (
                 <span style={{ fontSize: 13, color: "var(--gold)", fontWeight: 600 }}>
-                  You haven&apos;t submitted a prediction yet
+                  {t("notSubmittedYet")}
                 </span>
               )}
             </div>
             {mySubmission && !deadlinePassed && (
               <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
-                <button className="btn btn-sm" onClick={() => setPreviewId(mySubmission.prediction.id)}>Preview</button>
+                <button className="btn btn-sm" onClick={() => setPreviewId(mySubmission.prediction.id)}>{t("previewButton")}</button>
                 <button className="btn btn-sm btn-primary" onClick={() => { setChangingSubmission(p => !p); setNewPredictionId(""); }}>
-                  {changingSubmission ? "Cancel swap" : "Swap selection ↻"}
+                  {changingSubmission ? t("cancelSwap") : t("swapSelection")}
                 </button>
               </div>
             )}
@@ -614,12 +616,12 @@ export default function GroupDetailPage() {
 
         {/* ── Breakdown legend ──────────────────────────────────────── */}
         <div style={{ background: "var(--paper-strong)", borderBottom: "1px solid var(--border)", padding: "7px 24px", display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
-          <span className="eyebrow" style={{ color: "var(--muted-2)" }}>Breakdown ·</span>
+          <span className="eyebrow" style={{ color: "var(--muted-2)" }}>{t("breakdownLabel")}</span>
           {[
-            { color: "var(--accent-strong)", label: "Match pts" },
-            { color: "#86efac",              label: "Standings +2" },
-            { color: "var(--gold)",          label: "Knockout +5" },
-            { color: "var(--muted-2)",       label: "Tie-breakers" },
+            { color: "var(--accent-strong)", label: t("matchPts") },
+            { color: "#86efac",              label: t("standings2") },
+            { color: "var(--gold)",          label: t("knockout5") },
+            { color: "var(--muted-2)",       label: t("tieBreakersPts") },
           ].map(l => (
             <span key={l.label} style={{ display: "flex", alignItems: "center", gap: 5 }}>
               <span style={{ width: 10, height: 10, borderRadius: 2, background: l.color, flexShrink: 0 }} />
@@ -643,17 +645,17 @@ export default function GroupDetailPage() {
           <div style={{ overflowX: "auto" }}>
             {leaderboard.length === 0 ? (
               <div style={{ padding: "48px 24px", textAlign: "center" }}>
-                <p style={{ fontSize: 13, color: "var(--muted)" }}>No submissions yet — be the first!</p>
+                <p style={{ fontSize: 13, color: "var(--muted)" }}>{t("noSubmissionsYet")}</p>
               </div>
             ) : (
               <table className="tabular" style={{ width: "100%" }}>
                 <thead style={{ position: "sticky", top: 104, zIndex: 10 }}>
                   <tr>
                     <th style={{ width: 48 }}>#</th>
-                    <th>Member</th>
-                    <th>Set</th>
-                    <th style={{ minWidth: 160 }}>Breakdown</th>
-                    <th style={{ textAlign: "right", width: 60 }}>Pts</th>
+                    <th>{t("memberHeader")}</th>
+                    <th>{t("setHeader")}</th>
+                    <th style={{ minWidth: 160 }}>{t("breakdownHeader")}</th>
+                    <th style={{ textAlign: "right", width: 60 }}>{t("ptsHeader")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -681,7 +683,7 @@ export default function GroupDetailPage() {
                             <Avatar userId={row.userId} name={row.userName} size={24} />
                             <span style={{ fontWeight: 600, fontSize: 13 }}>
                               {row.userName}
-                              {isMe && <span className="chip chip-accent" style={{ marginLeft: 6, fontSize: 10, padding: "2px 6px" }}>You</span>}
+                              {isMe && <span className="chip chip-accent" style={{ marginLeft: 6, fontSize: 10, padding: "2px 6px" }}>{t("youLabel")}</span>}
                             </span>
                           </span>
                         </td>
@@ -715,21 +717,21 @@ export default function GroupDetailPage() {
 
             {/* Your drafts */}
             <div style={{ padding: "20px", borderBottom: "1px solid var(--border)" }}>
-              <p className="eyebrow" style={{ marginBottom: 12 }}>Your predictions</p>
+              <p className="eyebrow" style={{ marginBottom: 12 }}>{t("yourPredictions")}</p>
 
               {/* Not submitted + deadline passed */}
               {!mySubmission && deadlinePassed && (
                 <div style={{ padding: 12, background: "var(--live-soft)", borderRadius: "var(--r-sm)", border: "1px solid var(--live)" }}>
-                  <p style={{ fontSize: 12, color: "var(--live)", fontWeight: 600 }}>Submissions closed</p>
-                  <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>The deadline has passed.</p>
+                  <p style={{ fontSize: 12, color: "var(--live)", fontWeight: 600 }}>{t("submissionsClosed")}</p>
+                  <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>{t("deadlinePassed")}</p>
                 </div>
               )}
 
               {/* No predictions and not submitted */}
               {!mySubmission && !deadlinePassed && myPredictions.length === 0 && (
                 <div style={{ padding: 12, borderRadius: "var(--r-sm)", border: "1px solid var(--border)", textAlign: "center" }}>
-                  <p style={{ fontSize: 12, color: "var(--muted)", marginBottom: 8 }}>No predictions created yet.</p>
-                  <Link href="/dashboard/predictions" className="btn btn-sm btn-accent">Create one →</Link>
+                  <p style={{ fontSize: 12, color: "var(--muted)", marginBottom: 8 }}>{t("noPredictionsYet")}</p>
+                  <Link href="/dashboard/predictions" className="btn btn-sm btn-accent">{t("createOne")}</Link>
                 </div>
               )}
 
@@ -742,10 +744,10 @@ export default function GroupDetailPage() {
                 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                     <span style={{ fontWeight: 700, fontSize: 13 }}>&ldquo;{mySubmission.prediction.name}&rdquo;</span>
-                    <span className="chip chip-accent" style={{ fontSize: 10, padding: "2px 7px" }}>Active</span>
+                    <span className="chip chip-accent" style={{ fontSize: 10, padding: "2px 7px" }}>{t("activeBadge")}</span>
                   </div>
                   <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 3 }}>
-                    Submitted · {myPoints} pts
+                    {t("submittedPts", { pts: myPoints })}
                   </p>
                 </div>
               )}
@@ -765,16 +767,16 @@ export default function GroupDetailPage() {
                         }}>
                           <p style={{ fontWeight: 600, fontSize: 12 }}>&ldquo;{p.name}&rdquo;</p>
                           <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-                            <button className="btn btn-sm" style={{ flex: 1, justifyContent: "center", fontSize: 11 }} onClick={() => setPreviewId(p.id)}>Preview</button>
+                            <button className="btn btn-sm" style={{ flex: 1, justifyContent: "center", fontSize: 11 }} onClick={() => setPreviewId(p.id)}>{t("previewButton")}</button>
                             {mySubmission ? (
                               <button className="btn btn-sm" style={{ flex: 1, justifyContent: "center", fontSize: 11, background: isSelected ? "var(--accent-strong)" : undefined, color: isSelected ? "#fff" : undefined, borderColor: isSelected ? "var(--accent-strong)" : undefined }}
                                 onClick={() => setNewPredictionId(prev => prev === p.id ? "" : p.id)}>
-                                {isSelected ? "✓ Selected" : "Select"}
+                                {isSelected ? t("selectedButton") : t("selectButton")}
                               </button>
                             ) : (
                               <button className="btn btn-sm btn-accent" style={{ flex: 1, justifyContent: "center", fontSize: 11, opacity: submitting === p.id ? 0.7 : 1 }}
                                 disabled={submitting !== null} onClick={() => void submitPrediction(p.id)}>
-                                {submitting === p.id ? "…" : "Submit"}
+                                {submitting === p.id ? "…" : t("submitButton")}
                               </button>
                             )}
                           </div>
@@ -785,25 +787,25 @@ export default function GroupDetailPage() {
                   {changingSubmission && newPredictionId && (
                     <button className="btn btn-accent" style={{ marginTop: 4, justifyContent: "center", fontSize: 13 }}
                       onClick={() => void updateSubmission()} disabled={updatingSubmission}>
-                      {updatingSubmission ? "Updating…" : "Confirm swap"}
+                      {updatingSubmission ? t("updatingSwap") : t("confirmSwap")}
                     </button>
                   )}
                 </div>
               )}
 
               <Link href="/dashboard/predictions" className="btn btn-sm btn-ghost" style={{ marginTop: 10, width: "100%", justifyContent: "center", fontSize: 12 }}>
-                + New prediction
+                {t("newPrediction")}
               </Link>
             </div>
 
             {/* Just happened */}
             <div style={{ padding: "20px", borderBottom: "1px solid var(--border)" }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-                <p className="eyebrow">Just happened</p>
+                <p className="eyebrow">{t("justHappened")}</p>
                 <span className="live-dot" />
               </div>
               {leaderboard.length === 0 ? (
-                <p style={{ fontSize: 12, color: "var(--muted)" }}>Activity will appear here during live scoring.</p>
+                <p style={{ fontSize: 12, color: "var(--muted)" }}>{t("noActivity")}</p>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
                   {leaderboard.slice(0, 5).map((row, i) => (
@@ -823,9 +825,9 @@ export default function GroupDetailPage() {
             {/* Members */}
             <div style={{ padding: "20px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
-                <p className="eyebrow">Members · {memberCount}</p>
+                <p className="eyebrow">{t("membersCount", { count: memberCount })}</p>
                 <button className="btn btn-sm btn-ghost" style={{ fontSize: 11 }} onClick={copyInviteLink}>
-                  Invite +
+                  {t("inviteButton")}
                 </button>
               </div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
