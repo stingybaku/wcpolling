@@ -3,8 +3,25 @@ import createMiddleware from "next-intl/middleware";
 import { NextRequest, NextResponse } from "next/server";
 import { routing } from "@/i18n/routing";
 
-// Strip the internal port injected by Railway's reverse proxy so redirects
-// don't include :3000 in the URL visible to the browser.
+// Strip the internal port injected by Railway's reverse proxy from outgoing
+// redirect Location headers so the browser never sees :3000 in the URL.
+function stripPortFromRedirect(res: NextResponse): NextResponse {
+  const location = res.headers.get("location");
+  if (!location) return res;
+  try {
+    const url = new URL(location);
+    if (url.port && url.hostname !== "localhost") {
+      url.port = "";
+      res.headers.set("location", url.toString());
+    }
+  } catch {
+    // relative URL — nothing to strip
+  }
+  return res;
+}
+
+// Strip port from the incoming request URL so middleware logic (e.g. path
+// matching) doesn't see the internal port either.
 function stripPort(req: NextRequest): NextRequest {
   if (!req.nextUrl.port || req.nextUrl.hostname === "localhost") return req;
   const url = req.nextUrl.clone();
@@ -54,10 +71,10 @@ export default function middleware(req: NextRequest) {
 
   if (isProtected) {
     const locale = locales.find((l) => pathname.startsWith(`/${l}/`) || pathname === `/${l}`) ?? defaultLocale;
-    return (authMiddlewares[locale] as any)(req, {});
+    return stripPortFromRedirect((authMiddlewares[locale] as any)(req, {}));
   }
 
-  return intlMiddleware(req);
+  return stripPortFromRedirect(intlMiddleware(req));
 }
 
 export const config = {
