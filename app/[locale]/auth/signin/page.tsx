@@ -160,7 +160,6 @@ export default function SignInPage() {
 
             <div className="space-y-3">
               <button onClick={() => signIn("google", { callbackUrl: "/dashboard" })} className="surface-strong w-full rounded-[1.2rem] px-4 py-4 text-sm font-bold">{t("google")}</button>
-              <button onClick={() => signIn("facebook", { callbackUrl: "/dashboard" })} className="surface-strong w-full rounded-[1.2rem] px-4 py-4 text-sm font-bold">{t("facebook")}</button>
             </div>
 
             {message ? <p className="mt-4 text-sm muted">{message}</p> : null}
