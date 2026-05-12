@@ -109,6 +109,24 @@ export const authOptions: NextAuthOptions = {
       }
       return session;
     },
+    async redirect({ url, baseUrl }) {
+      // Strip Railway's internal port from any absolute URL before redirecting.
+      function stripPort(u: string) {
+        try {
+          const parsed = new URL(u);
+          if (parsed.port && parsed.hostname !== "localhost") {
+            parsed.port = "";
+            return parsed.toString();
+          }
+        } catch {}
+        return u;
+      }
+      url = stripPort(url);
+      baseUrl = stripPort(baseUrl);
+      if (url.startsWith("/")) return `${baseUrl}${url}`;
+      if (url.startsWith(baseUrl)) return url;
+      return baseUrl;
+    },
   },
   pages: {
     signIn: "/auth/signin",
