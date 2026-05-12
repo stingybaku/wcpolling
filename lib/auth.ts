@@ -85,7 +85,7 @@ export const authOptions: NextAuthOptions = {
       const image = getProviderImage(profile as Record<string, unknown> | undefined, user.image);
       if (!image) return true;
 
-      await prisma.user.update({
+      await prisma.user.updateMany({
         where: { id: user.id },
         data: { image },
       });
