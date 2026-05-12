@@ -51,7 +51,7 @@ const authMiddlewares = Object.fromEntries(
 
 const protectedPathPrefixes = ["/dashboard"];
 
-export default function middleware(req: NextRequest) {
+export default async function middleware(req: NextRequest) {
   req = stripPort(req);
   const { pathname } = req.nextUrl;
 
@@ -71,10 +71,10 @@ export default function middleware(req: NextRequest) {
 
   if (isProtected) {
     const locale = locales.find((l) => pathname.startsWith(`/${l}/`) || pathname === `/${l}`) ?? defaultLocale;
-    return stripPortFromRedirect((authMiddlewares[locale] as any)(req, {}));
+    return stripPortFromRedirect(await (authMiddlewares[locale] as any)(req, {}));
   }
 
-  return stripPortFromRedirect(intlMiddleware(req));
+  return stripPortFromRedirect(await intlMiddleware(req));
 }
 
 export const config = {
