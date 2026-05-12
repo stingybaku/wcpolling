@@ -132,7 +132,7 @@ export function UserMenu({
               className="w-full rounded-[1.2rem] px-4 py-3 text-sm font-semibold text-white transition hover:opacity-90"
               onClick={() => {
                 setOpen(false);
-                signOut({ callbackUrl: "/" });
+                signOut({ callbackUrl: "/auth/signin" });
               }}
               style={{ background: "linear-gradient(135deg, var(--danger), #d48a3a)" }}
               type="button"
