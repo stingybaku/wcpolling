@@ -25,7 +25,7 @@ type GroupDetail = {
   description?: string;
   inviteCode: string;
   ownerId: string;
-  tournament?: { name: string; submissionDeadline?: string | null } | null;
+  tournament?: { id: string; name: string; type: string; submissionDeadline?: string | null } | null;
   owner: { email?: string | null; name?: string | null };
   memberships: Array<{ user: { id: string; email?: string | null; name?: string | null } }>;
   submissions: Array<{
@@ -582,8 +582,36 @@ export default function GroupDetailPage() {
           </div>
         </div>
 
+        {/* ── Staged tournament CTA ─────────────────────────────────── */}
+        {group?.tournament?.type === "STAGED" && group.tournament.id && (
+          <div style={{
+            position: "sticky", top: 64, zIndex: 20,
+            background: "var(--accent-soft, #e0f2fe)",
+            borderBottom: "1px solid var(--accent, #0ea5e9)",
+            padding: "12px 24px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ width: 8, height: 8, borderRadius: 999, background: "var(--accent-strong, #0284c7)", flexShrink: 0 }} />
+              <span style={{ fontSize: 13 }}>
+                <strong>Staged predictions are open.</strong>{" "}
+                <span style={{ color: "var(--muted)" }}>Pick your qualifying teams and match winners stage by stage.</span>
+              </span>
+            </div>
+            <Link
+              href={`/dashboard/groups/${params.groupId}/predictions/${group.tournament.id}`}
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 6,
+                background: "var(--accent-strong, #0284c7)", color: "#fff",
+                borderRadius: 999, padding: "7px 18px", fontSize: 13, fontWeight: 600, whiteSpace: "nowrap", textDecoration: "none",
+              }}
+            >
+              Make Predictions →
+            </Link>
+          </div>
+        )}
+
         {/* ── Sticky submission bar ─────────────────────────────────── */}
-        {(mySubmission || (!mySubmission && !deadlinePassed && myPredictions.length > 0)) && (
+        {group?.tournament?.type !== "STAGED" && (mySubmission || (!mySubmission && !deadlinePassed && myPredictions.length > 0)) && (
           <div style={{
             position: "sticky", top: 64, zIndex: 20,
             background: mySubmission ? "var(--accent-soft)" : "var(--gold-soft)",
