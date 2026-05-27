@@ -728,7 +728,11 @@ export default function GroupDetailPage() {
           <div style={{ overflowX: "auto" }}>
             {leaderboard.length === 0 ? (
               <div style={{ padding: "48px 24px", textAlign: "center" }}>
-                <p style={{ fontSize: 13, color: "var(--muted)" }}>{t("noSubmissionsYet")}</p>
+                <p style={{ fontSize: 13, color: "var(--muted)" }}>
+                  {group?.tournament?.type === "STAGED"
+                    ? "Leaderboard will appear once the first stage is scored."
+                    : t("noSubmissionsYet")}
+                </p>
               </div>
             ) : (
               <table className="tabular" style={{ width: "100%" }}>
