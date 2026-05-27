@@ -433,18 +433,17 @@ function MatchEntryModal({
 
 function ResultEntryModal({
   stage,
-  teams,
   onClose,
   onSaved,
 }: {
   stage: Stage;
-  teams: Team[];
   onClose: () => void;
   onSaved: () => void;
 }) {
   const isGroup = stage.type === "GROUP_QUALIFICATION";
+  const [teams, setTeams] = useState<Team[]>([]);
   const [matches, setMatches] = useState<StageMatch[]>([]);
-  const [loadingMatches, setLoadingMatches] = useState(!isGroup);
+  const [loading, setLoading] = useState(true);
   const [qualifiers, setQualifiers] = useState<Set<string>>(new Set());
   const [winners, setWinners] = useState<Record<string, string>>({});
   const [teamSearch, setTeamSearch] = useState("");
@@ -453,13 +452,12 @@ function ResultEntryModal({
   const [success, setSuccess] = useState("");
 
   useEffect(() => {
-    if (!isGroup) {
-      fetch(`/api/admin/staged/stages/${stage.id}/matches`)
-        .then((r) => r.json())
-        .then((d) => setMatches(d.matches ?? []))
-        .catch(() => setError("Failed to load matches"))
-        .finally(() => setLoadingMatches(false));
-    }
+    const fetches = isGroup
+      ? [fetch("/api/admin/teams").then((r) => r.json()).then((d) => setTeams(d.teams ?? []))]
+      : [fetch(`/api/admin/staged/stages/${stage.id}/matches`).then((r) => r.json()).then((d) => setMatches(d.matches ?? []))];
+    Promise.all(fetches)
+      .catch(() => setError("Failed to load data"))
+      .finally(() => setLoading(false));
   }, [stage.id, isGroup]);
 
   const toggleQualifier = (teamId: string) => {
@@ -516,7 +514,9 @@ function ResultEntryModal({
         {error && <p className="mb-3 rounded-xl bg-red-900/40 px-4 py-2 text-sm text-red-300">{error}</p>}
         {success && <p className="mb-3 rounded-xl bg-green-900/40 px-4 py-2 text-sm text-green-300">{success}</p>}
 
-        {isGroup ? (
+        {isGroup && loading ? (
+          <p className="py-8 text-center text-sm text-gray-400">Loading teams...</p>
+        ) : isGroup ? (
           <>
             <p className="text-sm text-gray-400 mb-3">
               Select the <strong className="text-white">32 teams</strong> that qualify from the group stage.
@@ -555,8 +555,8 @@ function ResultEntryModal({
               })}
             </div>
           </>
-        ) : loadingMatches ? (
-          <p className="py-8 text-center text-sm text-gray-400">Loading matches...</p>
+        ) : loading ? (
+          <p className="py-8 text-center text-sm text-gray-400">Loading...</p>
         ) : (
           <div className="space-y-3">
             {matches.map((m) => (
@@ -705,7 +705,6 @@ function StageCard({
       {modal === "resultEntry" && (
         <ResultEntryModal
           stage={stage}
-          teams={teams}
           onClose={() => setModal(null)}
           onSaved={() => { setModal(null); onRefresh(); }}
         />
