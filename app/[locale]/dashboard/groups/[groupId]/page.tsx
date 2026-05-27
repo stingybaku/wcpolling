@@ -412,6 +412,11 @@ export default function GroupDetailPage() {
   const [changingSubmission, setChangingSubmission] = useState(false);
   const [newPredictionId, setNewPredictionId] = useState("");
   const [updatingSubmission, setUpdatingSubmission] = useState(false);
+  const [stagedStatus, setStagedStatus] = useState<{
+    status: "draft" | "submitted";
+    stageName: string;
+  } | null>(null);
+  const [openStageName, setOpenStageName] = useState<string | null>(null);
 
   const currentUserEmail = session?.user?.email;
   const currentUserId = (session?.user as { id?: string } | undefined)?.id;
@@ -438,6 +443,33 @@ export default function GroupDetailPage() {
     setGroup(data.group);
     setLeaderboard(buildLeaderboard(data.group.submissions ?? []));
     setError("");
+    if (data.group?.tournament?.type === "STAGED" && data.group.tournament.id) {
+      void loadStagedStatus(data.group.tournament.id);
+    }
+  }
+
+  async function loadStagedStatus(tournamentId: string) {
+    try {
+      const stagesRes = await fetch(`/api/staged/tournaments/${tournamentId}/stages`);
+      if (!stagesRes.ok) return;
+      const stagesData = await stagesRes.json();
+      const openStage = (stagesData.stages ?? []).find(
+        (s: { status: string; name: string }) => s.status === "OPEN"
+      );
+      if (!openStage) { setOpenStageName(null); setStagedStatus(null); return; }
+      setOpenStageName(openStage.name);
+      const predRes = await fetch(`/api/staged/groups/${params.groupId}/stages/${openStage.id}/prediction`);
+      if (!predRes.ok) return;
+      const predData = await predRes.json();
+      const pred = predData.prediction;
+      if (!pred) { setStagedStatus(null); return; }
+      setStagedStatus({
+        status: pred.submittedAt ? "submitted" : "draft",
+        stageName: openStage.name,
+      });
+    } catch {
+      // silently ignore — banner falls back to default CTA
+    }
   }
 
   async function loadMyPredictions() {
@@ -586,26 +618,48 @@ export default function GroupDetailPage() {
         {group?.tournament?.type === "STAGED" && group.tournament.id && (
           <div style={{
             position: "sticky", top: 64, zIndex: 20,
-            background: "var(--accent-soft, #e0f2fe)",
-            borderBottom: "1px solid var(--accent, #0ea5e9)",
+            background: stagedStatus?.status === "submitted"
+              ? "var(--accent-soft, #dcfce7)"
+              : stagedStatus?.status === "draft"
+                ? "#fffbeb"
+                : "var(--accent-soft, #e0f2fe)",
+            borderBottom: `1px solid ${stagedStatus?.status === "submitted" ? "#86efac" : stagedStatus?.status === "draft" ? "#fde68a" : "var(--accent, #0ea5e9)"}`,
             padding: "12px 24px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap",
           }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <span style={{ width: 8, height: 8, borderRadius: 999, background: "var(--accent-strong, #0284c7)", flexShrink: 0 }} />
+              <span style={{
+                width: 8, height: 8, borderRadius: 999, flexShrink: 0,
+                background: stagedStatus?.status === "submitted" ? "#16a34a" : stagedStatus?.status === "draft" ? "#d97706" : "var(--accent-strong, #0284c7)",
+              }} />
               <span style={{ fontSize: 13 }}>
-                <strong>Staged predictions are open.</strong>{" "}
-                <span style={{ color: "var(--muted)" }}>Pick your qualifying teams and match winners stage by stage.</span>
+                {stagedStatus?.status === "submitted" ? (
+                  <>
+                    <strong style={{ color: "#16a34a" }}>Picks submitted</strong>
+                    {" "}<span style={{ color: "var(--muted)" }}>for {stagedStatus.stageName}. You&apos;re all set!</span>
+                  </>
+                ) : stagedStatus?.status === "draft" ? (
+                  <>
+                    <strong style={{ color: "#d97706" }}>Draft saved</strong>
+                    {" "}<span style={{ color: "var(--muted)" }}>for {stagedStatus.stageName} — don&apos;t forget to submit before the deadline.</span>
+                  </>
+                ) : (
+                  <>
+                    <strong>Staged predictions are open{openStageName ? ` · ${openStageName}` : ""}.</strong>
+                    {" "}<span style={{ color: "var(--muted)" }}>Pick your qualifying teams and match winners stage by stage.</span>
+                  </>
+                )}
               </span>
             </div>
             <Link
               href={`/dashboard/groups/${params.groupId}/predictions/${group.tournament.id}`}
               style={{
                 display: "inline-flex", alignItems: "center", gap: 6,
-                background: "var(--accent-strong, #0284c7)", color: "#fff",
+                background: stagedStatus?.status === "submitted" ? "#16a34a" : stagedStatus?.status === "draft" ? "#d97706" : "var(--accent-strong, #0284c7)",
+                color: "#fff",
                 borderRadius: 999, padding: "7px 18px", fontSize: 13, fontWeight: 600, whiteSpace: "nowrap", textDecoration: "none",
               }}
             >
-              Make Predictions →
+              {stagedStatus?.status === "submitted" ? "View Predictions →" : stagedStatus?.status === "draft" ? "Continue Predictions →" : "Make Predictions →"}
             </Link>
           </div>
         )}
