@@ -10,10 +10,12 @@ type Group = {
   name: string;
   inviteCode: string;
   description?: string;
-  tournament?: { id: string; name: string } | null;
+  tournament?: { id: string; name: string; type?: string } | null;
   owner: { name?: string | null; email?: string | null };
   memberships: Array<{ user: { name?: string | null; email?: string | null } }>;
 };
+
+type Tournament = { id: string; name: string; type: string };
 
 function GroupsPageInner() {
   const t = useTranslations("groups");
@@ -22,25 +24,34 @@ function GroupsPageInner() {
   const redirectError = searchParams.get("error");
 
   const [groups, setGroups] = useState<Group[]>([]);
+  const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [error, setError] = useState<string>(redirectError === "not-member" ? t("notMember") : "");
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [tournamentId, setTournamentId] = useState("");
   const [inviteCode, setInviteCode] = useState(searchParams.get("code") ?? "");
   const [loading, setLoading] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   async function fetchGroups() {
     const res = await fetch("/api/groups");
-    if (!res.ok) {
-      setError(t("loadError"));
-      return;
-    }
+    if (!res.ok) { setError(t("loadError")); return; }
     const data = await res.json();
     setGroups(data.groups || []);
   }
 
+  async function fetchTournaments() {
+    const res = await fetch("/api/tournaments");
+    if (!res.ok) return;
+    const data = await res.json();
+    const list: Tournament[] = data.tournaments ?? [];
+    setTournaments(list);
+    if (!tournamentId && list.length > 0) setTournamentId(list[0].id);
+  }
+
   useEffect(() => {
-    fetchGroups();
+    void fetchGroups();
+    void fetchTournaments();
   }, []);
 
   async function createGroup(e: React.FormEvent) {
@@ -50,13 +61,10 @@ function GroupsPageInner() {
     const res = await fetch("/api/groups", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, description }),
+      body: JSON.stringify({ name, description, tournamentId }),
     });
     setLoading(false);
-    if (!res.ok) {
-      setError(t("createError"));
-      return;
-    }
+    if (!res.ok) { setError(t("createError")); return; }
     setName("");
     setDescription("");
     await fetchGroups();
@@ -105,6 +113,19 @@ function GroupsPageInner() {
           <div className="mt-5 space-y-4">
             <input className="field" placeholder={t("groupNamePlaceholder")} value={name} onChange={(e) => setName(e.target.value)} />
             <textarea className="field min-h-[7.5rem]" placeholder={t("descriptionPlaceholder")} value={description} onChange={(e) => setDescription(e.target.value)} />
+            {tournaments.length > 1 && (
+              <select
+                className="field"
+                value={tournamentId}
+                onChange={(e) => setTournamentId(e.target.value)}
+              >
+                {tournaments.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}{t.type === "STAGED" ? " (Staged)" : ""}
+                  </option>
+                ))}
+              </select>
+            )}
             <p className="text-sm muted">{t("createGroupNote")}</p>
             <button className="rounded-[1.3rem] px-5 py-4 text-sm font-extrabold uppercase tracking-[0.2em] text-white" disabled={loading} style={{ background: "linear-gradient(135deg, var(--accent), var(--accent-strong))" }} type="submit">{t("createButton")}</button>
           </div>
@@ -140,7 +161,12 @@ function GroupsPageInner() {
                   <div>
                     <p className="text-xl font-extrabold">{group.name}</p>
                     <p className="mt-1 text-sm muted">{t("owner", { name: group.owner?.name ?? group.owner?.email ?? tCommon("unknown") })}</p>
-                    <p className="mt-1 text-sm muted">{t("tournament", { name: group.tournament?.name ?? tCommon("unknown") })}</p>
+                    <p className="mt-1 text-sm muted">
+                      {t("tournament", { name: group.tournament?.name ?? tCommon("unknown") })}
+                      {group.tournament?.type === "STAGED" && (
+                        <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 700, color: "var(--accent-strong)", textTransform: "uppercase", letterSpacing: "0.06em" }}>Staged</span>
+                      )}
+                    </p>
                   </div>
                   <Link href={`/dashboard/groups/${group.id}`} className="rounded-full px-4 py-2 text-xs font-extrabold uppercase tracking-[0.2em] text-white" style={{ background: "linear-gradient(135deg, var(--accent), var(--accent-strong))" }}>
                     {tCommon("open")}
