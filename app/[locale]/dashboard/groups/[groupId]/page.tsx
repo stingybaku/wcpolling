@@ -750,15 +750,19 @@ export default function GroupDetailPage() {
           {/* ── Left: Leaderboard ──────────────────────────────────── */}
           <div style={{ overflowX: "auto" }}>
             {group?.tournament?.type === "STAGED" ? (
-              stagedLeaderboard.length === 0 ? (
-                <div style={{ padding: "48px 24px", textAlign: "center" }}>
-                  <p style={{ fontSize: 13, color: "var(--muted)" }}>
-                    Leaderboard will appear once the first stage is scored.
-                  </p>
-                </div>
-              ) : (() => {
+              (() => {
                 const scoredStages = stagedStages.filter((s) => s.status === "SCORED");
-                const sorted = [...stagedLeaderboard].sort((a, b) => b.totalPoints - a.totalPoints);
+                const scoreMap = Object.fromEntries(stagedLeaderboard.map((e) => [e.userId, e]));
+                const allMembers: StagedLeaderboardEntry[] = (group.memberships ?? []).map((m) =>
+                  scoreMap[m.user.id] ?? {
+                    userId: m.user.id,
+                    userName: displayName(m.user),
+                    totalPoints: 0,
+                    totalCorrectPicks: 0,
+                    stages: [],
+                  }
+                );
+                const sorted = [...allMembers].sort((a, b) => b.totalPoints - a.totalPoints);
                 return (
                   <table className="tabular" style={{ width: "100%" }}>
                     <thead style={{ position: "sticky", top: 104, zIndex: 10 }}>
