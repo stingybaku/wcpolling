@@ -52,6 +52,7 @@ type OfficialThirdPlace = { teamId: string; rank: number };
 type Tournament = {
   id: string;
   name: string;
+  type: "CLASSIC" | "STAGED";
   groups: TournamentGroup[];
   phases: TournamentPhase[];
 };
@@ -486,6 +487,16 @@ export default function TournamentManager({ tournamentId }: { tournamentId: stri
     return (
       <div style={{ padding: 40 }}>
         <p className="muted">Loading tournament state…</p>
+      </div>
+    );
+  }
+
+  if (tournament?.type === "STAGED") {
+    return (
+      <div style={{ padding: 40 }}>
+        <p style={{ marginBottom: 8 }}><strong>{tournament.name}</strong> is a Staged tournament.</p>
+        <p className="muted" style={{ marginBottom: 16 }}>Use the Staged Admin Panel to manage stages, enter results, and score predictions.</p>
+        <Link className="btn btn-sm" href={`/dashboard/admin/tournaments/${tournament.id}/staged`} style={{ display: "inline-flex" }}>Manage Stages →</Link>
       </div>
     );
   }
