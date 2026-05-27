@@ -551,19 +551,6 @@ export default function GroupDetailPage() {
 
   const isStagedTournament = group?.tournament?.type === "STAGED";
   const stagedScoreMap = Object.fromEntries(stagedLeaderboard.map((e) => [e.userId, e]));
-  const stagedSortedRows: StagedLeaderboardEntry[] = isStagedTournament
-    ? (group!.memberships ?? [])
-        .map((m): StagedLeaderboardEntry =>
-          stagedScoreMap[m.user.id] ?? {
-            userId: m.user.id,
-            userName: displayName(m.user),
-            totalPoints: 0,
-            totalCorrectPicks: 0,
-            stages: [],
-          }
-        )
-        .sort((a, b) => b.totalPoints - a.totalPoints)
-    : [];
   const stagedScoredStages = stagedStages.filter((s) => s.status === "SCORED");
 
   return (
@@ -779,37 +766,48 @@ export default function GroupDetailPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {stagedSortedRows.map((entry, idx) => {
-                    const isMe = entry.userId === currentUserId;
-                    const stageMap = Object.fromEntries(entry.stages.map((s) => [s.stageId, s]));
-                    return (
-                      <tr key={entry.userId} style={{ background: isMe ? "var(--accent-soft)" : "transparent" }}>
-                        <td><MedalBadge rank={idx + 1} /></td>
-                        <td>
-                          <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                            <Avatar userId={entry.userId} name={entry.userName ?? "?"} size={24} />
-                            <span style={{ fontWeight: 600, fontSize: 13 }}>
-                              {entry.userName ?? "Unknown"}
-                              {isMe && <span className="chip chip-accent" style={{ marginLeft: 6, fontSize: 10, padding: "2px 6px" }}>{t("youLabel")}</span>}
+                  {[...(group?.memberships ?? [])]
+                    .map((m) => {
+                      const scored = stagedScoreMap[m.user.id];
+                      return {
+                        userId: m.user.id,
+                        userName: displayName(m.user),
+                        totalPoints: scored?.totalPoints ?? 0,
+                        stages: scored?.stages ?? [],
+                      };
+                    })
+                    .sort((a, b) => b.totalPoints - a.totalPoints)
+                    .map((entry, idx) => {
+                      const isMe = entry.userId === currentUserId;
+                      const stageMap = Object.fromEntries(entry.stages.map((s) => [s.stageId, s]));
+                      return (
+                        <tr key={entry.userId} style={{ background: isMe ? "var(--accent-soft)" : "transparent" }}>
+                          <td><MedalBadge rank={idx + 1} /></td>
+                          <td>
+                            <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <Avatar userId={entry.userId} name={entry.userName} size={24} />
+                              <span style={{ fontWeight: 600, fontSize: 13 }}>
+                                {entry.userName}
+                                {isMe && <span className="chip chip-accent" style={{ marginLeft: 6, fontSize: 10, padding: "2px 6px" }}>{t("youLabel")}</span>}
+                              </span>
                             </span>
-                          </span>
-                        </td>
-                        <td style={{ textAlign: "right" }}>
-                          <span className="mono" style={{ fontSize: 16, fontWeight: 800, color: isMe ? "var(--accent-strong)" : "var(--ink)" }}>
-                            <CountUp value={entry.totalPoints} />
-                          </span>
-                        </td>
-                        {stagedScoredStages.map((s) => {
-                          const sd = stageMap[s.id];
-                          return (
-                            <td key={s.id} style={{ textAlign: "right", color: "var(--muted)", fontSize: 13 }}>
-                              {sd ? sd.points : "–"}
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    );
-                  })}
+                          </td>
+                          <td style={{ textAlign: "right" }}>
+                            <span className="mono" style={{ fontSize: 16, fontWeight: 800, color: isMe ? "var(--accent-strong)" : "var(--ink)" }}>
+                              <CountUp value={entry.totalPoints} />
+                            </span>
+                          </td>
+                          {stagedScoredStages.map((s) => {
+                            const sd = stageMap[s.id];
+                            return (
+                              <td key={s.id} style={{ textAlign: "right", color: "var(--muted)", fontSize: 13 }}>
+                                {sd ? sd.points : "–"}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      );
+                    })}
                 </tbody>
               </table>
             ) : leaderboard.length === 0 ? (
