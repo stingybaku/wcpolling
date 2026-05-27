@@ -32,3 +32,26 @@ export async function GET() {
 
   return new Response(JSON.stringify({ tournaments }), { status: 200 });
 }
+
+export async function POST(request: Request) {
+  const admin = await requireAdmin();
+  if (!admin) return unauthorized();
+
+  const body = await request.json().catch(() => null);
+  if (!body || typeof body.name !== "string" || !body.name.trim()) {
+    return new Response(JSON.stringify({ error: "Name is required." }), { status: 400 });
+  }
+
+  const rawType = body.type;
+  const type = rawType === "STAGED" ? "STAGED" : "CLASSIC";
+
+  const tournament = await prisma.tournament.create({
+    data: {
+      name: body.name.trim(),
+      slug: typeof body.slug === "string" ? body.slug.trim() : body.name.trim().toLowerCase().replace(/\s+/g, "-"),
+      type,
+    },
+  });
+
+  return new Response(JSON.stringify({ tournament }), { status: 201 });
+}

@@ -41,6 +41,28 @@ enum PredictionScoreType {
   TIEBREAKER
 }
 
+enum TournamentType {
+  CLASSIC
+  STAGED
+}
+
+enum StageType {
+  GROUP_QUALIFICATION
+  KNOCKOUT
+}
+
+enum StageStatus {
+  UPCOMING
+  OPEN
+  CLOSED
+  SCORED
+}
+
+enum GroupMemberRole {
+  MEMBER
+  GROUP_ADMIN
+}
+
 model User {
   id              String                 @id @default(cuid())
   name            String?
@@ -55,6 +77,8 @@ model User {
   groupRoomsOwned GroupRoom[]
   accounts        Account[]
   sessions        Session[]
+  stagePredictions StagePrediction[]
+  stageScores      StageScore[]
   createdAt       DateTime               @default(now())
   updatedAt       DateTime               @updatedAt
 }
@@ -102,6 +126,7 @@ model Tournament {
   isActive         Boolean             @default(false)
   submissionDeadline DateTime?
   archivedAt       DateTime?
+  type             TournamentType      @default(CLASSIC)
   createdAt        DateTime            @default(now())
   updatedAt        DateTime            @updatedAt
   groups           TournamentGroup[]
@@ -115,6 +140,7 @@ model Tournament {
   groupRooms       GroupRoom[]
   officialGroupStandings OfficialGroupStanding[]
   officialThirdPlace     OfficialThirdPlaceRanking[]
+  stages           TournamentStage[]
 }
 
 model TournamentTag {
@@ -221,6 +247,9 @@ model Team {
   thirdPlaceRankings    PredictionThirdPlaceRanking[]
   officialGroupStandings   OfficialGroupStanding[]
   officialThirdPlace       OfficialThirdPlaceRanking[]
+  stageMatchesAsHome       StageMatch[]               @relation("HomeTeam")
+  stageMatchesAsAway       StageMatch[]               @relation("AwayTeam")
+  stageMatchesAsWinner     StageMatch[]               @relation("WinnerTeam")
 }
 
 model TournamentGroupTeam {
@@ -310,15 +339,19 @@ model GroupRoom {
   owner       User                   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   memberships GroupMembership[]
   submissions PredictionSubmission[]
+  stagePredictions StagePrediction[]
+  stageScores      StageScore[]
 }
 
 model GroupMembership {
-  id        String    @id @default(cuid())
+  id        String          @id @default(cuid())
   userId    String
   groupId   String
-  createdAt DateTime  @default(now())
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  group     GroupRoom @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  role      GroupMemberRole @default(MEMBER)
+  isActive  Boolean         @default(true)
+  createdAt DateTime        @default(now())
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group     GroupRoom       @relation(fields: [groupId], references: [id], onDelete: Cascade)
 
   @@unique([userId, groupId])
 }
@@ -463,4 +496,106 @@ model OfficialThirdPlaceRanking {
 
   @@unique([tournamentId, teamId])
   @@unique([tournamentId, rank])
+}
+
+// ─── Staged Tournament Models ─────────────────────────────────────────────────
+
+model TournamentStage {
+  id            String       @id @default(cuid())
+  tournamentId  String
+  tournament    Tournament   @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  type          StageType
+  status        StageStatus  @default(UPCOMING)
+  name          String
+  roundLabel    String?
+  order         Int
+
+  opensAt       DateTime
+  closesAt      DateTime
+
+  stagePredictions        StagePrediction[]
+  stageScores             StageScore[]
+  stageMatches            StageMatch[]
+  qualificationResult     StageQualificationResult?
+
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@unique([tournamentId, order])
+}
+
+model StageMatch {
+  id          String          @id @default(cuid())
+  stageId     String
+  stage       TournamentStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  matchNumber String
+  homeTeamId  String
+  homeTeam    Team            @relation("HomeTeam", fields: [homeTeamId], references: [id])
+  awayTeamId  String
+  awayTeam    Team            @relation("AwayTeam", fields: [awayTeamId], references: [id])
+  matchDate   DateTime?
+  winnerId    String?
+  winner      Team?           @relation("WinnerTeam", fields: [winnerId], references: [id])
+
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@unique([stageId, matchNumber])
+}
+
+model StageQualificationResult {
+  id         String          @id @default(cuid())
+  stageId    String          @unique
+  stage      TournamentStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  qualifiers Json
+  createdAt  DateTime        @default(now())
+}
+
+model StagePrediction {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stageId   String
+  stage     TournamentStage  @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  groupId   String
+  group     GroupRoom        @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  qualificationPicks  Json?
+  matchPicks          Json?
+
+  submittedAt  DateTime?
+
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@unique([userId, stageId, groupId])
+}
+
+model StageScore {
+  id       String           @id @default(cuid())
+  userId   String
+  user     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stageId  String
+  stage    TournamentStage  @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  groupId  String
+  group    GroupRoom        @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  points        Int   @default(0)
+  correctPicks  Int   @default(0)
+  breakdown     Json
+
+  createdAt  DateTime  @default(now())
+
+  @@unique([userId, stageId, groupId])
+}
+
+model EmailLog {
+  id      String   @id @default(cuid())
+  userId  String
+  type    String
+  refId   String
+  sentAt  DateTime @default(now())
+
+  @@unique([userId, type, refId])
 }

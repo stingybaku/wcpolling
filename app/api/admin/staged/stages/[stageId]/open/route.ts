@@ -1,0 +1,69 @@
+import { forbidden, getCurrentUser, unauthorized } from "@/app/api/helpers";
+import { prisma } from "@/lib/prisma";
+
+async function requireAdmin() {
+  const user = await getCurrentUser();
+  if (!user) return null;
+  if (user.role !== "ADMIN") throw forbidden("Admin only");
+  return user;
+}
+
+export async function POST(_request: Request, context: { params: Promise<{ stageId: string }> }) {
+  const admin = await requireAdmin();
+  if (!admin) return unauthorized();
+
+  const { stageId } = await context.params;
+
+  const stage = await prisma.tournamentStage.findUnique({
+    where: { id: stageId },
+  });
+  if (!stage) {
+    return new Response(JSON.stringify({ error: "Stage not found" }), { status: 404 });
+  }
+
+  if (stage.status !== "UPCOMING") {
+    return new Response(
+      JSON.stringify({ error: "Stage must be UPCOMING to transition to OPEN" }),
+      { status: 409 }
+    );
+  }
+
+  if (stage.closesAt <= new Date()) {
+    return new Response(
+      JSON.stringify({ error: "closesAt must be in the future to open the stage" }),
+      { status: 409 }
+    );
+  }
+
+  if (stage.type === "KNOCKOUT") {
+    const matchCount = await prisma.stageMatch.count({ where: { stageId } });
+    if (matchCount === 0) {
+      return new Response(
+        JSON.stringify({ error: "KNOCKOUT stage must have at least one match entered before opening" }),
+        { status: 409 }
+      );
+    }
+  }
+
+  if (stage.order > 1) {
+    const previousStage = await prisma.tournamentStage.findFirst({
+      where: {
+        tournamentId: stage.tournamentId,
+        order: stage.order - 1,
+      },
+    });
+    if (!previousStage || previousStage.status !== "SCORED") {
+      return new Response(
+        JSON.stringify({ error: "Previous stage must be SCORED before opening this stage" }),
+        { status: 409 }
+      );
+    }
+  }
+
+  const updated = await prisma.tournamentStage.update({
+    where: { id: stageId },
+    data: { status: "OPEN" },
+  });
+
+  return new Response(JSON.stringify({ stage: updated }), { status: 200 });
+}

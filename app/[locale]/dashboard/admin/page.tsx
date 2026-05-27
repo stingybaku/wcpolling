@@ -33,6 +33,7 @@ type TournamentListItem = {
   description?: string | null;
   isActive: boolean;
   archivedAt?: string | null;
+  type: "CLASSIC" | "STAGED";
   tags: TournamentTag[];
   _count: {
     groups: number;
@@ -204,6 +205,7 @@ export default function DashboardAdminPage() {
   const [modal, setModal] = useState<AdminModal>(null);
 
   const [tournamentName, setTournamentName] = useState("");
+  const [tournamentType, setTournamentType] = useState<"CLASSIC" | "STAGED">("CLASSIC");
   const [slug, setSlug] = useState("world-cup");
   const [description, setDescription] = useState("");
   const [teamsPerGroup, setTeamsPerGroup] = useState("4");
@@ -411,6 +413,7 @@ export default function DashboardAdminPage() {
     setTournament(activeTournament);
     if (activeTournament) {
       setTournamentName(activeTournament.name);
+      setTournamentType(activeTournament.type === "STAGED" ? "STAGED" : "CLASSIC");
       setSlug(activeTournament.slug);
       setDescription(activeTournament.description ?? "");
       setTeamsPerGroup(activeTournament.teamsPerGroup == null ? "4" : String(activeTournament.teamsPerGroup));
@@ -453,6 +456,7 @@ export default function DashboardAdminPage() {
       setMatchPhaseId(activeTournament.phases[0]?.id ?? "");
     } else {
       setTournamentName("");
+      setTournamentType("CLASSIC");
       setSlug("world-cup");
       setDescription("");
       setTeamsPerGroup("4");
@@ -533,6 +537,7 @@ export default function DashboardAdminPage() {
       body: JSON.stringify({
         id: tournament?.id ?? null,
         name: tournamentName,
+        type: tournamentType,
         slug,
         description,
         teamsPerGroup: teamsPerGroup ? Number(teamsPerGroup) : null,
@@ -589,6 +594,7 @@ export default function DashboardAdminPage() {
   function startNewTournament() {
     setTournament(null);
     setTournamentName("");
+    setTournamentType("CLASSIC");
     setSlug("new-tournament");
     setDescription("");
     setTeamsPerGroup("4");
@@ -1091,6 +1097,11 @@ export default function DashboardAdminPage() {
                   <Link className="rounded-[0.9rem] px-3 py-2 text-xs font-bold uppercase tracking-[0.14em]" href={`/dashboard/admin/tournament?tournamentId=${item.id}`} style={{ background: "var(--accent)", color: "var(--accent-fg, #fff)" }}>
                     Manage Results
                   </Link>
+                  {item.type === "STAGED" ? (
+                    <Link className="rounded-[0.9rem] border px-3 py-2 text-xs font-bold uppercase tracking-[0.14em]" href={`/dashboard/admin/tournaments/${item.id}/staged`} style={{ borderColor: "var(--border)", background: "var(--bg)" }}>
+                      Manage Stages →
+                    </Link>
+                  ) : null}
                   {item.archivedAt ? (
                     <button className="rounded-[0.9rem] border px-3 py-2 text-xs font-bold uppercase tracking-[0.14em]" onClick={() => setModal({ type: "archiveTournament", tournament: item })} style={{ borderColor: "var(--border)", background: "var(--bg)" }} type="button">
                       Restore
@@ -1200,6 +1211,34 @@ export default function DashboardAdminPage() {
               <p className="text-xs muted">
                 Tags will later power tournament-specific newsroom feeds. Example: <code>world cup, fifa, usa 2026</code>
               </p>
+            </div>
+            <div className="space-y-2">
+              <label className="mb-1 block text-xs font-semibold muted">Tournament type</label>
+              <div className="flex gap-4">
+                <label className="flex cursor-pointer items-center gap-2 text-sm">
+                  <input
+                    type="radio"
+                    name="tournamentType"
+                    value="CLASSIC"
+                    checked={tournamentType === "CLASSIC"}
+                    onChange={() => setTournamentType("CLASSIC")}
+                  />
+                  Classic
+                </label>
+                <label className="flex cursor-pointer items-center gap-2 text-sm">
+                  <input
+                    type="radio"
+                    name="tournamentType"
+                    value="STAGED"
+                    checked={tournamentType === "STAGED"}
+                    onChange={() => setTournamentType("STAGED")}
+                  />
+                  Staged
+                </label>
+              </div>
+              {tournamentType === "STAGED" ? (
+                <p className="text-xs muted">Predictions are made in sequential stages. You will define and open each stage manually as real-world results become available.</p>
+              ) : null}
             </div>
           </div>
           <div className="space-y-4">
