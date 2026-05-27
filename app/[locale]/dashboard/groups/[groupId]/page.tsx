@@ -755,7 +755,7 @@ export default function GroupDetailPage() {
           <div style={{ overflowX: "auto" }}>
             {isStagedTournament ? (
               <table className="tabular" style={{ width: "100%" }}>
-                <thead style={{ position: "sticky", top: 104, zIndex: 10 }}>
+                <thead>
                   <tr>
                     <th style={{ width: 48 }}>#</th>
                     <th>{t("memberHeader")}</th>
