@@ -798,7 +798,8 @@ export default function GroupDetailPage() {
           {/* ── Right rail ─────────────────────────────────────────── */}
           <div style={{ borderTop: "1px solid var(--border)", background: "var(--paper-strong)", display: "flex", flexDirection: "column" }} className="lg:border-t-0 lg:border-l">
 
-            {/* Your drafts */}
+            {/* Your drafts — hidden for STAGED tournaments */}
+            {group?.tournament?.type !== "STAGED" && (
             <div style={{ padding: "20px", borderBottom: "1px solid var(--border)" }}>
               <p className="eyebrow" style={{ marginBottom: 12 }}>{t("yourPredictions")}</p>
 
@@ -880,6 +881,7 @@ export default function GroupDetailPage() {
                 {t("newPrediction")}
               </Link>
             </div>
+            )}
 
             {/* Just happened */}
             <div style={{ padding: "20px", borderBottom: "1px solid var(--border)" }}>
