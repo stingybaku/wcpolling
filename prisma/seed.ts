@@ -125,6 +125,8 @@ async function main() {
   await seedBracket(tournament.id);
   await seedTieBreakers(tournament.id);
 
+  await seedStagedTournament();
+
   console.log("Done.");
 }
 
@@ -226,6 +228,85 @@ async function seedTieBreakers(tournamentId: string) {
     await prisma.tieBreakerQuestion.create({ data: { tournamentId, ...q } });
   }
   console.log(`Seeded ${questions.length} tie-breaker questions.`);
+}
+
+// ─── Staged tournament seed ───────────────────────────────────────────────────
+
+async function seedStagedTournament() {
+  const existing = await prisma.tournament.findUnique({ where: { slug: "wc2026-staged" } });
+  if (existing) {
+    console.log("Staged tournament already seeded, skipping.");
+    return;
+  }
+
+  const tournament = await prisma.tournament.create({
+    data: {
+      name: "FIFA World Cup 2026 — Staged",
+      slug: "wc2026-staged",
+      description: "Canada · Mexico · United States (Staged predictions)",
+      isActive: true,
+      type: "STAGED",
+    },
+  });
+  console.log(`Staged tournament created: ${tournament.name} (${tournament.id})`);
+
+  const stages = [
+    {
+      order: 1,
+      name: "Group Qualification",
+      roundLabel: "GQ",
+      type: "GROUP_QUALIFICATION" as const,
+      opensAt: new Date("2026-06-11T12:00:00Z"),
+      closesAt: new Date("2026-06-24T10:00:00Z"),
+    },
+    {
+      order: 2,
+      name: "Round of 32",
+      roundLabel: "R32",
+      type: "KNOCKOUT" as const,
+      opensAt: new Date("2026-06-27T18:00:00Z"),
+      closesAt: new Date("2026-06-28T17:00:00Z"),
+    },
+    {
+      order: 3,
+      name: "Round of 16",
+      roundLabel: "R16",
+      type: "KNOCKOUT" as const,
+      opensAt: new Date("2026-07-04T22:00:00Z"),
+      closesAt: new Date("2026-07-05T20:00:00Z"),
+    },
+    {
+      order: 4,
+      name: "Quarter-Finals",
+      roundLabel: "QF",
+      type: "KNOCKOUT" as const,
+      opensAt: new Date("2026-07-09T22:00:00Z"),
+      closesAt: new Date("2026-07-10T20:00:00Z"),
+    },
+    {
+      order: 5,
+      name: "Semi-Finals",
+      roundLabel: "SF",
+      type: "KNOCKOUT" as const,
+      opensAt: new Date("2026-07-14T22:00:00Z"),
+      closesAt: new Date("2026-07-15T20:00:00Z"),
+    },
+    {
+      order: 6,
+      name: "Final",
+      roundLabel: "Final",
+      type: "KNOCKOUT" as const,
+      opensAt: new Date("2026-07-18T22:00:00Z"),
+      closesAt: new Date("2026-07-19T20:00:00Z"),
+    },
+  ];
+
+  for (const stage of stages) {
+    await prisma.tournamentStage.create({
+      data: { tournamentId: tournament.id, ...stage },
+    });
+  }
+  console.log(`Seeded ${stages.length} stages for staged tournament.`);
 }
 
 main()
