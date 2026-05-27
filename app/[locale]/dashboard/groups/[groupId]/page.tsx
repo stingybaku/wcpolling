@@ -38,6 +38,16 @@ type GroupDetail = {
 
 type UserPrediction = { id: string; name: string };
 
+type StagedLeaderboardEntry = {
+  userId: string;
+  userName: string | null;
+  totalPoints: number;
+  totalCorrectPicks: number;
+  stages: { stageId: string; stageName: string; points: number; correctPicks: number }[];
+};
+
+type StagedStage = { id: string; name: string; status: string };
+
 type LeaderboardRow = {
   userId: string;
   userName: string;
@@ -417,6 +427,8 @@ export default function GroupDetailPage() {
     stageName: string;
   } | null>(null);
   const [openStageName, setOpenStageName] = useState<string | null>(null);
+  const [stagedLeaderboard, setStagedLeaderboard] = useState<StagedLeaderboardEntry[]>([]);
+  const [stagedStages, setStagedStages] = useState<StagedStage[]>([]);
 
   const currentUserEmail = session?.user?.email;
   const currentUserId = (session?.user as { id?: string } | undefined)?.id;
@@ -453,20 +465,31 @@ export default function GroupDetailPage() {
       const stagesRes = await fetch(`/api/staged/tournaments/${tournamentId}/stages`);
       if (!stagesRes.ok) return;
       const stagesData = await stagesRes.json();
-      const openStage = (stagesData.stages ?? []).find(
-        (s: { status: string; name: string }) => s.status === "OPEN"
-      );
-      if (!openStage) { setOpenStageName(null); setStagedStatus(null); return; }
-      setOpenStageName(openStage.name);
-      const predRes = await fetch(`/api/staged/groups/${params.groupId}/stages/${openStage.id}/prediction`);
-      if (!predRes.ok) return;
-      const predData = await predRes.json();
-      const pred = predData.prediction;
-      if (!pred) { setStagedStatus(null); return; }
-      setStagedStatus({
-        status: pred.submittedAt ? "submitted" : "draft",
-        stageName: openStage.name,
-      });
+      const allStages: StagedStage[] = stagesData.stages ?? [];
+      setStagedStages(allStages);
+
+      const openStage = allStages.find((s) => s.status === "OPEN");
+      if (openStage) {
+        setOpenStageName(openStage.name);
+        const predRes = await fetch(`/api/staged/groups/${params.groupId}/stages/${openStage.id}/prediction`);
+        if (predRes.ok) {
+          const predData = await predRes.json();
+          const pred = predData.prediction;
+          setStagedStatus(pred
+            ? { status: pred.submittedAt ? "submitted" : "draft", stageName: openStage.name }
+            : null
+          );
+        }
+      } else {
+        setOpenStageName(null);
+        setStagedStatus(null);
+      }
+
+      const lbRes = await fetch(`/api/staged/groups/${params.groupId}/leaderboard?tournamentId=${tournamentId}`);
+      if (lbRes.ok) {
+        const lbData = await lbRes.json();
+        setStagedLeaderboard(lbData.leaderboard ?? []);
+      }
     } catch {
       // silently ignore — banner falls back to default CTA
     }
@@ -726,13 +749,69 @@ export default function GroupDetailPage() {
 
           {/* ── Left: Leaderboard ──────────────────────────────────── */}
           <div style={{ overflowX: "auto" }}>
-            {leaderboard.length === 0 ? (
+            {group?.tournament?.type === "STAGED" ? (
+              stagedLeaderboard.length === 0 ? (
+                <div style={{ padding: "48px 24px", textAlign: "center" }}>
+                  <p style={{ fontSize: 13, color: "var(--muted)" }}>
+                    Leaderboard will appear once the first stage is scored.
+                  </p>
+                </div>
+              ) : (() => {
+                const scoredStages = stagedStages.filter((s) => s.status === "SCORED");
+                const sorted = [...stagedLeaderboard].sort((a, b) => b.totalPoints - a.totalPoints);
+                return (
+                  <table className="tabular" style={{ width: "100%" }}>
+                    <thead style={{ position: "sticky", top: 104, zIndex: 10 }}>
+                      <tr>
+                        <th style={{ width: 48 }}>#</th>
+                        <th>{t("memberHeader")}</th>
+                        <th style={{ textAlign: "right", width: 60 }}>{t("ptsHeader")}</th>
+                        {scoredStages.map((s) => (
+                          <th key={s.id} style={{ textAlign: "right", fontSize: 11, whiteSpace: "nowrap" }}>{s.name}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sorted.map((entry, idx) => {
+                        const isMe = entry.userId === currentUserId;
+                        const stageMap = Object.fromEntries(entry.stages.map((s) => [s.stageId, s]));
+                        return (
+                          <tr key={entry.userId} style={{ background: isMe ? "var(--accent-soft)" : "transparent" }}>
+                            <td>
+                              <MedalBadge rank={idx + 1} />
+                            </td>
+                            <td>
+                              <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                <Avatar userId={entry.userId} name={entry.userName ?? "?"} size={24} />
+                                <span style={{ fontWeight: 600, fontSize: 13 }}>
+                                  {entry.userName ?? "Unknown"}
+                                  {isMe && <span className="chip chip-accent" style={{ marginLeft: 6, fontSize: 10, padding: "2px 6px" }}>{t("youLabel")}</span>}
+                                </span>
+                              </span>
+                            </td>
+                            <td style={{ textAlign: "right" }}>
+                              <span className="mono" style={{ fontSize: 16, fontWeight: 800, color: isMe ? "var(--accent-strong)" : "var(--ink)" }}>
+                                <CountUp value={entry.totalPoints} />
+                              </span>
+                            </td>
+                            {scoredStages.map((s) => {
+                              const sd = stageMap[s.id];
+                              return (
+                                <td key={s.id} style={{ textAlign: "right", color: "var(--muted)", fontSize: 13 }}>
+                                  {sd ? sd.points : "–"}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                );
+              })()
+            ) : leaderboard.length === 0 ? (
               <div style={{ padding: "48px 24px", textAlign: "center" }}>
-                <p style={{ fontSize: 13, color: "var(--muted)" }}>
-                  {group?.tournament?.type === "STAGED"
-                    ? "Leaderboard will appear once the first stage is scored."
-                    : t("noSubmissionsYet")}
-                </p>
+                <p style={{ fontSize: 13, color: "var(--muted)" }}>{t("noSubmissionsYet")}</p>
               </div>
             ) : (
               <table className="tabular" style={{ width: "100%" }}>
@@ -758,13 +837,11 @@ export default function GroupDetailPage() {
                         }}
                         onClick={() => setPreviewId(row.predictionId)}
                       >
-                        {/* Rank */}
                         <td>
                           <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
                             <MedalBadge rank={rank} />
                           </span>
                         </td>
-                        {/* Member */}
                         <td>
                           <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
                             <Avatar userId={row.userId} name={row.userName} size={24} />
@@ -774,18 +851,15 @@ export default function GroupDetailPage() {
                             </span>
                           </span>
                         </td>
-                        {/* Set name */}
                         <td style={{ color: "var(--muted)", fontSize: 12, maxWidth: 160 }}>
                           <span className="truncate" style={{ display: "block" }}>&ldquo;{row.predictionName}&rdquo;</span>
                         </td>
-                        {/* Breakdown bar */}
                         <td>
                           <BreakdownBar breakdown={row.breakdown} />
                           <div className="mono muted" style={{ fontSize: 10, marginTop: 3, letterSpacing: "0.04em" }}>
                             M·{row.breakdown.MATCH} S·{row.breakdown.GROUP_STANDING} K·{row.breakdown.KNOCKOUT} T·{row.breakdown.TIEBREAKER}
                           </div>
                         </td>
-                        {/* Total */}
                         <td style={{ textAlign: "right" }}>
                           <span className="mono" style={{ fontSize: 16, fontWeight: 800, color: isMe ? "var(--accent-strong)" : "var(--ink)" }}>
                             <CountUp value={row.points} />
