@@ -34,6 +34,7 @@ type Team = {
   id: string;
   name: string;
   fifaCode: string;
+  groupMemberships: { group: { id: string; name: string } }[];
 };
 
 type StageMatch = {
@@ -114,6 +115,7 @@ function GroupQualificationForm({
 
   function toggle(id: string) {
     setSelected((prev) => {
+      if (!prev.has(id) && prev.size >= 32) return prev; // cap at 32
       const next = new Set(prev);
       if (next.has(id)) next.delete(id); else next.add(id);
       return next;
@@ -139,47 +141,88 @@ function GroupQualificationForm({
     }
   }
 
+  // Group teams by their FIFA group name (A–L). Teams with no group go to "Other".
+  const groupedTeams = teams.reduce<Record<string, Team[]>>((acc, team) => {
+    const groupName = team.groupMemberships?.[0]?.group?.name ?? "Other";
+    (acc[groupName] ??= []).push(team);
+    return acc;
+  }, {});
+  const groupNames = Object.keys(groupedTeams).sort();
+  const isFull = selected.size >= 32;
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <p className="text-sm text-gray-600">
-          Select the <span className="font-semibold">32 teams</span> you think will qualify from the group stage.
+          Pick the <span className="font-semibold">32 teams</span> you think will qualify.
+          The top 2 from each group advance, plus 8 best third-place finishers.
         </p>
-        <span className={`text-sm font-semibold ${selected.size === 32 ? "text-green-600" : "text-gray-500"}`}>
+        <span className={`text-sm font-semibold tabular-nums ${isFull ? "text-green-600" : "text-gray-500"}`}>
           {selected.size} / 32 selected
         </span>
       </div>
 
-      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
-        {teams.map((team) => {
-          const isSelected = selected.has(team.id);
+      {isFull && (
+        <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+          32 teams selected — deselect a team to change your pick.
+        </p>
+      )}
+
+      <div className="space-y-4">
+        {groupNames.map((groupName) => {
+          const groupTeams = groupedTeams[groupName];
+          const selectedInGroup = groupTeams.filter((t) => selected.has(t.id)).length;
           return (
-            <button
-              key={team.id}
-              onClick={() => toggle(team.id)}
-              className={`relative flex flex-col items-center gap-1 p-2 rounded-lg border-2 text-xs font-medium transition-all ${
-                isSelected
-                  ? "border-green-500 bg-green-50 text-green-800"
-                  : "border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50"
-              }`}
-            >
-              {isSelected && (
-                <span className="absolute top-1 right-1 text-green-500">
-                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                  </svg>
+            <div key={groupName}>
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-xs font-bold uppercase tracking-wider text-gray-500">
+                  Group {groupName}
                 </span>
-              )}
-              <span className="text-xl leading-none">{flagEmoji(team.fifaCode)}</span>
-              <span className="text-center leading-tight">{team.name}</span>
-            </button>
+                <span className={`text-xs font-semibold tabular-nums ${selectedInGroup === 2 ? "text-green-600" : selectedInGroup > 2 ? "text-amber-600" : "text-gray-400"}`}>
+                  {selectedInGroup} / 4 selected
+                </span>
+                {selectedInGroup > 2 && (
+                  <span className="text-xs text-amber-600">⚠ Usually only 2 per group qualify</span>
+                )}
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {groupTeams.map((team) => {
+                  const isSelected = selected.has(team.id);
+                  const isDisabled = !isSelected && isFull;
+                  return (
+                    <button
+                      key={team.id}
+                      onClick={() => toggle(team.id)}
+                      disabled={isDisabled}
+                      className={`relative flex items-center gap-2 p-2 rounded-lg border-2 text-xs font-medium transition-all text-left ${
+                        isSelected
+                          ? "border-green-500 bg-green-50 text-green-800"
+                          : isDisabled
+                            ? "border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed"
+                            : "border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50"
+                      }`}
+                    >
+                      {isSelected && (
+                        <span className="absolute top-1 right-1 text-green-500">
+                          <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                          </svg>
+                        </span>
+                      )}
+                      <span className="text-lg leading-none">{flagEmoji(team.fifaCode)}</span>
+                      <span className="leading-tight">{team.name}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           );
         })}
       </div>
 
       {error && <p className="text-sm text-red-600">{error}</p>}
 
-      <div className="flex gap-3">
+      <div className="flex gap-3 pt-2">
         <button
           onClick={() => save(false)}
           disabled={saving || selected.size === 0}
