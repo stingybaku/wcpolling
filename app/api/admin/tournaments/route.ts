@@ -25,6 +25,7 @@ export async function GET() {
           matches: true,
           predictions: true,
           groupRooms: true,
+          stages: true,
         },
       },
     },

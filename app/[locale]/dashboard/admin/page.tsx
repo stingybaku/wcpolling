@@ -41,6 +41,7 @@ type TournamentListItem = {
     matches: number;
     predictions: number;
     groupRooms: number;
+    stages: number;
   };
 };
 type Team = {
@@ -1089,7 +1090,12 @@ export default function DashboardAdminPage() {
                     ))}
                   </div>
                 ) : null}
-                <p className="mt-3 text-xs muted">{item._count.groups} groups • {item._count.phases} phases • {item._count.matches} matches • {item._count.groupRooms} groups rooms</p>
+                <p className="mt-3 text-xs muted">
+                  {item.type === "STAGED"
+                    ? <>{item._count.stages} stages • {item._count.groupRooms} group rooms</>
+                    : <>{item._count.groups} groups • {item._count.phases} phases • {item._count.matches} matches • {item._count.groupRooms} group rooms</>
+                  }
+                </p>
                 <div className="mt-4 flex flex-wrap gap-2">
                   <button className="rounded-[0.9rem] border px-3 py-2 text-xs font-bold uppercase tracking-[0.14em]" onClick={() => void editTournament(item.id)} style={{ borderColor: "var(--border)", background: "var(--bg)" }} type="button">
                     Edit
