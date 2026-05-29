@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser, unauthorized, forbidden } from "@/app/api/helpers";
 
-type RouteContext = { params: Promise<{ id: string }> };
+type RouteContext = { params: Promise<{ tournamentId: string }> };
 
 async function requireAdmin() {
   const user = await getCurrentUser();
@@ -15,10 +15,10 @@ export async function POST(_request: NextRequest, context: RouteContext) {
   const admin = await requireAdmin();
   if (!admin) return unauthorized();
 
-  const { id } = await context.params;
+  const { tournamentId } = await context.params;
 
   const tournament = await prisma.tournament.findUnique({
-    where: { id },
+    where: { id: tournamentId },
     select: { tieBreakerClosedAt: true },
   });
 
@@ -32,7 +32,7 @@ export async function POST(_request: NextRequest, context: RouteContext) {
 
   const closedAt = new Date();
   await prisma.tournament.update({
-    where: { id },
+    where: { id: tournamentId },
     data: { tieBreakerClosedAt: closedAt },
   });
 
@@ -43,10 +43,10 @@ export async function DELETE(_request: NextRequest, context: RouteContext) {
   const admin = await requireAdmin();
   if (!admin) return unauthorized();
 
-  const { id } = await context.params;
+  const { tournamentId } = await context.params;
 
   await prisma.tournament.update({
-    where: { id },
+    where: { id: tournamentId },
     data: { tieBreakerClosedAt: null },
   });
 

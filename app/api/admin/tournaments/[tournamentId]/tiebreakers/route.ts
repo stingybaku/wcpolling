@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser, unauthorized, forbidden, badRequest } from "@/app/api/helpers";
 
-type RouteContext = { params: Promise<{ id: string }> };
+type RouteContext = { params: Promise<{ tournamentId: string }> };
 
 async function requireAdmin() {
   const user = await getCurrentUser();
@@ -15,10 +15,10 @@ export async function GET(_request: NextRequest, context: RouteContext) {
   const admin = await requireAdmin();
   if (!admin) return unauthorized();
 
-  const { id } = await context.params;
+  const { tournamentId } = await context.params;
 
   const questions = await prisma.tieBreakerQuestion.findMany({
-    where: { tournamentId: id },
+    where: { tournamentId },
     orderBy: { sortOrder: "asc" },
   });
 
@@ -29,7 +29,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
   const admin = await requireAdmin();
   if (!admin) return unauthorized();
 
-  const { id } = await context.params;
+  const { tournamentId } = await context.params;
 
   const body = await request.json();
   const { prompt, type } = body as { prompt: { en: string; es: string }; type: "NUMBER" | "TEXT" };
@@ -38,7 +38,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
   if (type !== "NUMBER" && type !== "TEXT") return badRequest("type must be NUMBER or TEXT");
 
   const maxOrder = await prisma.tieBreakerQuestion.aggregate({
-    where: { tournamentId: id },
+    where: { tournamentId },
     _max: { sortOrder: true },
   });
 
@@ -46,7 +46,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
   const question = await prisma.tieBreakerQuestion.create({
     data: {
-      tournamentId: id,
+      tournamentId,
       prompt,
       type,
       sortOrder,
@@ -60,7 +60,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
   const admin = await requireAdmin();
   if (!admin) return unauthorized();
 
-  const { id } = await context.params;
+  const { tournamentId } = await context.params;
 
   const body = await request.json();
   const { questionId } = body as { questionId: string };
@@ -68,7 +68,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
   if (!questionId) return badRequest("questionId is required");
 
   await prisma.tieBreakerQuestion.delete({
-    where: { id: questionId, tournamentId: id },
+    where: { id: questionId, tournamentId },
   });
 
   return new Response(JSON.stringify({ ok: true }), { status: 200 });
