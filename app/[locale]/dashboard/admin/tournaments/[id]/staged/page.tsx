@@ -29,6 +29,8 @@ type StagedTournament = {
   stages: Stage[];
   activeMemberCount: number;
   finalizedAt?: string | null;
+  tieBreakerClosedAt?: string | null;
+  tieBreakers?: { id: string; prompt: Record<string, string>; type: string }[];
 };
 
 type Team = {
@@ -734,6 +736,184 @@ function FinalizeButton({ tournamentId, onFinalized }: { tournamentId: string; o
   );
 }
 
+// ─── Tie Breaker Admin ────────────────────────────────────────────────────────
+
+type TBQuestion = { id: string; prompt: Record<string, string>; type: string };
+
+function TieBreakerAdmin({
+  tournamentId,
+  initialClosedAt,
+}: {
+  tournamentId: string;
+  initialClosedAt?: string | null;
+}) {
+  const [questions, setQuestions] = useState<TBQuestion[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [closedAt, setClosedAt] = useState<string | null>(initialClosedAt ?? null);
+  const [promptEn, setPromptEn] = useState("");
+  const [promptEs, setPromptEs] = useState("");
+  const [qType, setQType] = useState<"NUMBER" | "TEXT">("NUMBER");
+  const [adding, setAdding] = useState(false);
+  const [addError, setAddError] = useState("");
+  const [closingError, setClosingError] = useState("");
+
+  const loadQuestions = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/admin/tournaments/${tournamentId}/tiebreakers`);
+      const data = await res.json();
+      setQuestions(data.questions ?? []);
+    } catch { /* silent */ } finally {
+      setLoading(false);
+    }
+  }, [tournamentId]);
+
+  useEffect(() => { loadQuestions(); }, [loadQuestions]);
+
+  async function addQuestion() {
+    setAdding(true);
+    setAddError("");
+    try {
+      const res = await fetch(`/api/admin/tournaments/${tournamentId}/tiebreakers`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: { en: promptEn, es: promptEs }, type: qType }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to add question");
+      setPromptEn("");
+      setPromptEs("");
+      setQType("NUMBER");
+      loadQuestions();
+    } catch (err: unknown) {
+      setAddError(err instanceof Error ? err.message : "Error");
+    } finally {
+      setAdding(false);
+    }
+  }
+
+  async function deleteQuestion(questionId: string) {
+    await fetch(`/api/admin/tournaments/${tournamentId}/tiebreakers`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ questionId }),
+    });
+    loadQuestions();
+  }
+
+  async function toggleClose() {
+    setClosingError("");
+    if (closedAt == null) {
+      const res = await fetch(`/api/admin/tournaments/${tournamentId}/close-tiebreakers`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) { setClosingError(data.error ?? "Error"); return; }
+      setClosedAt(data.closedAt);
+    } else {
+      const res = await fetch(`/api/admin/tournaments/${tournamentId}/close-tiebreakers`, { method: "DELETE" });
+      if (!res.ok) { setClosingError("Error reopening"); return; }
+      setClosedAt(null);
+    }
+  }
+
+  return (
+    <div
+      className="rounded-3xl p-6 mb-6"
+      style={{ background: "var(--paper)", border: "1px solid var(--border)" }}
+    >
+      <h2 className="text-sm font-bold uppercase tracking-widest mb-4" style={{ color: "var(--ink)" }}>
+        Tie-Breaker Questions
+      </h2>
+
+      {loading ? (
+        <p className="text-sm muted">Loading…</p>
+      ) : (
+        <div className="space-y-2 mb-5">
+          {questions.length === 0 && (
+            <p className="text-sm muted">No questions yet.</p>
+          )}
+          {questions.map((q) => (
+            <div
+              key={q.id}
+              className="flex items-center justify-between gap-3 rounded-xl px-4 py-3"
+              style={{ background: "var(--bg-strong)", border: "1px solid var(--border)" }}
+            >
+              <div>
+                <p className="text-sm font-medium" style={{ color: "var(--ink)" }}>{q.prompt["en"] ?? ""}</p>
+                {q.prompt["es"] && <p className="text-xs muted">{q.prompt["es"]}</p>}
+                <span
+                  className="inline-block mt-1 text-[10px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded"
+                  style={{ background: "var(--muted-2)", color: "var(--ink)" }}
+                >
+                  {q.type}
+                </span>
+              </div>
+              <button
+                onClick={() => deleteQuestion(q.id)}
+                className="text-xs font-semibold transition"
+                style={{ color: "var(--live)" }}
+              >
+                Delete
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div
+        className="rounded-xl p-4 mb-5 space-y-3"
+        style={{ background: "var(--bg-strong)", border: "1px solid var(--border)" }}
+      >
+        <p className="text-xs font-bold uppercase tracking-wider muted">Add Question</p>
+        <input
+          placeholder="Prompt (English)"
+          value={promptEn}
+          onChange={(e) => setPromptEn(e.target.value)}
+          className="field"
+        />
+        <input
+          placeholder="Prompt (Spanish)"
+          value={promptEs}
+          onChange={(e) => setPromptEs(e.target.value)}
+          className="field"
+        />
+        <div className="flex items-center gap-3">
+          <select
+            value={qType}
+            onChange={(e) => setQType(e.target.value as "NUMBER" | "TEXT")}
+            className="field"
+            style={{ width: "auto" }}
+          >
+            <option value="NUMBER">NUMBER</option>
+            <option value="TEXT">TEXT</option>
+          </select>
+          <button
+            disabled={adding || !promptEn.trim()}
+            onClick={addQuestion}
+            className="rounded-xl bg-indigo-600 px-4 py-1.5 text-xs font-bold text-white hover:bg-indigo-500 disabled:opacity-40 transition"
+          >
+            {adding ? "Adding…" : "Add Question"}
+          </button>
+        </div>
+        {addError && <p className="text-xs" style={{ color: "var(--live)" }}>{addError}</p>}
+      </div>
+
+      <div className="flex items-center gap-4 flex-wrap">
+        <button
+          onClick={toggleClose}
+          className={`rounded-xl px-4 py-2 text-xs font-bold text-white transition ${closedAt ? "bg-green-700 hover:bg-green-600" : "bg-amber-700 hover:bg-amber-600"}`}
+        >
+          {closedAt ? "Reopen Submissions" : "Close Tie-Breaker Submissions"}
+        </button>
+        {closedAt && (
+          <p className="text-xs muted">
+            Closed at {formatDate(closedAt)}
+          </p>
+        )}
+        {closingError && <p className="text-xs" style={{ color: "var(--live)" }}>{closingError}</p>}
+      </div>
+    </div>
+  );
+}
+
 // ─── Stage Card ───────────────────────────────────────────────────────────────
 
 function StageCard({
@@ -1270,6 +1450,12 @@ export default function StagedTournamentAdminPage() {
               />
             ))}
           </div>
+
+          {/* Tie-Breaker Admin */}
+          <TieBreakerAdmin
+            tournamentId={id}
+            initialClosedAt={tournament.tieBreakerClosedAt}
+          />
 
           {/* Finalize Tournament */}
           {sortedStages.every((s) => s.status === "SCORED") && (

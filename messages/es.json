@@ -356,7 +356,13 @@
     "statusOpen": "Abierto",
     "statusUpcoming": "Próximamente",
     "opensAt": "Abre el {date}",
-    "errorSaving": "Error al guardar la predicción"
+    "errorSaving": "Error al guardar la predicción",
+    "tieBreakers": "Desempates",
+    "tieBreakerDesc": "Responde estas preguntas para obtener puntos adicionales en caso de empate.",
+    "tieBreakerSave": "Guardar respuestas",
+    "tieBreakerSaved": "Respuestas guardadas",
+    "tieBreakerClosed": "Envíos cerrados",
+    "tieBreakerClosedDesc": "El administrador ha cerrado los envíos de desempate."
   },
   "predictions": {
     "tagline": "Predicciones",

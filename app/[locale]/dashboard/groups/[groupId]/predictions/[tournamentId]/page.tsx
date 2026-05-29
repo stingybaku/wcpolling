@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import { Link } from "@/lib/navigation";
 import { flagEmoji } from "@/lib/fifa-flags";
 
@@ -506,6 +506,132 @@ function ReadOnlyPicks({
   return null;
 }
 
+// ─── Tie Breaker Section ──────────────────────────────────────────────────────
+
+type TieBreakerQuestion = {
+  id: string;
+  prompt: Record<string, string>;
+  type: "NUMBER" | "TEXT";
+  sortOrder: number;
+};
+
+type TieBreakerAnswer = {
+  questionId: string;
+  answer: string;
+};
+
+function TieBreakerSection({ groupId }: { groupId: string }) {
+  const t = useTranslations("stagedPredictions");
+  const locale = useLocale();
+
+  const [questions, setQuestions] = useState<TieBreakerQuestion[]>([]);
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [closedAt, setClosedAt] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [savedMsg, setSavedMsg] = useState<"ok" | "error" | null>(null);
+
+  useEffect(() => {
+    fetch(`/api/staged/groups/${groupId}/tiebreakers`)
+      .then((r) => r.json())
+      .then((data) => {
+        setQuestions(data.questions ?? []);
+        const answerMap: Record<string, string> = {};
+        for (const a of (data.answers ?? []) as TieBreakerAnswer[]) {
+          answerMap[a.questionId] = a.answer;
+        }
+        setAnswers(answerMap);
+        setClosedAt(data.closedAt ?? null);
+      })
+      .catch(() => {});
+  }, [groupId]);
+
+  if (questions.length === 0) return null;
+
+  const isClosed = closedAt != null;
+
+  async function handleSave() {
+    setSaving(true);
+    setSavedMsg(null);
+    try {
+      const payload = questions.map((q) => ({ questionId: q.id, answer: answers[q.id] ?? "" }));
+      const res = await fetch(`/api/staged/groups/${groupId}/tiebreakers`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ answers: payload }),
+      });
+      if (!res.ok) throw new Error();
+      setSavedMsg("ok");
+    } catch {
+      setSavedMsg("error");
+    } finally {
+      setSaving(false);
+      setTimeout(() => setSavedMsg(null), 3000);
+    }
+  }
+
+  return (
+    <div
+      className="rounded-xl p-5 mb-4"
+      style={{ background: "var(--paper)", border: "1px solid var(--border)" }}
+    >
+      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+        <h2 className="text-base font-semibold" style={{ color: "var(--ink)" }}>{t("tieBreakers")}</h2>
+        {isClosed && (
+          <span
+            className="px-2 py-0.5 rounded-full text-xs font-medium"
+            style={{ background: "var(--gold-soft)", color: "var(--gold)" }}
+          >
+            {t("tieBreakerClosed")}
+          </span>
+        )}
+      </div>
+      {isClosed ? (
+        <p className="text-sm mb-4" style={{ color: "var(--muted)" }}>{t("tieBreakerClosedDesc")}</p>
+      ) : (
+        <p className="text-sm mb-4" style={{ color: "var(--muted)" }}>{t("tieBreakerDesc")}</p>
+      )}
+      <div className="space-y-4">
+        {questions.map((q) => {
+          const promptText = q.prompt[locale] ?? q.prompt["en"] ?? Object.values(q.prompt)[0] ?? "";
+          return (
+            <div key={q.id}>
+              <label className="block text-sm font-medium mb-1" style={{ color: "var(--ink)" }}>
+                {promptText}
+              </label>
+              <input
+                type={q.type === "NUMBER" ? "number" : "text"}
+                value={answers[q.id] ?? ""}
+                onChange={(e) => setAnswers((prev) => ({ ...prev, [q.id]: e.target.value }))}
+                readOnly={isClosed}
+                disabled={isClosed}
+                className="field"
+                style={isClosed ? { opacity: 0.6, cursor: "not-allowed" } : undefined}
+              />
+            </div>
+          );
+        })}
+      </div>
+      {!isClosed && (
+        <div className="mt-4 flex items-center gap-3">
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="btn btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {saving ? t("saving") : t("tieBreakerSave")}
+          </button>
+          {savedMsg === "ok" && (
+            <span className="text-sm font-medium" style={{ color: "var(--accent)" }}>{t("tieBreakerSaved")}</span>
+          )}
+          {savedMsg === "error" && (
+            <span className="text-sm font-medium" style={{ color: "var(--live)" }}>{t("errorSaving")}</span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Stage Card ───────────────────────────────────────────────────────────────
 
 function StageCard({
@@ -734,6 +860,8 @@ export default function PredictionsPage() {
           </Link>
           <h1 className="text-2xl font-bold mt-3" style={{ color: "var(--ink)" }}>{t("pageTitle")}</h1>
         </div>
+
+        <TieBreakerSection groupId={groupId} />
 
         {loading ? (
           <div className="space-y-3">

@@ -356,7 +356,13 @@
     "statusOpen": "Open",
     "statusUpcoming": "Upcoming",
     "opensAt": "Opens {date}",
-    "errorSaving": "Error saving prediction"
+    "errorSaving": "Error saving prediction",
+    "tieBreakers": "Tie Breakers",
+    "tieBreakerDesc": "Answer these questions for extra points in case of a tie.",
+    "tieBreakerSave": "Save answers",
+    "tieBreakerSaved": "Answers saved",
+    "tieBreakerClosed": "Submissions closed",
+    "tieBreakerClosedDesc": "Tie-breaker submissions have been closed by the admin."
   },
   "predictions": {
     "tagline": "Predictions",

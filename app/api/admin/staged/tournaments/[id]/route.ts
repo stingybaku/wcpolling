@@ -28,6 +28,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
           },
         },
       },
+      tieBreakers: { orderBy: { sortOrder: "asc" } },
     },
   });
 
@@ -63,6 +64,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
         ...tournament,
         stages: stagesWithCounts,
         activeMemberCount,
+        tieBreakerClosedAt: tournament.tieBreakerClosedAt?.toISOString() ?? null,
       },
     }),
     { status: 200 }

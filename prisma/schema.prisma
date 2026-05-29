@@ -79,6 +79,7 @@ model User {
   sessions        Session[]
   stagePredictions StagePrediction[]
   stageScores      StageScore[]
+  stageTieBreakerAnswers StageTieBreakerAnswer[]
   createdAt       DateTime               @default(now())
   updatedAt       DateTime               @updatedAt
 }
@@ -128,6 +129,7 @@ model Tournament {
   archivedAt       DateTime?
   type             TournamentType      @default(CLASSIC)
   finalizedAt      DateTime?
+  tieBreakerClosedAt DateTime?
   createdAt        DateTime            @default(now())
   updatedAt        DateTime            @updatedAt
   groups           TournamentGroup[]
@@ -142,6 +144,7 @@ model Tournament {
   officialGroupStandings OfficialGroupStanding[]
   officialThirdPlace     OfficialThirdPlaceRanking[]
   stages           TournamentStage[]
+  stageTieBreakerAnswers StageTieBreakerAnswer[]
 }
 
 model TournamentTag {
@@ -325,6 +328,7 @@ model TieBreakerQuestion {
   tournament   Tournament      @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
   answers      PredictionTieBreakerAnswer[]
   scores       PredictionScore[]
+  stageTieBreakerAnswers StageTieBreakerAnswer[]
 }
 
 model GroupRoom {
@@ -342,6 +346,7 @@ model GroupRoom {
   submissions PredictionSubmission[]
   stagePredictions StagePrediction[]
   stageScores      StageScore[]
+  stageTieBreakerAnswers StageTieBreakerAnswer[]
 }
 
 model GroupMembership {
@@ -434,6 +439,23 @@ model PredictionTieBreakerAnswer {
   question     TieBreakerQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
 
   @@unique([predictionId, questionId])
+}
+
+model StageTieBreakerAnswer {
+  id           String             @id @default(cuid())
+  userId       String
+  groupId      String
+  tournamentId String
+  questionId   String
+  answer       String
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  user         User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group        GroupRoom          @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  tournament   Tournament         @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  question     TieBreakerQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, groupId, tournamentId, questionId])
 }
 
 model PredictionSubmission {
