@@ -325,7 +325,8 @@
       "inactiveDesc": "Contact a group admin to be activated.",
       "activateButton": "Activate",
       "deactivateButton": "Deactivate",
-      "promoteButton": "Promote"
+      "promoteButton": "Promote",
+      "demoteButton": "Demote"
     }
   },
   "stagedPredictions": {

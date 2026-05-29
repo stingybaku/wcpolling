@@ -1139,6 +1139,7 @@ export default function GroupDetailPage() {
                   const isAdmin = isOwner || m.role === "GROUP_ADMIN";
                   const isMe = m.userId === currentUserId;
                   const canManage = isGroupAdmin && !isMe && !isOwner;
+                  const isCurrentUserOwner = group?.ownerId === currentUserId;
 
                   async function updateMember(body: { role?: string; isActive?: boolean }) {
                     await fetch(`/api/groups/${params.groupId}/members/${m.userId}`, {
@@ -1186,6 +1187,14 @@ export default function GroupDetailPage() {
                             style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--muted-2)", background: "transparent", border: "1px solid var(--border)", borderRadius: 4, padding: "2px 5px", cursor: "pointer" }}
                           >
                             {t("promoteButton")}
+                          </button>
+                        )}
+                        {isCurrentUserOwner && isAdmin && !isOwner && !isMe && (
+                          <button
+                            onClick={() => void updateMember({ role: "MEMBER" })}
+                            style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--muted)", background: "transparent", border: "1px solid var(--border)", borderRadius: 4, padding: "2px 5px", cursor: "pointer" }}
+                          >
+                            {t("demoteButton")}
                           </button>
                         )}
                       </div>

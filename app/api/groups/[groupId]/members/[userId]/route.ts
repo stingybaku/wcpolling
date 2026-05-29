@@ -16,12 +16,13 @@ export async function PUT(request: NextRequest, context: RouteContext) {
   const { groupId, userId: targetUserId } = await context.params;
 
   const isPortalAdmin = caller.role === "ADMIN";
+  const group = await prisma.groupRoom.findUnique({ where: { id: groupId }, select: { ownerId: true } });
+  const isGroupOwner = group?.ownerId === caller.id;
+
   if (!isPortalAdmin) {
     const callerMembership = await prisma.groupMembership.findUnique({
       where: { userId_groupId: { userId: caller.id, groupId } },
     });
-    const group = await prisma.groupRoom.findUnique({ where: { id: groupId }, select: { ownerId: true } });
-    const isGroupOwner = group?.ownerId === caller.id;
     if (!isGroupOwner && (!callerMembership || callerMembership.role !== "GROUP_ADMIN")) {
       return forbidden("Only group admins or portal admins can update members");
     }
@@ -38,6 +39,10 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     include: { user: { select: { email: true, name: true } } },
   });
   if (!targetMembership) return badRequest("User is not a member of this group");
+
+  if (body.role === "MEMBER" && targetMembership.role === "GROUP_ADMIN" && !isGroupOwner && !isPortalAdmin) {
+    return forbidden("Only the group owner can demote admins");
+  }
 
   const updateData: { role?: GroupMemberRole; isActive?: boolean } = {};
   if (body.role !== undefined && (body.role === "MEMBER" || body.role === "GROUP_ADMIN")) {
