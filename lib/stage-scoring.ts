@@ -32,7 +32,7 @@ export async function scoreStage(stageId: string): Promise<void> {
       });
       for (const member of members) {
         const prediction = await prisma.stagePrediction.findFirst({
-          where: { stageId, groupId: group.id, userId: member.userId },
+          where: { stageId, groupId: group.id, userId: member.userId, submittedAt: { not: null } },
         });
 
         let correctPicks = 0;
@@ -64,7 +64,7 @@ export async function scoreStage(stageId: string): Promise<void> {
       });
       for (const member of members) {
         const prediction = await prisma.stagePrediction.findFirst({
-          where: { stageId, groupId: group.id, userId: member.userId },
+          where: { stageId, groupId: group.id, userId: member.userId, submittedAt: { not: null } },
         });
 
         let correctPicks = 0;

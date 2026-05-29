@@ -108,14 +108,19 @@ export async function POST(_request: Request, context: { params: Promise<{ stage
   const baseUrl = process.env.NEXTAUTH_URL ?? "";
   for (const group of groups) {
     const activeMemberIds = group.memberships.map((m) => m.userId);
-    const [stageScores, cumulative] = await Promise.all([
+    const [stageScores, cumulative, submittedPredictions] = await Promise.all([
       prisma.stageScore.findMany({ where: { stageId, groupId: group.id, userId: { in: activeMemberIds } } }),
       prisma.stageScore.groupBy({
         by: ["userId"],
         where: { groupId: group.id, userId: { in: activeMemberIds } },
         _sum: { points: true },
       }),
+      prisma.stagePrediction.findMany({
+        where: { stageId, groupId: group.id, submittedAt: { not: null } },
+        select: { userId: true },
+      }),
     ]);
+    const submittedUserIds = new Set(submittedPredictions.map((p) => p.userId));
     const cumulativeMap = Object.fromEntries(cumulative.map((s) => [s.userId, s._sum.points ?? 0]));
     const sorted = [...cumulative].sort((a, b) => (b._sum.points ?? 0) - (a._sum.points ?? 0));
     const rankMap: Record<string, number> = {};
@@ -123,6 +128,7 @@ export async function POST(_request: Request, context: { params: Promise<{ stage
 
     for (const m of group.memberships) {
       if (!m.user.email) continue;
+      if (!submittedUserIds.has(m.userId)) continue;
       const score = stageScores.find((s) => s.userId === m.userId);
       if (!score) continue;
       const { subject, html } = stageScoredEmail(
