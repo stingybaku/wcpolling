@@ -1,5 +1,8 @@
 import { forbidden, getCurrentUser, unauthorized } from "@/app/api/helpers";
 import { prisma } from "@/lib/prisma";
+import { scoreStage } from "@/lib/stage-scoring";
+import { sendEmail } from "@/lib/email";
+import { stageScoredEmail } from "@/lib/emails/stageScored";
 
 async function requireAdmin() {
   const user = await getCurrentUser();
@@ -7,14 +10,6 @@ async function requireAdmin() {
   if (user.role !== "ADMIN") throw forbidden("Admin only");
   return user;
 }
-
-const ROUND_POINTS: Record<string, number> = {
-  R32: 3,
-  R16: 5,
-  QF: 7,
-  SF: 10,
-  Final: 15,
-};
 
 export async function POST(_request: Request, context: { params: Promise<{ stageId: string }> }) {
   const admin = await requireAdmin();
@@ -34,153 +29,112 @@ export async function POST(_request: Request, context: { params: Promise<{ stage
     );
   }
 
-  const groups = await prisma.groupRoom.findMany({
-    where: { tournamentId: stage.tournamentId },
-  });
-
   if (stage.type === "GROUP_QUALIFICATION") {
-    const qualificationResult = await prisma.stageQualificationResult.findUnique({
-      where: { stageId },
-    });
-
+    const qualificationResult = await prisma.stageQualificationResult.findUnique({ where: { stageId } });
     if (!qualificationResult) {
       return new Response(
         JSON.stringify({ error: "No qualification results found for this stage. Enter results first." }),
         { status: 409 }
       );
     }
-
-    const qualifierTeamIds = new Set(qualificationResult.qualifiers as string[]);
-
-    for (const group of groups) {
-      const members = await prisma.groupMembership.findMany({
-        where: { groupId: group.id, isActive: true },
-      });
-
-      for (const member of members) {
-        const prediction = await prisma.stagePrediction.findFirst({
-          where: {
-            stageId,
-            groupId: group.id,
-            userId: member.userId,
-          },
-        });
-
-        let correctPicks = 0;
-        let incorrectPicks = 0;
-        const total = 32;
-
-        if (prediction && prediction.qualificationPicks) {
-          const picks = prediction.qualificationPicks as string[];
-          for (const teamId of picks) {
-            if (qualifierTeamIds.has(teamId)) {
-              correctPicks++;
-            } else {
-              incorrectPicks++;
-            }
-          }
-        }
-
-        const points = correctPicks * 2;
-
-        await prisma.stageScore.upsert({
-          where: {
-            userId_stageId_groupId: {
-              stageId,
-              userId: member.userId,
-              groupId: group.id,
-            },
-          },
-          create: {
-            stageId,
-            userId: member.userId,
-            groupId: group.id,
-            points,
-            correctPicks,
-            breakdown: { correct: correctPicks, incorrect: incorrectPicks, total },
-          },
-          update: {
-            points,
-            correctPicks,
-            breakdown: { correct: correctPicks, incorrect: incorrectPicks, total },
-          },
-        });
-      }
-    }
   } else if (stage.type === "KNOCKOUT") {
-    const pointsPerRound = stage.roundLabel ? (ROUND_POINTS[stage.roundLabel] ?? 0) : 0;
-
-    const stageMatches = await prisma.stageMatch.findMany({
-      where: { stageId, winnerId: { not: null } },
-    });
-
-    const winnerMap = new Map<string, string>();
-    for (const match of stageMatches) {
-      if (match.winnerId) {
-        winnerMap.set(match.id, match.winnerId);
-      }
-    }
-
-    for (const group of groups) {
-      const members = await prisma.groupMembership.findMany({
-        where: { groupId: group.id, isActive: true },
-      });
-
-      for (const member of members) {
-        const prediction = await prisma.stagePrediction.findFirst({
-          where: {
-            stageId,
-            groupId: group.id,
-            userId: member.userId,
-          },
-        });
-
-        let correctPicks = 0;
-
-        if (prediction && prediction.matchPicks) {
-          const picks = prediction.matchPicks as Array<{ matchId: string; winnerId: string }>;
-          for (const pick of picks) {
-            const realWinnerId = winnerMap.get(pick.matchId);
-            if (realWinnerId && realWinnerId === pick.winnerId) {
-              correctPicks++;
-            }
-          }
-        }
-
-        const points = correctPicks * pointsPerRound;
-
-        await prisma.stageScore.upsert({
-          where: {
-            userId_stageId_groupId: {
-              stageId,
-              userId: member.userId,
-              groupId: group.id,
-            },
-          },
-          create: {
-            stageId,
-            userId: member.userId,
-            groupId: group.id,
-            points,
-            correctPicks,
-            breakdown: { correctPicks, pointsPerRound, roundLabel: stage.roundLabel },
-          },
-          update: {
-            points,
-            correctPicks,
-            breakdown: { correctPicks, pointsPerRound, roundLabel: stage.roundLabel },
-          },
-        });
-      }
+    const anyResult = await prisma.stageMatch.findFirst({ where: { stageId, winnerId: { not: null } } });
+    if (!anyResult) {
+      return new Response(
+        JSON.stringify({ error: "No match results found for this stage. Enter results first." }),
+        { status: 409 }
+      );
     }
   } else {
     return new Response(JSON.stringify({ error: "Unsupported stage type for scoring" }), { status: 400 });
   }
+
+  await scoreStage(stageId);
 
   await prisma.tournamentStage.update({
     where: { id: stageId },
     data: { status: "SCORED" },
   });
 
-  return new Response(JSON.stringify({ scored: true, stageId }), { status: 200 });
+  // Auto-generate next stage's matches from current stage winners
+  let nextMatchesGenerated = false;
+  if (stage.type === "KNOCKOUT") {
+    const nextStage = await prisma.tournamentStage.findFirst({
+      where: { tournamentId: stage.tournamentId, type: "KNOCKOUT", order: { gt: stage.order } },
+      orderBy: { order: "asc" },
+    });
+    if (nextStage) {
+      const existingMatches = await prisma.stageMatch.count({ where: { stageId: nextStage.id } });
+      if (existingMatches === 0) {
+        const currentMatches = await prisma.stageMatch.findMany({
+          where: { stageId, winnerId: { not: null } },
+        });
+        // Sort numerically by matchNumber
+        currentMatches.sort((a, b) => parseInt(a.matchNumber) - parseInt(b.matchNumber));
+        const nextMatches = [];
+        for (let i = 0; i < currentMatches.length; i += 2) {
+          const home = currentMatches[i];
+          const away = currentMatches[i + 1];
+          if (!home?.winnerId || !away?.winnerId) break;
+          nextMatches.push({
+            stageId: nextStage.id,
+            matchNumber: String(Math.floor(i / 2) + 1),
+            homeTeamId: home.winnerId,
+            awayTeamId: away.winnerId,
+          });
+        }
+        if (nextMatches.length > 0) {
+          await prisma.stageMatch.createMany({ data: nextMatches });
+          nextMatchesGenerated = true;
+        }
+      }
+    }
+  }
+
+  // Notify each active member of each group with their personal score and rank
+  const tournament = await prisma.tournament.findUnique({
+    where: { id: stage.tournamentId },
+    select: { name: true },
+  });
+  const groups = await prisma.groupRoom.findMany({
+    where: { tournamentId: stage.tournamentId },
+    include: {
+      memberships: {
+        where: { isActive: true },
+        include: { user: { select: { id: true, email: true } } },
+      },
+    },
+  });
+  const baseUrl = process.env.NEXTAUTH_URL ?? "";
+  for (const group of groups) {
+    const activeMemberIds = group.memberships.map((m) => m.userId);
+    const [stageScores, cumulative] = await Promise.all([
+      prisma.stageScore.findMany({ where: { stageId, groupId: group.id, userId: { in: activeMemberIds } } }),
+      prisma.stageScore.groupBy({
+        by: ["userId"],
+        where: { groupId: group.id, userId: { in: activeMemberIds } },
+        _sum: { points: true },
+      }),
+    ]);
+    const cumulativeMap = Object.fromEntries(cumulative.map((s) => [s.userId, s._sum.points ?? 0]));
+    const sorted = [...cumulative].sort((a, b) => (b._sum.points ?? 0) - (a._sum.points ?? 0));
+    const rankMap: Record<string, number> = {};
+    sorted.forEach((s, i) => { rankMap[s.userId] = i + 1; });
+
+    for (const m of group.memberships) {
+      if (!m.user.email) continue;
+      const score = stageScores.find((s) => s.userId === m.userId);
+      if (!score) continue;
+      const { subject, html } = stageScoredEmail(
+        stage.name, tournament!.name,
+        score.points,
+        cumulativeMap[m.userId] ?? 0,
+        rankMap[m.userId] ?? group.memberships.length,
+        `${baseUrl}/dashboard/groups/${group.id}`,
+      );
+      sendEmail({ to: m.user.email, subject, html }).catch(() => null);
+    }
+  }
+
+  return new Response(JSON.stringify({ scored: true, stageId, nextMatchesGenerated }), { status: 200 });
 }

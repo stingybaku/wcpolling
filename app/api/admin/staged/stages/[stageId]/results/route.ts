@@ -1,5 +1,6 @@
 import { badRequest, forbidden, getCurrentUser, unauthorized } from "@/app/api/helpers";
 import { prisma } from "@/lib/prisma";
+import { scoreStage } from "@/lib/stage-scoring";
 
 async function requireAdmin() {
   const user = await getCurrentUser();
@@ -19,9 +20,9 @@ export async function POST(request: Request, context: { params: Promise<{ stageI
     return new Response(JSON.stringify({ error: "Stage not found" }), { status: 404 });
   }
 
-  if (stage.status !== "CLOSED") {
+  if (stage.status === "UPCOMING" || stage.status === "SCORED") {
     return new Response(
-      JSON.stringify({ error: "Stage must be CLOSED to enter results" }),
+      JSON.stringify({ error: "Cannot enter results for a stage that is UPCOMING or already SCORED" }),
       { status: 409 }
     );
   }
@@ -44,6 +45,8 @@ export async function POST(request: Request, context: { params: Promise<{ stageI
       update: { qualifiers },
     });
 
+    await scoreStage(stageId);
+
     return new Response(JSON.stringify({ success: true, count: qualifiers.length }), { status: 200 });
   }
 
@@ -59,7 +62,6 @@ export async function POST(request: Request, context: { params: Promise<{ stageI
 
     const matchIds = results.map((r: { matchId: string }) => r.matchId);
 
-    // Verify all matchIds belong to this stage
     const stageMatches = await prisma.stageMatch.findMany({
       where: { stageId, id: { in: matchIds } },
       select: { id: true },
@@ -72,7 +74,6 @@ export async function POST(request: Request, context: { params: Promise<{ stageI
       }
     }
 
-    // Update each match's winnerId
     await Promise.all(
       results.map((r: { matchId: string; winnerId: string }) =>
         prisma.stageMatch.update({
@@ -81,6 +82,8 @@ export async function POST(request: Request, context: { params: Promise<{ stageI
         })
       )
     );
+
+    await scoreStage(stageId);
 
     return new Response(JSON.stringify({ success: true, count: results.length }), { status: 200 });
   }

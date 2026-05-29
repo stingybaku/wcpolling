@@ -37,6 +37,10 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
       where: { id: { in: stageIds } },
       data: { status: "UPCOMING" },
     }),
+    prisma.tournament.update({
+      where: { id: tournamentId },
+      data: { finalizedAt: null },
+    }),
   ]);
 
   return new Response(JSON.stringify({ success: true, tournamentId, resetStages: stageIds.length }), { status: 200 });

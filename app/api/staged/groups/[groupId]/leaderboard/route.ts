@@ -17,8 +17,8 @@ export async function GET(request: NextRequest, context: { params: Promise<{ gro
   if (!membership) return forbidden("Not a member of this group");
 
   const stages = await prisma.tournamentStage.findMany({
-    where: { tournamentId, status: "SCORED" },
-    select: { id: true, name: true },
+    where: { tournamentId, status: { in: ["OPEN", "CLOSED", "SCORED"] } },
+    select: { id: true, name: true, status: true },
   });
 
   if (stages.length === 0) {
@@ -27,9 +27,16 @@ export async function GET(request: NextRequest, context: { params: Promise<{ gro
 
   const stageIds = stages.map((s) => s.id);
   const stageNameMap = Object.fromEntries(stages.map((s) => [s.id, s.name]));
+  const stageStatusMap = Object.fromEntries(stages.map((s) => [s.id, s.status]));
+
+  const activeMembers = await prisma.groupMembership.findMany({
+    where: { groupId, isActive: true },
+    select: { userId: true },
+  });
+  const activeMemberIds = activeMembers.map((m) => m.userId);
 
   const scores = await prisma.stageScore.findMany({
-    where: { stageId: { in: stageIds }, groupId },
+    where: { stageId: { in: stageIds }, groupId, userId: { in: activeMemberIds } },
     include: {
       user: { select: { id: true, name: true, image: true } },
     },
@@ -41,7 +48,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ gro
     userImage: string | null;
     totalPoints: number;
     totalCorrectPicks: number;
-    stageMap: Record<string, { stageId: string; stageName: string; points: number; correctPicks: number }>;
+    stageMap: Record<string, { stageId: string; stageName: string; stageStatus: string; points: number; correctPicks: number }>;
   }> = {};
 
   for (const score of scores) {
@@ -61,6 +68,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ gro
     byUser[uid].stageMap[score.stageId] = {
       stageId: score.stageId,
       stageName: stageNameMap[score.stageId] ?? score.stageId,
+      stageStatus: stageStatusMap[score.stageId] ?? "SCORED",
       points: score.points,
       correctPicks: score.correctPicks,
     };

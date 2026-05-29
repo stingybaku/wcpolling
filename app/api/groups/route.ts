@@ -45,6 +45,7 @@ export async function POST(request: NextRequest) {
       memberships: {
         create: {
           userId: user.id,
+          isActive: true,
         },
       },
     },

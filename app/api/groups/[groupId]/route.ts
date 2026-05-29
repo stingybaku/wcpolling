@@ -37,5 +37,11 @@ export async function GET(request: NextRequest, context: { params: Promise<{ gro
     },
   });
   if (!group) return badRequest("Group not found");
-  return new Response(JSON.stringify({ group }), { status: 200 });
+
+  const activeMemberIds = new Set(group.memberships.filter((m) => m.isActive).map((m) => m.userId));
+  const filteredGroup = {
+    ...group,
+    submissions: group.submissions.filter((s) => activeMemberIds.has(s.user.id)),
+  };
+  return new Response(JSON.stringify({ group: filteredGroup }), { status: 200 });
 }

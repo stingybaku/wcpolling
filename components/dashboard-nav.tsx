@@ -20,11 +20,13 @@ function isActive(pathname: string, href: string) {
 
 export function DashboardNav({
   currentTournamentId,
+  currentTournamentType,
   dailyTip,
   tournaments,
   role,
 }: {
   currentTournamentId?: string | null;
+  currentTournamentType?: string | null;
   dailyTip: string;
   tournaments: TournamentOption[];
   role?: string | null;
@@ -35,7 +37,7 @@ export function DashboardNav({
   const navItems = [
     { href: "/dashboard" as const, label: t("dashboard") },
     { href: "/dashboard/groups" as const, label: t("groups") },
-    { href: "/dashboard/predictions" as const, label: t("predictions") },
+    ...(currentTournamentType !== "STAGED" ? [{ href: "/dashboard/predictions" as const, label: t("predictions") }] : []),
     ...(role === "ADMIN" ? [{ href: "/dashboard/admin" as const, label: "Admin" }] : []),
   ];
 

@@ -30,7 +30,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
 
   return (
     <div className="page-shell lg:flex">
-      <DashboardNav currentTournamentId={currentTournament?.id} dailyTip={dailyTip} tournaments={tournaments} role={(user as { role?: string }).role} />
+      <DashboardNav currentTournamentId={currentTournament?.id} currentTournamentType={currentTournament?.type ?? null} dailyTip={dailyTip} tournaments={tournaments} role={(user as { role?: string }).role} />
       <div className="min-w-0 flex-1">
         <header className="sticky top-0 z-30 border-b px-4 py-4 backdrop-blur lg:px-8" style={{ borderColor: "var(--border)", background: "color-mix(in srgb, var(--bg) 74%, transparent 26%)" }}>
           <div className="flex items-center justify-between gap-4">

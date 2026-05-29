@@ -2,8 +2,8 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser, unauthorized, forbidden, badRequest } from "@/app/api/helpers";
 import { sendEmail } from "@/lib/email";
-import { submissionConfirmEmail } from "@/lib/emails/submissionConfirm";
 import { predictionUnlockedEmail } from "@/lib/emails/predictionUnlocked";
+import { groupQualificationConfirmEmail, knockoutConfirmEmail } from "@/lib/emails/stagePredictionConfirm";
 
 type RouteContext = { params: Promise<{ groupId: string; stageId: string }> };
 
@@ -68,12 +68,29 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     });
 
     if (submit && user.email) {
-      const picks = qualificationPicks.slice(0, 10).concat(
-        qualificationPicks.length > 10 ? [`...and ${qualificationPicks.length - 10} more`] : []
-      );
       const baseUrl = process.env.NEXTAUTH_URL ?? '';
-      const predictionUrl = `${baseUrl}/groups/${groupId}`;
-      const { subject, html } = submissionConfirmEmail(stage.name, stage.closesAt, picks, predictionUrl);
+      const predictionUrl = `${baseUrl}/dashboard/groups/${groupId}`;
+      const tournament = await prisma.tournament.findUnique({
+        where: { id: stage.tournamentId },
+        select: { name: true },
+      });
+      const tournamentGroups = await prisma.tournamentGroup.findMany({
+        where: { tournamentId: stage.tournamentId },
+        include: { teams: { include: { team: { select: { id: true, name: true } } }, orderBy: { seed: "asc" } } },
+        orderBy: { sortOrder: "asc" },
+      });
+      const pickedSet = new Set(qualificationPicks);
+      const groupPickData = tournamentGroups.map((g) => ({
+        groupName: g.name,
+        teams: g.teams.map((t) => ({ name: t.team.name, picked: pickedSet.has(t.teamId) })),
+      }));
+      const { subject, html } = groupQualificationConfirmEmail(
+        stage.name,
+        tournament?.name ?? "",
+        stage.closesAt,
+        groupPickData,
+        predictionUrl,
+      );
       sendEmail({ to: user.email, subject, html }).catch(() => null);
     }
 
@@ -107,10 +124,31 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     });
 
     if (submit && user.email) {
-      const picks = matchPicks.map((p) => `Match ${p.matchId}: ${p.winnerId}`);
       const baseUrl = process.env.NEXTAUTH_URL ?? '';
-      const predictionUrl = `${baseUrl}/groups/${groupId}`;
-      const { subject, html } = submissionConfirmEmail(stage.name, stage.closesAt, picks, predictionUrl);
+      const predictionUrl = `${baseUrl}/dashboard/groups/${groupId}`;
+      const tournament = await prisma.tournament.findUnique({
+        where: { id: stage.tournamentId },
+        select: { name: true },
+      });
+      const stageMatchData = await prisma.stageMatch.findMany({
+        where: { stageId },
+        include: { homeTeam: { select: { id: true, name: true } }, awayTeam: { select: { id: true, name: true } } },
+        orderBy: { matchNumber: "asc" },
+      });
+      const matchMap = Object.fromEntries(stageMatchData.map((m) => [m.id, m]));
+      const emailMatches = matchPicks.flatMap((p) => {
+        const m = matchMap[p.matchId];
+        if (!m) return [];
+        const pickedName = m.homeTeamId === p.winnerId ? m.homeTeam.name : m.awayTeam.name;
+        return [{ matchNumber: m.matchNumber, home: m.homeTeam.name, away: m.awayTeam.name, picked: pickedName }];
+      });
+      const { subject, html } = knockoutConfirmEmail(
+        stage.name,
+        tournament?.name ?? "",
+        stage.closesAt,
+        emailMatches,
+        predictionUrl,
+      );
       sendEmail({ to: user.email, subject, html }).catch(() => null);
     }
 

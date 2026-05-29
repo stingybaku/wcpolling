@@ -20,7 +20,9 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     const callerMembership = await prisma.groupMembership.findUnique({
       where: { userId_groupId: { userId: caller.id, groupId } },
     });
-    if (!callerMembership || callerMembership.role !== "GROUP_ADMIN") {
+    const group = await prisma.groupRoom.findUnique({ where: { id: groupId }, select: { ownerId: true } });
+    const isGroupOwner = group?.ownerId === caller.id;
+    if (!isGroupOwner && (!callerMembership || callerMembership.role !== "GROUP_ADMIN")) {
       return forbidden("Only group admins or portal admins can update members");
     }
   }
@@ -40,6 +42,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
   const updateData: { role?: GroupMemberRole; isActive?: boolean } = {};
   if (body.role !== undefined && (body.role === "MEMBER" || body.role === "GROUP_ADMIN")) {
     updateData.role = body.role as GroupMemberRole;
+    if (body.role === "GROUP_ADMIN") updateData.isActive = true;
   }
   if (body.isActive !== undefined) updateData.isActive = body.isActive;
 

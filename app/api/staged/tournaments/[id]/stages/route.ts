@@ -17,7 +17,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
         select: { stageMatches: true },
       },
       qualificationResult: {
-        select: { id: true },
+        select: { id: true, qualifiers: true },
       },
     },
   });

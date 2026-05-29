@@ -127,6 +127,7 @@ model Tournament {
   submissionDeadline DateTime?
   archivedAt       DateTime?
   type             TournamentType      @default(CLASSIC)
+  finalizedAt      DateTime?
   createdAt        DateTime            @default(now())
   updatedAt        DateTime            @updatedAt
   groups           TournamentGroup[]
@@ -348,7 +349,7 @@ model GroupMembership {
   userId    String
   groupId   String
   role      GroupMemberRole @default(MEMBER)
-  isActive  Boolean         @default(true)
+  isActive  Boolean         @default(false)
   createdAt DateTime        @default(now())
   user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   group     GroupRoom       @relation(fields: [groupId], references: [id], onDelete: Cascade)
@@ -518,6 +519,7 @@ model TournamentStage {
   stageScores             StageScore[]
   stageMatches            StageMatch[]
   qualificationResult     StageQualificationResult?
+  groupResult             StageGroupResult?
 
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
@@ -550,6 +552,16 @@ model StageQualificationResult {
   stage      TournamentStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
   qualifiers Json
   createdAt  DateTime        @default(now())
+}
+
+model StageGroupResult {
+  id          String          @id @default(cuid())
+  stageId     String          @unique
+  stage       TournamentStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  standings   Json            // { [groupId]: string[] } ordered team IDs per group
+  thirdPlace  Json            // string[] - all 12 thirds in ranked order (top 8 advance)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
 }
 
 model StagePrediction {

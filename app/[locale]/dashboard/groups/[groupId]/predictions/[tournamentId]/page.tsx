@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { useSession } from "next-auth/react";
+import { useTranslations } from "next-intl";
 import { Link } from "@/lib/navigation";
 import { flagEmoji } from "@/lib/fifa-flags";
 
@@ -20,7 +20,7 @@ type Stage = {
   roundLabel: string | null;
   opensAt: string;
   closesAt: string;
-  qualificationResult: { id: string } | null;
+  qualificationResult: { id: string; qualifiers: unknown } | null;
   _count: { stageMatches: number };
 };
 
@@ -45,15 +45,6 @@ type StageMatch = {
   winnerId: string | null;
 };
 
-type LeaderboardEntry = {
-  userId: string;
-  userName: string | null;
-  userImage: string | null;
-  totalPoints: number;
-  totalCorrectPicks: number;
-  stages: { stageId: string; stageName: string; points: number; correctPicks: number }[];
-};
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function formatDate(iso: string) {
@@ -66,12 +57,13 @@ function formatDate(iso: string) {
 }
 
 function Countdown({ closesAt }: { closesAt: string }) {
+  const t = useTranslations("stagedPredictions");
   const [remaining, setRemaining] = useState("");
 
   useEffect(() => {
     function update() {
       const diff = new Date(closesAt).getTime() - Date.now();
-      if (diff <= 0) { setRemaining("Closed"); return; }
+      if (diff <= 0) { setRemaining(t("closed")); return; }
       const h = Math.floor(diff / 3_600_000);
       const m = Math.floor((diff % 3_600_000) / 60_000);
       const s = Math.floor((diff % 60_000) / 1_000);
@@ -80,14 +72,14 @@ function Countdown({ closesAt }: { closesAt: string }) {
     update();
     const id = setInterval(update, 1000);
     return () => clearInterval(id);
-  }, [closesAt]);
+  }, [closesAt, t]);
 
   return (
-    <span className="inline-flex items-center gap-1 text-sm font-medium text-amber-600">
+    <span className="inline-flex items-center gap-1 text-sm font-medium" style={{ color: "var(--gold)" }}>
       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
       </svg>
-      Closes in {remaining}
+      {t("closesIn", { remaining })}
     </span>
   );
 }
@@ -107,6 +99,7 @@ function GroupQualificationForm({
   existing: StagePrediction;
   onSaved: (pred: StagePrediction) => void;
 }) {
+  const t = useTranslations("stagedPredictions");
   const [selected, setSelected] = useState<Set<string>>(
     () => new Set(existing?.qualificationPicks ?? [])
   );
@@ -135,7 +128,7 @@ function GroupQualificationForm({
       if (!res.ok) throw new Error(data.error ?? "Failed to save");
       onSaved(data.prediction);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Error saving prediction");
+      setError(e instanceof Error ? e.message : t("errorSaving"));
     } finally {
       setSaving(false);
     }
@@ -153,57 +146,85 @@ function GroupQualificationForm({
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <p className="text-sm text-gray-600">
-          Pick the <span className="font-semibold">32 teams</span> you think will qualify.
-          The top 2 from each group advance, plus 8 best third-place finishers.
+        <p className="text-sm muted">
+          {t("pick32Title", { count: 32 })}
+          {" "}
+          {t("pick32Desc")}
         </p>
-        <span className={`text-sm font-semibold tabular-nums ${isFull ? "text-green-600" : "text-gray-500"}`}>
-          {selected.size} / 32 selected
+        <span
+          className="text-sm font-semibold tabular-nums"
+          style={{ color: isFull ? "var(--accent)" : "var(--muted)" }}
+        >
+          {t("selectedCount", { selected: selected.size, total: 32 })}
         </span>
       </div>
 
       {isFull && (
-        <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-          32 teams selected — deselect a team to change your pick.
+        <p
+          className="text-xs rounded-lg px-3 py-2"
+          style={{
+            color: "var(--gold)",
+            background: "var(--gold-soft)",
+            border: "1px solid var(--gold)",
+          }}
+        >
+          {t("fullMessage", { total: 32 })}
         </p>
       )}
 
       <div className="space-y-4">
         {groupNames.map((groupName) => {
           const groupTeams = groupedTeams[groupName];
-          const selectedInGroup = groupTeams.filter((t) => selected.has(t.id)).length;
+          const selectedInGroup = groupTeams.filter((tm) => selected.has(tm.id)).length;
           return (
             <div key={groupName}>
               <div className="flex items-center gap-2 mb-2">
-                <span className="text-xs font-bold uppercase tracking-wider text-gray-500">
-                  Group {groupName}
+                <span className="text-xs font-bold uppercase tracking-wider muted-2">
+                  {t("groupLabel", { name: groupName })}
                 </span>
-                <span className={`text-xs font-semibold tabular-nums ${selectedInGroup === 2 ? "text-green-600" : selectedInGroup > 2 ? "text-amber-600" : "text-gray-400"}`}>
-                  {selectedInGroup} / 4 selected
+                <span
+                  className="text-xs font-semibold tabular-nums"
+                  style={{
+                    color:
+                      selectedInGroup >= 3
+                        ? "var(--accent)"
+                        : selectedInGroup === 2
+                          ? "var(--muted)"
+                          : "var(--muted-2)",
+                  }}
+                >
+                  {t("groupCount", { selected: selectedInGroup, max: 3 })}
                 </span>
-                {selectedInGroup > 2 && (
-                  <span className="text-xs text-amber-600">⚠ Usually only 2 per group qualify</span>
+                {selectedInGroup >= 3 && (
+                  <span className="text-xs" style={{ color: "var(--accent)" }}>{t("groupFull")}</span>
                 )}
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {groupTeams.map((team) => {
                   const isSelected = selected.has(team.id);
-                  const isDisabled = !isSelected && isFull;
+                  const isDisabled = !isSelected && (isFull || selectedInGroup >= 3);
                   return (
                     <button
                       key={team.id}
                       onClick={() => toggle(team.id)}
                       disabled={isDisabled}
-                      className={`relative flex items-center gap-2 p-2 rounded-lg border-2 text-xs font-medium transition-all text-left ${
+                      className="relative flex items-center gap-2 p-2 rounded-lg border-2 text-xs font-medium transition-all text-left disabled:opacity-40 disabled:cursor-not-allowed"
+                      style={
                         isSelected
-                          ? "border-green-500 bg-green-50 text-green-800"
-                          : isDisabled
-                            ? "border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed"
-                            : "border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50"
-                      }`}
+                          ? {
+                              background: "var(--accent-soft)",
+                              borderColor: "var(--accent)",
+                              color: "var(--accent-ink)",
+                            }
+                          : {
+                              background: "var(--paper)",
+                              borderColor: "var(--border)",
+                              color: "var(--ink)",
+                            }
+                      }
                     >
                       {isSelected && (
-                        <span className="absolute top-1 right-1 text-green-500">
+                        <span className="absolute top-1 right-1" style={{ color: "var(--accent)" }}>
                           <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                             <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                           </svg>
@@ -220,22 +241,22 @@ function GroupQualificationForm({
         })}
       </div>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-sm" style={{ color: "var(--live)" }}>{error}</p>}
 
       <div className="flex gap-3 pt-2">
         <button
           onClick={() => save(false)}
           disabled={saving || selected.size === 0}
-          className="px-4 py-2 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="btn btn-ghost disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {saving ? "Saving…" : "Save Draft"}
+          {saving ? t("saving") : t("saveDraft")}
         </button>
         <button
           onClick={() => save(true)}
           disabled={saving || selected.size !== 32}
-          className="px-4 py-2 rounded-lg bg-blue-600 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="btn btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {saving ? "Submitting…" : "Submit Picks"}
+          {saving ? t("submitting") : t("submitPicks")}
         </button>
       </div>
     </div>
@@ -257,6 +278,7 @@ function KnockoutForm({
   existing: StagePrediction;
   onSaved: (pred: StagePrediction) => void;
 }) {
+  const t = useTranslations("stagedPredictions");
   const [picks, setPicks] = useState<Record<string, string>>(
     () => Object.fromEntries((existing?.matchPicks ?? []).map((p) => [p.matchId, p.winnerId]))
   );
@@ -281,7 +303,7 @@ function KnockoutForm({
       if (!res.ok) throw new Error(data.error ?? "Failed to save");
       onSaved(data.prediction);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Error saving prediction");
+      setError(e instanceof Error ? e.message : t("errorSaving"));
     } finally {
       setSaving(false);
     }
@@ -292,9 +314,12 @@ function KnockoutForm({
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <p className="text-sm text-gray-600">Pick the winner for each match.</p>
-        <span className={`text-sm font-semibold ${pickedCount === matches.length ? "text-green-600" : "text-gray-500"}`}>
-          {pickedCount} / {matches.length} matches picked
+        <p className="text-sm muted">{t("pickWinners")}</p>
+        <span
+          className="text-sm font-semibold"
+          style={{ color: pickedCount === matches.length ? "var(--accent)" : "var(--muted)" }}
+        >
+          {t("matchesPickedCount", { picked: pickedCount, total: matches.length })}
         </span>
       </div>
 
@@ -302,8 +327,12 @@ function KnockoutForm({
         {matches.map((match) => {
           const winner = picks[match.id];
           return (
-            <div key={match.id} className="flex items-center gap-2 p-3 rounded-lg border border-gray-200 bg-white">
-              <span className="text-xs text-gray-400 w-6 text-center font-medium">{match.matchNumber}</span>
+            <div
+              key={match.id}
+              className="flex items-center gap-2 p-3 rounded-lg"
+              style={{ border: "1px solid var(--border)", background: "var(--paper)" }}
+            >
+              <span className="text-xs w-6 text-center font-medium muted-2">{match.matchNumber}</span>
               {[match.homeTeam, match.awayTeam].map((team) => {
                 if (!team) return null;
                 const isWinner = winner === team.id;
@@ -311,16 +340,25 @@ function KnockoutForm({
                   <button
                     key={team.id}
                     onClick={() => pick(match.id, team.id)}
-                    className={`flex-1 flex items-center gap-2 px-3 py-2 rounded-lg border-2 text-sm font-medium transition-all ${
+                    className="flex-1 flex items-center gap-2 px-3 py-2 rounded-lg border-2 text-sm font-medium transition-all"
+                    style={
                       isWinner
-                        ? "border-blue-500 bg-blue-50 text-blue-800"
-                        : "border-gray-200 bg-gray-50 text-gray-700 hover:border-gray-300 hover:bg-white"
-                    }`}
+                        ? {
+                            background: "var(--accent-soft)",
+                            borderColor: "var(--accent)",
+                            color: "var(--accent-ink)",
+                          }
+                        : {
+                            background: "var(--paper-strong)",
+                            borderColor: "var(--border)",
+                            color: "var(--ink)",
+                          }
+                    }
                   >
                     <span className="text-lg">{flagEmoji(team.fifaCode)}</span>
                     <span>{team.name}</span>
                     {isWinner && (
-                      <svg className="w-4 h-4 text-blue-500 ml-auto" fill="currentColor" viewBox="0 0 20 20">
+                      <svg className="w-4 h-4 ml-auto" fill="currentColor" viewBox="0 0 20 20" style={{ color: "var(--accent)" }}>
                         <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                       </svg>
                     )}
@@ -332,22 +370,22 @@ function KnockoutForm({
         })}
       </div>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-sm" style={{ color: "var(--live)" }}>{error}</p>}
 
       <div className="flex gap-3">
         <button
           onClick={() => save(false)}
           disabled={saving || pickedCount === 0}
-          className="px-4 py-2 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="btn btn-ghost disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {saving ? "Saving…" : "Save Draft"}
+          {saving ? t("saving") : t("saveDraft")}
         </button>
         <button
           onClick={() => save(true)}
           disabled={saving || pickedCount !== matches.length}
-          className="px-4 py-2 rounded-lg bg-blue-600 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="btn btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {saving ? "Submitting…" : "Submit Picks"}
+          {saving ? t("submitting") : t("submitPicks")}
         </button>
       </div>
     </div>
@@ -367,17 +405,53 @@ function ReadOnlyPicks({
   teams: Team[];
   matches: StageMatch[];
 }) {
-  if (!prediction) return <p className="text-sm text-gray-500 italic">No picks submitted.</p>;
+  const t = useTranslations("stagedPredictions");
+
+  if (!prediction) return <p className="text-sm italic muted">{t("noPicks")}</p>;
 
   if (stage.type === "GROUP_QUALIFICATION" && prediction.qualificationPicks) {
-    const teamMap = Object.fromEntries(teams.map((t) => [t.id, t]));
+    const teamMap = Object.fromEntries(teams.map((tm) => [tm.id, tm]));
+    const qualifierSet = stage.status === "SCORED" && Array.isArray(stage.qualificationResult?.qualifiers)
+      ? new Set(stage.qualificationResult.qualifiers as string[])
+      : null;
     return (
       <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
         {prediction.qualificationPicks.map((id) => {
           const team = teamMap[id];
           if (!team) return null;
+          const correct = qualifierSet ? qualifierSet.has(id) : null;
           return (
-            <div key={id} className="flex flex-col items-center gap-1 p-2 rounded-lg border border-green-200 bg-green-50 text-xs font-medium text-green-800">
+            <div
+              key={id}
+              className="relative flex flex-col items-center gap-1 p-2 rounded-lg text-xs font-medium"
+              style={
+                correct === true
+                  ? {
+                      background: "color-mix(in srgb, #22c55e 12%, transparent)",
+                      border: "1px solid #86efac",
+                      color: "var(--ink)",
+                    }
+                  : correct === false
+                    ? {
+                        background: "color-mix(in srgb, #ef4444 10%, transparent)",
+                        border: "1px solid #fca5a5",
+                        color: "var(--ink)",
+                      }
+                    : {
+                        background: "color-mix(in srgb, #22c55e 12%, transparent)",
+                        border: "1px solid #86efac",
+                        color: "var(--ink)",
+                      }
+              }
+            >
+              {correct !== null && (
+                <span
+                  className="absolute top-1 right-1 text-[10px] font-bold"
+                  style={{ color: correct ? "#22c55e" : "var(--live)" }}
+                >
+                  {correct ? "✓" : "✗"}
+                </span>
+              )}
               <span className="text-xl">{flagEmoji(team.fifaCode)}</span>
               <span className="text-center">{team.name}</span>
             </div>
@@ -388,19 +462,40 @@ function ReadOnlyPicks({
   }
 
   if (stage.type === "KNOCKOUT" && prediction.matchPicks) {
-    const teamMap = Object.fromEntries(teams.map((t) => [t.id, t]));
+    // Build team map from match data directly (matches include homeTeam/awayTeam)
+    const teamMap: Record<string, Team> = {};
+    for (const m of matches) {
+      if (m.homeTeam) teamMap[m.homeTeam.id] = m.homeTeam;
+      if (m.awayTeam) teamMap[m.awayTeam.id] = m.awayTeam;
+    }
     const matchMap = Object.fromEntries(matches.map((m) => [m.id, m]));
+    const actualResult = stage.status === "SCORED"
+      ? Object.fromEntries(matches.filter(m => m.winnerId).map(m => [m.id, m.winnerId!]))
+      : null;
     return (
       <div className="space-y-2">
         {prediction.matchPicks.map((p) => {
           const match = matchMap[p.matchId];
           const winner = teamMap[p.winnerId];
           if (!match || !winner) return null;
+          const correct = actualResult ? actualResult[p.matchId] === p.winnerId : null;
           return (
-            <div key={p.matchId} className="flex items-center gap-2 text-sm">
-              <span className="text-gray-400 w-6 text-center">{match.matchNumber}</span>
+            <div
+              key={p.matchId}
+              className="flex items-center gap-2 text-sm rounded-lg px-2 py-1"
+              style={
+                correct === true
+                  ? { background: "color-mix(in srgb, #22c55e 12%, transparent)" }
+                  : correct === false
+                    ? { background: "color-mix(in srgb, #ef4444 10%, transparent)" }
+                    : {}
+              }
+            >
+              <span className="w-6 text-center shrink-0 muted-2">{match.matchNumber}</span>
               <span className="text-lg">{flagEmoji(winner.fifaCode)}</span>
-              <span className="font-medium">{winner.name}</span>
+              <span className="font-medium flex-1" style={{ color: "var(--ink)" }}>{winner.name}</span>
+              {correct === true && <span className="text-xs font-semibold" style={{ color: "#22c55e" }}>✓</span>}
+              {correct === false && <span className="text-xs font-semibold" style={{ color: "var(--live)" }}>✗</span>}
             </div>
           );
         })}
@@ -430,19 +525,23 @@ function StageCard({
   defaultOpen: boolean;
   onPredictionUpdate: (stageId: string, pred: StagePrediction) => void;
 }) {
+  const t = useTranslations("stagedPredictions");
   const [open, setOpen] = useState(defaultOpen);
 
-  const statusColors: Record<StageStatus, string> = {
-    UPCOMING: "bg-gray-100 text-gray-500",
-    OPEN: "bg-green-100 text-green-700",
-    CLOSED: "bg-amber-100 text-amber-700",
-    SCORED: "bg-blue-100 text-blue-700",
+  const statusStyles: Record<StageStatus, { background: string; color: string }> = {
+    UPCOMING: { background: "var(--paper-strong)", color: "var(--muted)" },
+    OPEN: { background: "var(--accent-soft)", color: "var(--accent-ink)" },
+    CLOSED: { background: "var(--gold-soft)", color: "var(--gold)" },
+    SCORED: { background: "color-mix(in srgb, #6366f1 15%, transparent)", color: "#818cf8" },
   };
 
   const isSubmitted = !!prediction?.submittedAt;
 
   return (
-    <div className={`rounded-xl border bg-white shadow-sm overflow-hidden transition-opacity ${stage.status === "UPCOMING" ? "opacity-60" : ""}`}>
+    <div
+      className={`rounded-xl overflow-hidden transition-opacity ${stage.status === "UPCOMING" ? "opacity-60" : ""}`}
+      style={{ background: "var(--paper)", border: "1px solid var(--border)" }}
+    >
       <button
         className="w-full flex items-center justify-between px-5 py-4 text-left"
         onClick={() => setOpen((v) => !v)}
@@ -450,24 +549,33 @@ function StageCard({
       >
         <div className="flex items-center gap-3">
           {stage.status === "UPCOMING" && (
-            <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-4 h-4 muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m0 0v3m0-3h3m-3 0h-3m0-6V4m0 0V1m0 3h3m-3 0H9" />
             </svg>
           )}
           <div>
-            <p className="font-semibold text-gray-900">{stage.name}</p>
-            {stage.roundLabel && <p className="text-xs text-gray-500">{stage.roundLabel}</p>}
+            <p className="font-semibold" style={{ color: "var(--ink)" }}>{stage.name}</p>
+            {stage.roundLabel && <p className="text-xs muted">{stage.roundLabel}</p>}
           </div>
         </div>
         <div className="flex items-center gap-2">
           {stage.status === "UPCOMING" && (
-            <span className="text-xs text-gray-400">Opens {formatDate(stage.opensAt)}</span>
+            <span className="text-xs muted">{t("opensAt", { date: formatDate(stage.opensAt) })}</span>
           )}
-          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusColors[stage.status]}`}>
-            {stage.status === "SCORED" ? "Scored" : stage.status === "CLOSED" ? "Awaiting Results" : stage.status}
+          <span
+            className="px-2 py-0.5 rounded-full text-xs font-medium"
+            style={statusStyles[stage.status]}
+          >
+            {stage.status === "SCORED" ? t("statusScored") : stage.status === "CLOSED" ? t("statusClosed") : stage.status === "OPEN" ? t("statusOpen") : t("statusUpcoming")}
           </span>
           {stage.status !== "UPCOMING" && (
-            <svg className={`w-4 h-4 text-gray-400 transition-transform ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg
+              className={`w-4 h-4 transition-transform ${open ? "rotate-180" : ""}`}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              style={{ color: "var(--muted)" }}
+            >
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
             </svg>
           )}
@@ -475,13 +583,16 @@ function StageCard({
       </button>
 
       {open && stage.status !== "UPCOMING" && (
-        <div className="px-5 pb-5 border-t border-gray-100 pt-4 space-y-4">
+        <div
+          className="px-5 pb-5 pt-4 space-y-4"
+          style={{ borderTop: "1px solid var(--border)" }}
+        >
           {stage.status === "OPEN" && (
             <div className="flex items-center justify-between">
               <Countdown closesAt={stage.closesAt} />
               {isSubmitted && (
-                <span className="text-xs text-green-600 font-medium">
-                  Submitted {formatDate(prediction!.submittedAt!)}
+                <span className="text-xs font-medium" style={{ color: "var(--accent)" }}>
+                  {t("submittedAt", { date: formatDate(prediction!.submittedAt!) })}
                 </span>
               )}
             </div>
@@ -489,11 +600,18 @@ function StageCard({
 
           {stage.status === "OPEN" && isSubmitted && (
             <div className="space-y-3">
-              <div className="p-3 rounded-lg bg-green-50 border border-green-200 text-sm text-green-700 flex items-center gap-2">
+              <div
+                className="p-3 rounded-lg text-sm flex items-center gap-2"
+                style={{
+                  background: "var(--accent-soft)",
+                  border: "1px solid var(--accent)",
+                  color: "var(--accent-ink)",
+                }}
+              >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                Your picks are locked in. Contact a group admin to unlock.
+                {t("lockedIn")}
               </div>
               <ReadOnlyPicks stage={stage} prediction={prediction} teams={teams} matches={matches} />
             </div>
@@ -524,9 +642,9 @@ function StageCard({
           )}
 
           {stage.status === "SCORED" && (
-            <div className="pt-3 border-t border-gray-100">
-              <p className="text-xs text-gray-500 font-medium uppercase tracking-wide mb-1">Points earned</p>
-              <p className="text-2xl font-bold text-blue-600">–</p>
+            <div className="pt-3" style={{ borderTop: "1px solid var(--border)" }}>
+              <p className="text-xs font-medium uppercase tracking-wide mb-1 muted">{t("pointsEarned")}</p>
+              <p className="text-2xl font-bold" style={{ color: "var(--accent)" }}>–</p>
             </div>
           )}
         </div>
@@ -535,91 +653,17 @@ function StageCard({
   );
 }
 
-// ─── Leaderboard Tab ──────────────────────────────────────────────────────────
-
-function LeaderboardTab({
-  leaderboard,
-  stages,
-  currentUserId,
-}: {
-  leaderboard: LeaderboardEntry[];
-  stages: Stage[];
-  currentUserId: string;
-}) {
-  const sorted = [...leaderboard].sort((a, b) => b.totalPoints - a.totalPoints);
-  const scoredStages = stages.filter((s) => s.status === "SCORED");
-
-  if (sorted.length === 0) {
-    return (
-      <div className="text-center py-16 text-gray-500">
-        <p className="text-lg font-medium">No scores yet</p>
-        <p className="text-sm mt-1">Leaderboard will appear once the first stage is scored.</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="overflow-x-auto rounded-xl border border-gray-200 shadow-sm">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="bg-gray-50 text-gray-500 text-xs uppercase tracking-wide">
-            <th className="px-4 py-3 text-left">#</th>
-            <th className="px-4 py-3 text-left">Member</th>
-            <th className="px-4 py-3 text-right">Points</th>
-            <th className="px-4 py-3 text-right">Correct</th>
-            {scoredStages.map((s) => (
-              <th key={s.id} className="px-3 py-3 text-right whitespace-nowrap">{s.name}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100">
-          {sorted.map((entry, i) => {
-            const isMe = entry.userId === currentUserId;
-            const stageMap = Object.fromEntries(entry.stages.map((s) => [s.stageId, s]));
-            return (
-              <tr
-                key={entry.userId}
-                className={`${isMe ? "bg-blue-50 font-semibold" : "bg-white hover:bg-gray-50"} transition-colors`}
-              >
-                <td className="px-4 py-3 text-gray-500 font-medium">
-                  {i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : i + 1}
-                </td>
-                <td className="px-4 py-3 text-gray-900">
-                  {entry.userName ?? "Unknown"}
-                  {isMe && <span className="ml-2 text-xs text-blue-500">(you)</span>}
-                </td>
-                <td className="px-4 py-3 text-right text-gray-900">{entry.totalPoints}</td>
-                <td className="px-4 py-3 text-right text-gray-500">{entry.totalCorrectPicks}</td>
-                {scoredStages.map((s) => {
-                  const stageData = stageMap[s.id];
-                  return (
-                    <td key={s.id} className="px-3 py-3 text-right text-gray-500">
-                      {stageData ? stageData.points : "–"}
-                    </td>
-                  );
-                })}
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function PredictionsPage() {
   const { groupId, tournamentId } = useParams<{ groupId: string; tournamentId: string }>();
-  const { data: session } = useSession();
+  const t = useTranslations("stagedPredictions");
 
   const [stages, setStages] = useState<Stage[]>([]);
   const [predictions, setPredictions] = useState<Record<string, StagePrediction>>({});
   const [teams, setTeams] = useState<Team[]>([]);
   const [matchesByStage, setMatchesByStage] = useState<Record<string, StageMatch[]>>({});
-  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<"predictions" | "leaderboard">("predictions");
 
   useEffect(() => {
     if (!groupId || !tournamentId) return;
@@ -641,17 +685,17 @@ export default function PredictionsPage() {
         );
         setPredictions(Object.fromEntries(predEntries));
 
-        const gqOpen = fetchedStages.find((s) => s.type === "GROUP_QUALIFICATION" && s.status === "OPEN");
+        const gqOpen = fetchedStages.find((s) => s.type === "GROUP_QUALIFICATION" && s.status !== "UPCOMING");
         if (gqOpen) {
           const teamsRes = await fetch("/api/admin/teams");
           const teamsData = await teamsRes.json();
           setTeams(teamsData.teams ?? []);
         }
 
-        const knockoutOpen = fetchedStages.filter((s) => s.type === "KNOCKOUT" && s.status === "OPEN");
-        if (knockoutOpen.length > 0) {
+        const knockoutActive = fetchedStages.filter((s) => s.type === "KNOCKOUT" && s.status !== "UPCOMING");
+        if (knockoutActive.length > 0) {
           const matchEntries = await Promise.all(
-            knockoutOpen.map(async (s) => {
+            knockoutActive.map(async (s) => {
               const res = await fetch(`/api/admin/staged/stages/${s.id}/matches`);
               const data = await res.json();
               return [s.id, data.matches ?? []] as [string, StageMatch[]];
@@ -660,9 +704,6 @@ export default function PredictionsPage() {
           setMatchesByStage(Object.fromEntries(matchEntries));
         }
 
-        const lbRes = await fetch(`/api/staged/groups/${groupId}/leaderboard?tournamentId=${tournamentId}`);
-        const lbData = await lbRes.json();
-        setLeaderboard(lbData.leaderboard ?? []);
       } finally {
         setLoading(false);
       }
@@ -678,39 +719,33 @@ export default function PredictionsPage() {
   const openStageIndex = stages.findIndex((s) => s.status === "OPEN");
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen" style={{ background: "var(--bg)" }}>
       <div className="max-w-3xl mx-auto px-4 py-8">
         <div className="mb-6">
-          <Link href={`/dashboard/groups/${groupId}`} className="text-sm text-blue-600 hover:underline flex items-center gap-1">
+          <Link
+            href={`/dashboard/groups/${groupId}`}
+            className="text-sm flex items-center gap-1"
+            style={{ color: "var(--accent)" }}
+          >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
-            Back to group
+            {t("backToGroup")}
           </Link>
-          <h1 className="text-2xl font-bold text-gray-900 mt-3">Tournament Predictions</h1>
-        </div>
-
-        <div className="flex gap-1 mb-6 bg-white rounded-xl border border-gray-200 p-1 shadow-sm w-fit">
-          {(["predictions", "leaderboard"] as const).map((t) => (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={`px-5 py-2 rounded-lg text-sm font-medium capitalize transition-all ${
-                tab === t ? "bg-blue-600 text-white shadow-sm" : "text-gray-600 hover:text-gray-900"
-              }`}
-            >
-              {t.charAt(0).toUpperCase() + t.slice(1)}
-            </button>
-          ))}
+          <h1 className="text-2xl font-bold mt-3" style={{ color: "var(--ink)" }}>{t("pageTitle")}</h1>
         </div>
 
         {loading ? (
           <div className="space-y-3">
             {[...Array(4)].map((_, i) => (
-              <div key={i} className="h-16 bg-white rounded-xl border border-gray-200 animate-pulse" />
+              <div
+                key={i}
+                className="h-16 rounded-xl animate-pulse"
+                style={{ background: "var(--paper)", border: "1px solid var(--border)" }}
+              />
             ))}
           </div>
-        ) : tab === "predictions" ? (
+        ) : (
           <div className="space-y-3">
             {stages.map((stage, i) => (
               <StageCard
@@ -725,17 +760,11 @@ export default function PredictionsPage() {
               />
             ))}
             {stages.length === 0 && (
-              <div className="text-center py-16 text-gray-500">
-                <p className="font-medium">No stages found for this tournament.</p>
+              <div className="text-center py-16 muted">
+                <p className="font-medium">{t("noStages")}</p>
               </div>
             )}
           </div>
-        ) : (
-          <LeaderboardTab
-            leaderboard={leaderboard}
-            stages={stages}
-            currentUserId={session?.user?.id ?? ""}
-          />
         )}
       </div>
     </div>

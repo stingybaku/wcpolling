@@ -25,9 +25,9 @@ type GroupDetail = {
   description?: string;
   inviteCode: string;
   ownerId: string;
-  tournament?: { id: string; name: string; type: string; submissionDeadline?: string | null } | null;
+  tournament?: { id: string; name: string; type: string; submissionDeadline?: string | null; finalizedAt?: string | null } | null;
   owner: { email?: string | null; name?: string | null };
-  memberships: Array<{ user: { id: string; email?: string | null; name?: string | null } }>;
+  memberships: Array<{ userId: string; role: string; isActive: boolean; user: { id: string; email?: string | null; name?: string | null } }>;
   submissions: Array<{
     id: string;
     user: { id: string; email?: string | null; name?: string | null };
@@ -43,7 +43,7 @@ type StagedLeaderboardEntry = {
   userName: string | null;
   totalPoints: number;
   totalCorrectPicks: number;
-  stages: { stageId: string; stageName: string; points: number; correctPicks: number }[];
+  stages: { stageId: string; stageName: string; stageStatus: string; points: number; correctPicks: number }[];
 };
 
 type StagedStage = { id: string; name: string; status: string };
@@ -550,8 +550,15 @@ export default function GroupDetailPage() {
   const otherPredictions = myPredictions.filter(p => p.id !== mySubmission?.prediction.id);
 
   const isStagedTournament = group?.tournament?.type === "STAGED";
+  const isGroupAdmin = !!group && (
+    group.ownerId === currentUserId ||
+    group.memberships.some(m => m.userId === currentUserId && m.role === "GROUP_ADMIN")
+  );
+  const myMembership = group?.memberships.find(m => m.userId === currentUserId);
+  const isCurrentUserActive = group?.ownerId === currentUserId || myMembership?.isActive === true;
+  const isTournamentFinalized = isStagedTournament && !!group?.tournament?.finalizedAt;
   const stagedScoreMap = Object.fromEntries(stagedLeaderboard.map((e) => [e.userId, e]));
-  const stagedScoredStages = stagedStages.filter((s) => s.status === "SCORED");
+  const sortedLeaderboard = [...stagedLeaderboard].sort((a, b) => b.totalPoints - a.totalPoints || b.totalCorrectPicks - a.totalCorrectPicks);
 
   return (
     <>
@@ -566,9 +573,11 @@ export default function GroupDetailPage() {
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
             <Link href="/dashboard/groups" className="btn btn-sm btn-ghost">{t("backToDashboard")}</Link>
             <div style={{ display: "flex", gap: 8 }}>
-              <button className="btn btn-sm" onClick={copyInviteLink}>
-                {copiedLink ? t("copied") : t("invite")}
-              </button>
+              {isGroupAdmin && (
+                <button className="btn btn-sm" onClick={copyInviteLink}>
+                  {copiedLink ? t("copied") : t("invite")}
+                </button>
+              )}
               {!isOwner && group && (
                 confirmLeave ? (
                   <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -589,7 +598,7 @@ export default function GroupDetailPage() {
           <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
             <div>
               <p className="eyebrow" style={{ marginBottom: 6 }}>
-                {group ? `GROUP · ${memberCount} ${memberCount !== 1 ? t("members") : t("member")} · INVITE ${group.inviteCode}` : t("groupRoom")}
+                {group ? `GROUP · ${memberCount} ${memberCount !== 1 ? t("members") : t("member")}${isGroupAdmin ? ` · INVITE ${group.inviteCode}` : ""}` : t("groupRoom")}
               </p>
               <h1 className="display" style={{ fontSize: 38, margin: 0, color: "var(--ink)" }}>
                 {group?.name ?? t("loading")}
@@ -642,54 +651,109 @@ export default function GroupDetailPage() {
         </div>
 
         {/* ── Staged tournament CTA ─────────────────────────────────── */}
-        {group?.tournament?.type === "STAGED" && group.tournament.id && (
-          <div style={{
-            position: "sticky", top: 64, zIndex: 20,
-            background: stagedStatus?.status === "submitted"
-              ? "var(--accent-soft, #dcfce7)"
+        {group?.tournament?.type === "STAGED" && group.tournament.id && (() => {
+          const isInactive = !isCurrentUserActive;
+          const noOpenStage = !isTournamentFinalized && !openStageName && !stagedStatus;
+          const bannerBg = isTournamentFinalized
+            ? "var(--accent-soft)"
+            : isInactive
+              ? "var(--paper-strong)"
+              : stagedStatus?.status === "submitted"
+                ? "var(--accent-soft)"
+                : stagedStatus?.status === "draft"
+                  ? "#fffbeb"
+                  : noOpenStage
+                    ? "var(--paper-strong)"
+                    : "var(--accent-soft)";
+          const bannerBorder = isTournamentFinalized
+            ? "var(--accent)"
+            : isInactive
+              ? "var(--border)"
+              : stagedStatus?.status === "submitted"
+                ? "#86efac"
+                : stagedStatus?.status === "draft"
+                  ? "#fde68a"
+                  : noOpenStage
+                    ? "var(--border)"
+                    : "var(--accent)";
+          const dotColor = isTournamentFinalized
+            ? "var(--accent-strong)"
+            : isInactive
+              ? "var(--muted-2)"
+              : stagedStatus?.status === "submitted"
+                ? "#16a34a"
+                : stagedStatus?.status === "draft"
+                  ? "#d97706"
+                  : noOpenStage
+                    ? "var(--muted-2)"
+                    : "var(--accent-strong)";
+          const btnBg = isTournamentFinalized
+            ? "var(--accent-strong)"
+            : stagedStatus?.status === "submitted"
+              ? "#16a34a"
               : stagedStatus?.status === "draft"
-                ? "#fffbeb"
-                : "var(--accent-soft, #e0f2fe)",
-            borderBottom: `1px solid ${stagedStatus?.status === "submitted" ? "#86efac" : stagedStatus?.status === "draft" ? "#fde68a" : "var(--accent, #0ea5e9)"}`,
-            padding: "12px 24px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap",
-          }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <span style={{
-                width: 8, height: 8, borderRadius: 999, flexShrink: 0,
-                background: stagedStatus?.status === "submitted" ? "#16a34a" : stagedStatus?.status === "draft" ? "#d97706" : "var(--accent-strong, #0284c7)",
-              }} />
-              <span style={{ fontSize: 13 }}>
-                {stagedStatus?.status === "submitted" ? (
-                  <>
-                    <strong style={{ color: "#16a34a" }}>Picks submitted</strong>
-                    {" "}<span style={{ color: "var(--muted)" }}>for {stagedStatus.stageName}. You&apos;re all set!</span>
-                  </>
-                ) : stagedStatus?.status === "draft" ? (
-                  <>
-                    <strong style={{ color: "#d97706" }}>Draft saved</strong>
-                    {" "}<span style={{ color: "var(--muted)" }}>for {stagedStatus.stageName} — don&apos;t forget to submit before the deadline.</span>
-                  </>
-                ) : (
-                  <>
-                    <strong>Staged predictions are open{openStageName ? ` · ${openStageName}` : ""}.</strong>
-                    {" "}<span style={{ color: "var(--muted)" }}>Pick your qualifying teams and match winners stage by stage.</span>
-                  </>
-                )}
-              </span>
+                ? "#d97706"
+                : "var(--accent-strong)";
+
+          return (
+            <div style={{
+              position: "sticky", top: 64, zIndex: 20,
+              background: bannerBg,
+              borderBottom: `1px solid ${bannerBorder}`,
+              padding: "12px 24px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap",
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ width: 8, height: 8, borderRadius: 999, flexShrink: 0, background: dotColor }} />
+                <span style={{ fontSize: 13 }}>
+                  {isTournamentFinalized ? (
+                    <>
+                      <strong style={{ color: "var(--accent-strong)" }}>{t("finalizedTitle")}</strong>
+                      {" "}<span style={{ color: "var(--muted)" }}>{t("finalizedDesc")}</span>
+                    </>
+                  ) : isInactive ? (
+                    <>
+                      <strong style={{ color: "var(--muted)" }}>{t("inactiveTitle")}</strong>
+                      {" "}<span style={{ color: "var(--muted)" }}>{t("inactiveDesc")}</span>
+                    </>
+                  ) : stagedStatus?.status === "submitted" ? (
+                    <>
+                      <strong style={{ color: "#16a34a" }}>{t("picksSubmitted")}</strong>
+                      {" "}<span style={{ color: "var(--muted)" }}>{t("picksSubmittedDesc", { stageName: stagedStatus.stageName })}</span>
+                    </>
+                  ) : stagedStatus?.status === "draft" ? (
+                    <>
+                      <strong style={{ color: "#d97706" }}>{t("draftSaved")}</strong>
+                      {" "}<span style={{ color: "var(--muted)" }}>{t("draftSavedDesc", { stageName: stagedStatus.stageName })}</span>
+                    </>
+                  ) : noOpenStage ? (
+                    <>
+                      <strong style={{ color: "var(--muted)" }}>{t("noStageOpen")}</strong>
+                      {" "}<span style={{ color: "var(--muted)" }}>{t("noStageOpenDesc")}</span>
+                    </>
+                  ) : (
+                    <>
+                      <strong>{t("stagePredictionsOpen", { stageName: openStageName ?? "" })}</strong>
+                      {" "}<span style={{ color: "var(--muted)" }}>{t("stagePredictionsDesc")}</span>
+                    </>
+                  )}
+                </span>
+              </div>
+              {!noOpenStage && !isInactive && (
+                <Link
+                  href={`/dashboard/groups/${params.groupId}/predictions/${group.tournament.id}`}
+                  style={{
+                    display: "inline-flex", alignItems: "center", gap: 6,
+                    background: btnBg,
+                    color: "#fff",
+                    borderRadius: 999, padding: "7px 18px", fontSize: 13, fontWeight: 600, whiteSpace: "nowrap", textDecoration: "none",
+                  }}
+                >
+                  {isTournamentFinalized ? t("viewPredictions") : stagedStatus?.status === "submitted" ? t("viewPredictions") : stagedStatus?.status === "draft" ? t("continuePredictions") : t("makePredictions")}
+                </Link>
+              )}
             </div>
-            <Link
-              href={`/dashboard/groups/${params.groupId}/predictions/${group.tournament.id}`}
-              style={{
-                display: "inline-flex", alignItems: "center", gap: 6,
-                background: stagedStatus?.status === "submitted" ? "#16a34a" : stagedStatus?.status === "draft" ? "#d97706" : "var(--accent-strong, #0284c7)",
-                color: "#fff",
-                borderRadius: 999, padding: "7px 18px", fontSize: 13, fontWeight: 600, whiteSpace: "nowrap", textDecoration: "none",
-              }}
-            >
-              {stagedStatus?.status === "submitted" ? "View Predictions →" : stagedStatus?.status === "draft" ? "Continue Predictions →" : "Make Predictions →"}
-            </Link>
-          </div>
-        )}
+          );
+        })()}
 
         {/* ── Sticky submission bar ─────────────────────────────────── */}
         {group?.tournament?.type !== "STAGED" && (mySubmission || (!mySubmission && !deadlinePassed && myPredictions.length > 0)) && (
@@ -725,20 +789,22 @@ export default function GroupDetailPage() {
         )}
 
         {/* ── Breakdown legend ──────────────────────────────────────── */}
-        <div style={{ background: "var(--paper-strong)", borderBottom: "1px solid var(--border)", padding: "7px 24px", display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
-          <span className="eyebrow" style={{ color: "var(--muted-2)" }}>{t("breakdownLabel")}</span>
-          {[
-            { color: "var(--accent-strong)", label: t("matchPts") },
-            { color: "#86efac",              label: t("standings2") },
-            { color: "var(--gold)",          label: t("knockout5") },
-            { color: "var(--muted-2)",       label: t("tieBreakersPts") },
-          ].map(l => (
-            <span key={l.label} style={{ display: "flex", alignItems: "center", gap: 5 }}>
-              <span style={{ width: 10, height: 10, borderRadius: 2, background: l.color, flexShrink: 0 }} />
-              <span className="mono" style={{ fontSize: 11, letterSpacing: "0.06em" }}>{l.label}</span>
-            </span>
-          ))}
-        </div>
+        {!isStagedTournament && (
+          <div style={{ background: "var(--paper-strong)", borderBottom: "1px solid var(--border)", padding: "7px 24px", display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+            <span className="eyebrow" style={{ color: "var(--muted-2)" }}>{t("breakdownLabel")}</span>
+            {[
+              { color: "var(--accent-strong)", label: t("matchPts") },
+              { color: "#86efac",              label: t("standings2") },
+              { color: "var(--gold)",          label: t("knockout5") },
+              { color: "var(--muted-2)",       label: t("tieBreakersPts") },
+            ].map(l => (
+              <span key={l.label} style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                <span style={{ width: 10, height: 10, borderRadius: 2, background: l.color, flexShrink: 0 }} />
+                <span className="mono" style={{ fontSize: 11, letterSpacing: "0.06em" }}>{l.label}</span>
+              </span>
+            ))}
+          </div>
+        )}
 
         {/* ── Error / success banners ───────────────────────────────── */}
         {error && (
@@ -753,6 +819,65 @@ export default function GroupDetailPage() {
 
           {/* ── Left: Leaderboard ──────────────────────────────────── */}
           <div style={{ overflowX: "auto" }}>
+            {isTournamentFinalized && sortedLeaderboard.length > 0 && (
+              <div style={{ padding: "32px 24px 24px" }}>
+                {/* Podium */}
+                <p style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.2em", color: "var(--muted)", marginBottom: 24 }}>{t("finalStandings")}</p>
+                <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "center", gap: 12, marginBottom: 32 }}>
+                  {[1, 0, 2].map((pos) => {
+                    const entry = sortedLeaderboard[pos];
+                    if (!entry) return <div key={pos} style={{ flex: 1 }} />;
+                    const isFirst = pos === 0;
+                    const heights = [120, 160, 100];
+                    const medals = ["🥈", "🥇", "🥉"];
+                    const bgColors = ["var(--bg-strong)", "var(--accent-soft)", "var(--bg-strong)"];
+                    const isMe = entry.userId === currentUserId;
+                    return (
+                      <div key={pos} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+                        <Avatar userId={entry.userId} name={entry.userName ?? ""} size={isFirst ? 52 : 40} />
+                        <span style={{ fontSize: isFirst ? 13 : 12, fontWeight: 700, textAlign: "center", color: "var(--ink)" }}>
+                          {entry.userName}{isMe && ` ${t("youLabel")}`}
+                        </span>
+                        <span style={{ fontSize: isFirst ? 22 : 18, fontWeight: 900, color: "var(--accent-strong)" }}>{entry.totalPoints}</span>
+                        <div style={{
+                          width: "100%", height: heights[pos === 0 ? 1 : pos === 1 ? 0 : 2],
+                          background: bgColors[pos === 0 ? 1 : pos === 1 ? 0 : 2],
+                          border: "1px solid var(--border)", borderRadius: "12px 12px 0 0",
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          fontSize: isFirst ? 32 : 24,
+                        }}>
+                          {medals[pos === 0 ? 1 : pos === 1 ? 0 : 2]}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                {/* Full ranking table */}
+                <div style={{ borderTop: "1px solid var(--border)" }}>
+                  {sortedLeaderboard.map((entry, idx) => {
+                    const isMe = entry.userId === currentUserId;
+                    return (
+                      <div key={entry.userId} style={{
+                        display: "flex", alignItems: "center", gap: 12, padding: "10px 0",
+                        borderBottom: "1px solid var(--border)",
+                        background: isMe ? "var(--accent-soft)" : "transparent",
+                      }}>
+                        <span style={{ width: 28, textAlign: "center", fontSize: 12, fontWeight: 700, color: "var(--muted)", flexShrink: 0 }}>
+                          {idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : idx + 1}
+                        </span>
+                        <Avatar userId={entry.userId} name={entry.userName ?? ""} size={28} />
+                        <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "var(--ink)" }}>
+                          {entry.userName}
+                          {isMe && <span className="chip chip-accent" style={{ marginLeft: 6, fontSize: 10, padding: "2px 6px" }}>{t("youLabel")}</span>}
+                        </span>
+                        <span style={{ fontSize: 16, fontWeight: 800, color: "var(--accent-strong)" }}>{entry.totalPoints}</span>
+                        <span style={{ fontSize: 11, color: "var(--muted)", minWidth: 60, textAlign: "right" }}>{entry.totalCorrectPicks} {t("correctLabel")}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
             {isStagedTournament ? (
               <table className="tabular" style={{ width: "100%" }}>
                 <thead>
@@ -760,8 +885,13 @@ export default function GroupDetailPage() {
                     <th style={{ width: 48 }}>#</th>
                     <th>{t("memberHeader")}</th>
                     <th style={{ textAlign: "right", width: 60 }}>{t("ptsHeader")}</th>
-                    {stagedScoredStages.map((s) => (
-                      <th key={s.id} style={{ textAlign: "right", fontSize: 11, whiteSpace: "nowrap" }}>{s.name}</th>
+                    {stagedStages.map((s) => (
+                      <th key={s.id} style={{ textAlign: "right", fontSize: 11, whiteSpace: "nowrap" }}>
+                        {s.name}
+                        {s.status === "OPEN" && (
+                          <span style={{ display: "block", fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--accent-strong)", marginTop: 2 }}>{t("stageNow")}</span>
+                        )}
+                      </th>
                     ))}
                   </tr>
                 </thead>
@@ -797,11 +927,18 @@ export default function GroupDetailPage() {
                               <CountUp value={entry.totalPoints} />
                             </span>
                           </td>
-                          {stagedScoredStages.map((s) => {
+                          {stagedStages.map((s) => {
                             const sd = stageMap[s.id];
                             return (
                               <td key={s.id} style={{ textAlign: "right", color: "var(--muted)", fontSize: 13 }}>
-                                {sd ? sd.points : "–"}
+                                {sd ? (
+                                  <span>
+                                    {sd.points}
+                                    {s.status !== "SCORED" && (
+                                      <span style={{ fontSize: 9, marginLeft: 3, color: "var(--accent-strong)", fontWeight: 700 }}>~</span>
+                                    )}
+                                  </span>
+                                ) : s.status === "SCORED" ? "–" : <span style={{ fontSize: 10, fontStyle: "italic" }}>{t("notScoredYet")}</span>}
                               </td>
                             );
                           })}
@@ -990,14 +1127,71 @@ export default function GroupDetailPage() {
             <div style={{ padding: "20px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
                 <p className="eyebrow">{t("membersCount", { count: memberCount })}</p>
-                <button className="btn btn-sm btn-ghost" style={{ fontSize: 11 }} onClick={copyInviteLink}>
-                  {t("inviteButton")}
-                </button>
+                {isGroupAdmin && (
+                  <button className="btn btn-sm btn-ghost" style={{ fontSize: 11 }} onClick={copyInviteLink}>
+                    {t("inviteButton")}
+                  </button>
+                )}
               </div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                {(group?.memberships ?? []).map(m => (
-                  <Avatar key={m.user.id} userId={m.user.id} name={displayName(m.user)} size={28} />
-                ))}
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {(group?.memberships ?? []).map(m => {
+                  const isOwner = m.userId === group?.ownerId;
+                  const isAdmin = isOwner || m.role === "GROUP_ADMIN";
+                  const isMe = m.userId === currentUserId;
+                  const canManage = isGroupAdmin && !isMe && !isOwner;
+
+                  async function updateMember(body: { role?: string; isActive?: boolean }) {
+                    await fetch(`/api/groups/${params.groupId}/members/${m.userId}`, {
+                      method: "PUT",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify(body),
+                    });
+                    void loadGroup();
+                  }
+
+                  return (
+                    <div key={m.user.id} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <Avatar userId={m.user.id} name={displayName(m.user)} size={28} />
+                      <span style={{ flex: 1, fontSize: 12, fontWeight: 600, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: m.isActive || isOwner ? "var(--ink)" : "var(--muted)" }}>
+                        {displayName(m.user)}{isMe && <span style={{ color: "var(--muted)", fontWeight: 400 }}> {t("youLabel")}</span>}
+                      </span>
+                      <div style={{ display: "flex", gap: 4, flexShrink: 0, alignItems: "center" }}>
+                        {!m.isActive && !isOwner && (
+                          <span style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--muted-2)", background: "var(--bg-strong)", borderRadius: 4, padding: "2px 5px" }}>{t("inactiveBadge")}</span>
+                        )}
+                        {isOwner ? (
+                          <span style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--accent-strong)", background: "var(--accent-soft)", borderRadius: 4, padding: "2px 5px" }}>{t("ownerBadge")}</span>
+                        ) : isAdmin ? (
+                          <span style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--muted)", background: "var(--bg-strong)", borderRadius: 4, padding: "2px 5px" }}>{t("adminBadge")}</span>
+                        ) : null}
+                        {canManage && !m.isActive && (
+                          <button
+                            onClick={() => void updateMember({ isActive: true })}
+                            style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "#16a34a", background: "transparent", border: "1px solid #86efac", borderRadius: 4, padding: "2px 5px", cursor: "pointer" }}
+                          >
+                            {t("activateButton")}
+                          </button>
+                        )}
+                        {canManage && m.isActive && !isAdmin && (
+                          <button
+                            onClick={() => void updateMember({ isActive: false })}
+                            style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--live)", background: "transparent", border: "1px solid var(--live)", borderRadius: 4, padding: "2px 5px", cursor: "pointer" }}
+                          >
+                            {t("deactivateButton")}
+                          </button>
+                        )}
+                        {canManage && m.isActive && !isAdmin && (
+                          <button
+                            onClick={() => void updateMember({ role: "GROUP_ADMIN" })}
+                            style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--muted-2)", background: "transparent", border: "1px solid var(--border)", borderRadius: 4, padding: "2px 5px", cursor: "pointer" }}
+                          >
+                            {t("promoteButton")}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>

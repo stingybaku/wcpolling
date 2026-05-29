@@ -2,6 +2,8 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser, unauthorized, badRequest, forbidden } from "@/app/api/helpers";
 import { recalculateTournamentScores } from "@/lib/scoring";
+import { sendEmail } from "@/lib/email";
+import { submissionConfirmEmail } from "@/lib/emails/submissionConfirm";
 
 async function resolveGroupAndCheckDeadline(groupId: string): Promise<{ error: string; tournamentId?: never } | { tournamentId: string; error?: never }> {
   const group = await prisma.groupRoom.findUnique({
@@ -29,6 +31,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ gr
     where: { userId_groupId: { userId: user.id, groupId } },
   });
   if (!membership) return forbidden("Must be a group member to submit prediction");
+  if (!membership.isActive) return forbidden("Your access to this group is paused");
 
   const existingSubmission = await prisma.predictionSubmission.findUnique({
     where: { userId_groupId: { userId: user.id, groupId } },
@@ -43,17 +46,20 @@ export async function POST(request: NextRequest, context: { params: Promise<{ gr
   const bodyPredictionId = String(body.predictionId ?? "").trim();
 
   let predictionId: string;
+  let predictionName: string;
   if (bodyPredictionId) {
     const prediction = await prisma.prediction.findUnique({ where: { id: bodyPredictionId } });
     if (!prediction || prediction.userId !== user.id) return forbidden("Prediction not found");
     if (prediction.tournamentId !== tournamentId) return badRequest("Prediction does not belong to this tournament");
     predictionId = prediction.id;
+    predictionName = prediction.name;
   } else {
     const selected = await prisma.prediction.findFirst({
       where: { userId: user.id, selected: true, tournamentId },
     });
     if (!selected) return badRequest("No prediction selected. Please choose a prediction to submit.");
     predictionId = selected.id;
+    predictionName = selected.name;
   }
 
   const submission = await prisma.predictionSubmission.create({
@@ -65,6 +71,23 @@ export async function POST(request: NextRequest, context: { params: Promise<{ gr
   });
 
   await recalculateTournamentScores(tournamentId);
+
+  if (user.email) {
+    const tournament = await prisma.tournament.findUnique({
+      where: { id: tournamentId },
+      select: { name: true, submissionDeadline: true },
+    });
+    if (tournament) {
+      const baseUrl = process.env.NEXTAUTH_URL ?? "";
+      const { subject, html } = submissionConfirmEmail(
+        tournament.name,
+        tournament.submissionDeadline ?? new Date(),
+        [predictionName],
+        `${baseUrl}/dashboard/groups/${groupId}`,
+      );
+      sendEmail({ to: user.email, subject, html }).catch(() => null);
+    }
+  }
 
   return new Response(JSON.stringify({ submissionId: submission.id }), { status: 201 });
 }

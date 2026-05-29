@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
+import GroupResultEditor from "./GroupResultEditor";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -27,6 +28,7 @@ type StagedTournament = {
   type: string;
   stages: Stage[];
   activeMemberCount: number;
+  finalizedAt?: string | null;
 };
 
 type Team = {
@@ -41,6 +43,7 @@ type StageMatch = {
   homeTeamId?: string | null;
   awayTeamId?: string | null;
   scheduledAt?: string | null;
+  winnerId?: string | null;
   homeTeam?: { id: string; name: string; fifaCode: string } | null;
   awayTeam?: { id: string; name: string; fifaCode: string } | null;
 };
@@ -94,15 +97,16 @@ function inferMatchCount(roundLabel?: string | null): number {
   return 4;
 }
 
-function getStatusBadge(status: StageStatus) {
-  const base = "inline-block rounded-full px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-widest";
+function getStatusBadgeStyle(status: StageStatus): React.CSSProperties {
   switch (status) {
-    case "UPCOMING": return `${base} bg-gray-700 text-gray-200`;
-    case "OPEN": return `${base} bg-green-700 text-green-100`;
-    case "CLOSED": return `${base} bg-amber-700 text-amber-100`;
-    case "SCORED": return `${base} bg-indigo-700 text-indigo-100`;
+    case "UPCOMING": return { background: "var(--paper-strong)", color: "var(--muted)" };
+    case "OPEN":     return { background: "var(--accent-soft)", color: "var(--accent-ink)" };
+    case "CLOSED":   return { background: "var(--gold-soft)", color: "var(--gold)" };
+    case "SCORED":   return { background: "color-mix(in srgb, #6366f1 15%, transparent)", color: "#818cf8" };
   }
 }
+
+const STATUS_BADGE_BASE = "inline-block rounded-full px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-widest";
 
 function useCountdown(closesAt?: string | null) {
   const [remaining, setRemaining] = useState("");
@@ -162,8 +166,8 @@ function StatusBar({
           className="rounded-2xl p-4"
           style={{ background: "var(--bg-strong)" }}
         >
-          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-gray-400">{label}</p>
-          <p className="mt-1 text-xl font-bold text-white truncate">{value}</p>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] muted">{label}</p>
+          <p className="mt-1 text-xl font-bold truncate" style={{ color: "var(--ink)" }}>{value}</p>
         </div>
       ))}
     </div>
@@ -193,20 +197,20 @@ function ConfirmDialog({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
       <div
         className="w-full max-w-md rounded-3xl p-6 shadow-2xl"
-        style={{ background: "var(--bg-surface, #1e1e2e)" }}
+        style={{ background: "var(--paper)", border: "1px solid var(--border)" }}
       >
-        <h3 className="text-lg font-bold text-white">{title}</h3>
-        <p className="mt-2 text-sm text-gray-400">{description}</p>
+        <h3 className="text-lg font-bold" style={{ color: "var(--ink)" }}>{title}</h3>
+        <p className="mt-2 text-sm muted">{description}</p>
         {requireInput && (
           <div className="mt-4">
-            <label className="text-xs text-gray-400">
-              Type <span className="font-mono text-amber-400">{requireInput}</span> to confirm
+            <label className="text-xs muted">
+              Type <span className="font-mono" style={{ color: "var(--gold)" }}>{requireInput}</span> to confirm
             </label>
             <input
               autoFocus
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              className="mt-1 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-white/30"
+              className="field mt-1"
               placeholder={requireInput}
             />
           </div>
@@ -214,8 +218,7 @@ function ConfirmDialog({
         <div className="mt-6 flex gap-3 justify-end">
           <button
             onClick={onCancel}
-            className="rounded-xl px-4 py-2 text-sm font-semibold text-gray-300 hover:text-white transition"
-            style={{ background: "var(--bg-strong, #2a2a3e)" }}
+            className="btn btn-ghost text-sm font-semibold"
           >
             Cancel
           </button>
@@ -331,11 +334,14 @@ function MatchEntryModal({
     <div className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-black/70 p-4 pt-10">
       <div
         className="w-full max-w-4xl rounded-3xl p-6 shadow-2xl"
-        style={{ background: "var(--bg-surface, #1e1e2e)" }}
+        style={{ background: "var(--paper)", border: "1px solid var(--border)" }}
       >
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-bold text-white">Enter Matches — {stage.name}</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-white text-2xl leading-none">&times;</button>
+          <h2 className="text-lg font-bold" style={{ color: "var(--ink)" }}>Enter Matches — {stage.name}</h2>
+          <button
+            onClick={onClose}
+            className="text-2xl leading-none muted hover:text-[var(--ink)] transition"
+          >&times;</button>
         </div>
 
         <div className="mb-4">
@@ -343,30 +349,36 @@ function MatchEntryModal({
             placeholder="Search teams..."
             value={teamSearch}
             onChange={(e) => setTeamSearch(e.target.value)}
-            className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-white/30"
+            className="field"
           />
         </div>
 
         {loading ? (
-          <p className="text-gray-400 text-sm py-8 text-center">Loading matches...</p>
+          <p className="muted text-sm py-8 text-center">Loading matches...</p>
         ) : (
           <div className="space-y-3">
-            {rows.map((row) => (
+            {rows.map((row) => {
+              const showDate = stage.roundLabel === "R32";
+              const colLayout = showDate ? "grid-cols-[1fr_2fr_2fr_1.5fr_auto]" : "grid-cols-[1fr_2fr_2fr_auto]";
+              const colSpan = showDate ? "col-span-5" : "col-span-4";
+              return (
               <div
                 key={row.clientId}
-                className="grid grid-cols-[1fr_2fr_2fr_1.5fr_auto] gap-2 items-center rounded-2xl p-3"
-                style={{ background: "var(--bg-strong, #2a2a3e)" }}
+                className={`grid ${colLayout} gap-2 items-center rounded-2xl p-3`}
+                style={{ background: "var(--bg-strong)", border: "1px solid var(--border)" }}
               >
                 <input
                   value={row.matchNumber}
                   onChange={(e) => updateRow(row.clientId, { matchNumber: e.target.value })}
                   placeholder="M73"
-                  className="rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 text-sm text-white outline-none focus:border-white/30"
+                  className="field"
+                  style={{ padding: "0.4rem 0.6rem", fontSize: "13px" }}
                 />
                 <select
                   value={row.homeTeamId}
                   onChange={(e) => updateRow(row.clientId, { homeTeamId: e.target.value })}
-                  className="rounded-lg border border-white/10 bg-gray-800 px-2 py-1.5 text-sm text-white outline-none focus:border-white/30"
+                  className="field"
+                  style={{ padding: "0.4rem 0.6rem", fontSize: "13px" }}
                 >
                   <option value="">— Home Team —</option>
                   {(teamSearch ? filteredTeams : teams).map((t) => (
@@ -376,19 +388,23 @@ function MatchEntryModal({
                 <select
                   value={row.awayTeamId}
                   onChange={(e) => updateRow(row.clientId, { awayTeamId: e.target.value })}
-                  className="rounded-lg border border-white/10 bg-gray-800 px-2 py-1.5 text-sm text-white outline-none focus:border-white/30"
+                  className="field"
+                  style={{ padding: "0.4rem 0.6rem", fontSize: "13px" }}
                 >
                   <option value="">— Away Team —</option>
                   {(teamSearch ? filteredTeams : teams).map((t) => (
                     <option key={t.id} value={t.id}>{t.fifaCode} — {t.name}</option>
                   ))}
                 </select>
-                <input
-                  type="datetime-local"
-                  value={row.scheduledAt}
-                  onChange={(e) => updateRow(row.clientId, { scheduledAt: e.target.value })}
-                  className="rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 text-sm text-white outline-none focus:border-white/30"
-                />
+                {showDate && (
+                  <input
+                    type="datetime-local"
+                    value={row.scheduledAt}
+                    onChange={(e) => updateRow(row.clientId, { scheduledAt: e.target.value })}
+                    className="field"
+                    style={{ padding: "0.4rem 0.6rem", fontSize: "13px" }}
+                  />
+                )}
                 <button
                   disabled={saving[row.clientId]}
                   onClick={() => saveRow(row)}
@@ -397,10 +413,11 @@ function MatchEntryModal({
                   {saving[row.clientId] ? "Saving…" : "Save"}
                 </button>
                 {errors[row.clientId] && (
-                  <p className="col-span-5 text-xs text-red-400">{errors[row.clientId]}</p>
+                  <p className={`${colSpan} text-xs`} style={{ color: "var(--live)" }}>{errors[row.clientId]}</p>
                 )}
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
 
@@ -412,14 +429,13 @@ function MatchEntryModal({
                 { clientId: uid(), matchNumber: "", homeTeamId: "", awayTeamId: "", scheduledAt: "" },
               ])
             }
-            className="rounded-xl border border-white/10 px-4 py-2 text-sm font-semibold text-gray-300 hover:text-white transition"
+            className="btn btn-ghost text-sm font-semibold"
           >
             + Add Row
           </button>
           <button
             onClick={onClose}
-            className="ml-auto rounded-xl px-4 py-2 text-sm font-semibold text-gray-300 hover:text-white transition"
-            style={{ background: "var(--bg-strong, #2a2a3e)" }}
+            className="btn ml-auto text-sm font-semibold"
           >
             Done
           </button>
@@ -450,14 +466,31 @@ function ResultEntryModal({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    const fetches = isGroup
-      ? [fetch("/api/admin/teams").then((r) => r.json()).then((d) => setTeams(d.teams ?? []))]
-      : [fetch(`/api/admin/staged/stages/${stage.id}/matches`).then((r) => r.json()).then((d) => setMatches(d.matches ?? []))];
-    Promise.all(fetches)
-      .catch(() => setError("Failed to load data"))
-      .finally(() => setLoading(false));
+    if (isGroup) {
+      fetch("/api/admin/teams")
+        .then((r) => r.json())
+        .then((d) => setTeams(d.teams ?? []))
+        .catch(() => setError("Failed to load data"))
+        .finally(() => setLoading(false));
+    } else {
+      fetch(`/api/admin/staged/stages/${stage.id}/matches`)
+        .then((r) => r.json())
+        .then((d) => {
+          const loaded: StageMatch[] = d.matches ?? [];
+          setMatches(loaded);
+          // Restore previously saved winners
+          const saved: Record<string, string> = {};
+          for (const m of loaded) {
+            if (m.winnerId) saved[m.id] = m.winnerId;
+          }
+          if (Object.keys(saved).length > 0) setWinners(saved);
+        })
+        .catch(() => setError("Failed to load data"))
+        .finally(() => setLoading(false));
+    }
   }, [stage.id, isGroup]);
 
   const toggleQualifier = (teamId: string) => {
@@ -468,6 +501,24 @@ function ResultEntryModal({
       return next;
     });
   };
+
+  // Auto-save knockout winners 800ms after last change
+  useEffect(() => {
+    if (isGroup || Object.keys(winners).length === 0) return;
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    autoSaveTimerRef.current = setTimeout(async () => {
+      try {
+        await fetch(`/api/admin/staged/stages/${stage.id}/results`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            results: Object.entries(winners).map(([matchId, winnerId]) => ({ matchId, winnerId })),
+          }),
+        });
+      } catch { /* silent */ }
+    }, 800);
+    return () => { if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current); };
+  }, [winners, isGroup, stage.id]);
 
   const save = async () => {
     setSaving(true);
@@ -504,29 +555,42 @@ function ResultEntryModal({
     <div className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-black/70 p-4 pt-10">
       <div
         className="w-full max-w-2xl rounded-3xl p-6 shadow-2xl"
-        style={{ background: "var(--bg-surface, #1e1e2e)" }}
+        style={{ background: "var(--paper)", border: "1px solid var(--border)" }}
       >
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-bold text-white">Enter Results — {stage.name}</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-white text-2xl leading-none">&times;</button>
+          <h2 className="text-lg font-bold" style={{ color: "var(--ink)" }}>Enter Results — {stage.name}</h2>
+          <button
+            onClick={onClose}
+            className="text-2xl leading-none muted hover:text-[var(--ink)] transition"
+          >&times;</button>
         </div>
 
-        {error && <p className="mb-3 rounded-xl bg-red-900/40 px-4 py-2 text-sm text-red-300">{error}</p>}
-        {success && <p className="mb-3 rounded-xl bg-green-900/40 px-4 py-2 text-sm text-green-300">{success}</p>}
+        {error && (
+          <p
+            className="mb-3 rounded-xl px-4 py-2 text-sm"
+            style={{ background: "color-mix(in srgb, var(--live) 12%, transparent)", color: "var(--live)", border: "1px solid var(--live)" }}
+          >{error}</p>
+        )}
+        {success && (
+          <p
+            className="mb-3 rounded-xl px-4 py-2 text-sm"
+            style={{ background: "var(--accent-soft)", color: "var(--accent-ink)", border: "1px solid var(--accent)" }}
+          >{success}</p>
+        )}
 
         {isGroup && loading ? (
-          <p className="py-8 text-center text-sm text-gray-400">Loading teams...</p>
+          <p className="py-8 text-center text-sm muted">Loading teams...</p>
         ) : isGroup ? (
           <>
-            <p className="text-sm text-gray-400 mb-3">
-              Select the <strong className="text-white">32 teams</strong> that qualify from the group stage.
-              <span className="ml-2 font-bold text-amber-400">{qualifiers.size} / 32 selected</span>
+            <p className="text-sm muted mb-3">
+              Select the <strong style={{ color: "var(--ink)" }}>32 teams</strong> that qualify from the group stage.
+              <span className="ml-2 font-bold" style={{ color: "var(--gold)" }}>{qualifiers.size} / 32 selected</span>
             </p>
             <input
               placeholder="Search teams..."
               value={teamSearch}
               onChange={(e) => setTeamSearch(e.target.value)}
-              className="mb-3 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-white/30"
+              className="field mb-3"
             />
             <div className="max-h-96 overflow-y-auto space-y-1.5 pr-1">
               {filteredTeams.map((t) => {
@@ -535,39 +599,50 @@ function ResultEntryModal({
                   <button
                     key={t.id}
                     onClick={() => toggleQualifier(t.id)}
-                    className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm transition ${
+                    className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm transition"
+                    style={
                       selected
-                        ? "bg-indigo-700 text-white"
-                        : "bg-white/5 text-gray-300 hover:bg-white/10"
-                    }`}
+                        ? { background: "var(--accent-soft)", color: "var(--accent-ink)" }
+                        : { background: "var(--paper-strong)", color: "var(--ink)" }
+                    }
                   >
                     <span
-                      className={`flex h-5 w-5 items-center justify-center rounded-full border text-[10px] font-bold ${
-                        selected ? "border-white bg-white text-indigo-700" : "border-gray-600"
-                      }`}
+                      className="flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold"
+                      style={
+                        selected
+                          ? { border: "1px solid var(--accent)", background: "var(--accent)", color: "#fff" }
+                          : { border: "1px solid var(--border)", color: "transparent" }
+                      }
                     >
                       {selected ? "✓" : ""}
                     </span>
-                    <span className="font-mono text-xs text-gray-400 w-8">{t.fifaCode}</span>
-                    <span>{t.name}</span>
+                    <span className="font-mono text-xs muted w-8">{t.fifaCode}</span>
+                    <span style={{ color: "var(--ink)" }}>{t.name}</span>
                   </button>
                 );
               })}
             </div>
           </>
         ) : loading ? (
-          <p className="py-8 text-center text-sm text-gray-400">Loading...</p>
+          <p className="py-8 text-center text-sm muted">Loading...</p>
         ) : (
           <div className="space-y-3">
             {matches.map((m) => (
               <div
                 key={m.id}
                 className="flex items-center justify-between gap-3 rounded-2xl p-3"
-                style={{ background: "var(--bg-strong, #2a2a3e)" }}
+                style={{ background: "var(--bg-strong)", border: "1px solid var(--border)" }}
               >
-                <span className="text-xs font-mono text-gray-400 w-10">{m.matchNumber}</span>
+                <span className="text-xs font-mono muted w-10">{m.matchNumber}</span>
                 <div className="flex flex-1 items-center gap-2">
-                  <label className={`flex flex-1 cursor-pointer items-center justify-end gap-2 rounded-lg px-2 py-1.5 text-sm transition ${winners[m.id] === m.homeTeamId ? "bg-green-700/50 text-white" : "text-gray-300 hover:bg-white/5"}`}>
+                  <label
+                    className="flex flex-1 cursor-pointer items-center justify-end gap-2 rounded-lg px-2 py-1.5 text-sm transition"
+                    style={
+                      winners[m.id] === m.homeTeamId
+                        ? { background: "var(--accent-soft)", color: "var(--accent-ink)" }
+                        : { color: "var(--ink)" }
+                    }
+                  >
                     <span>{m.homeTeam?.name ?? m.homeTeamId ?? "Home"}</span>
                     <input
                       type="radio"
@@ -578,8 +653,15 @@ function ResultEntryModal({
                       className="accent-green-500"
                     />
                   </label>
-                  <span className="text-gray-500 font-bold text-xs">vs</span>
-                  <label className={`flex flex-1 cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm transition ${winners[m.id] === m.awayTeamId ? "bg-green-700/50 text-white" : "text-gray-300 hover:bg-white/5"}`}>
+                  <span className="muted font-bold text-xs">vs</span>
+                  <label
+                    className="flex flex-1 cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm transition"
+                    style={
+                      winners[m.id] === m.awayTeamId
+                        ? { background: "var(--accent-soft)", color: "var(--accent-ink)" }
+                        : { color: "var(--ink)" }
+                    }
+                  >
                     <input
                       type="radio"
                       name={`winner-${m.id}`}
@@ -599,8 +681,7 @@ function ResultEntryModal({
         <div className="mt-6 flex items-center justify-end gap-3">
           <button
             onClick={onClose}
-            className="rounded-xl px-4 py-2 text-sm font-semibold text-gray-300 hover:text-white transition"
-            style={{ background: "var(--bg-strong, #2a2a3e)" }}
+            className="btn btn-ghost text-sm font-semibold"
           >
             Cancel
           </button>
@@ -613,6 +694,42 @@ function ResultEntryModal({
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─── Finalize Button ──────────────────────────────────────────────────────────
+
+function FinalizeButton({ tournamentId, onFinalized }: { tournamentId: string; onFinalized: () => void }) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  async function finalize() {
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch(`/api/admin/staged/tournaments/${tournamentId}/finalize`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to finalize");
+      onFinalized();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Error");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="space-y-2">
+      {error && <p className="text-xs" style={{ color: "var(--live)" }}>{error}</p>}
+      <button
+        disabled={loading}
+        onClick={finalize}
+        className="rounded-xl px-5 py-2.5 text-sm font-bold text-white disabled:opacity-40 transition"
+        style={{ background: "linear-gradient(135deg, var(--accent), var(--accent-strong))" }}
+      >
+        {loading ? "Finalizing…" : "Finalize Tournament"}
+      </button>
     </div>
   );
 }
@@ -684,8 +801,8 @@ function StageCard({
       const res = await fetch(endpoint, { method: "POST" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Action failed");
-      setActionSuccess("Done!");
-      setTimeout(() => setActionSuccess(""), 3000);
+      setActionSuccess(data.nextMatchesGenerated ? "Stage scored! Next round matches generated." : "Done!");
+      setTimeout(() => setActionSuccess(""), 4000);
       onRefresh();
     } catch (err: unknown) {
       setActionError(err instanceof Error ? err.message : "Error");
@@ -702,7 +819,7 @@ function StageCard({
           onSaved={() => { setHasMatches(true); setModal(null); }}
         />
       )}
-      {modal === "resultEntry" && (
+      {modal === "resultEntry" && stage.type !== "GROUP_QUALIFICATION" && (
         <ResultEntryModal
           stage={stage}
           onClose={() => setModal(null)}
@@ -752,17 +869,17 @@ function StageCard({
 
       <div
         className="rounded-3xl p-6 shadow"
-        style={{ background: "var(--bg-surface, #1e1e2e)", border: "1px solid rgba(255,255,255,0.06)" }}
+        style={{ background: "var(--paper)", border: "1px solid var(--border)" }}
       >
         {/* Header row */}
         <div className="flex flex-wrap items-center gap-3 mb-4">
-          <span className="text-xs font-mono text-gray-500">#{stage.order + 1}</span>
-          <h3 className="text-base font-bold text-white">{stage.name}</h3>
-          <span className={getStatusBadge(stage.status)}>{stage.status}</span>
+          <span className="text-xs font-mono muted-2">#{stage.order + 1}</span>
+          <h3 className="text-base font-bold" style={{ color: "var(--ink)" }}>{stage.name}</h3>
+          <span className={STATUS_BADGE_BASE} style={getStatusBadgeStyle(stage.status)}>{stage.status}</span>
           {stage.roundLabel && (
-            <span className="text-xs text-gray-500 italic">{stage.roundLabel}</span>
+            <span className="text-xs italic muted">{stage.roundLabel}</span>
           )}
-          <span className="ml-auto text-xs text-gray-500 uppercase tracking-wider">{stage.type}</span>
+          <span className="ml-auto text-xs uppercase tracking-wider muted">{stage.type}</span>
         </div>
 
         {/* Status-specific content */}
@@ -770,12 +887,12 @@ function StageCard({
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3 text-sm">
               <div>
-                <p className="text-xs text-gray-500 mb-0.5">Opens</p>
-                <p className="text-gray-300">{formatDate(stage.opensAt)}</p>
+                <p className="text-xs muted mb-0.5">Opens</p>
+                <p style={{ color: "var(--ink)" }}>{formatDate(stage.opensAt)}</p>
               </div>
               <div>
-                <p className="text-xs text-gray-500 mb-0.5">Closes</p>
-                <p className="text-gray-300">{formatDate(stage.closesAt)}</p>
+                <p className="text-xs muted mb-0.5">Closes</p>
+                <p style={{ color: "var(--ink)" }}>{formatDate(stage.closesAt)}</p>
               </div>
             </div>
 
@@ -783,25 +900,25 @@ function StageCard({
               <div className="space-y-2">
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="text-xs text-gray-500">Opens At</label>
+                    <label className="text-xs muted">Opens At</label>
                     <input
                       type="datetime-local"
                       value={opensAt}
                       onChange={(e) => setOpensAt(e.target.value)}
-                      className="mt-0.5 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white outline-none focus:border-white/30"
+                      className="field mt-0.5"
                     />
                   </div>
                   <div>
-                    <label className="text-xs text-gray-500">Closes At</label>
+                    <label className="text-xs muted">Closes At</label>
                     <input
                       type="datetime-local"
                       value={closesAt}
                       onChange={(e) => setClosesAt(e.target.value)}
-                      className="mt-0.5 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white outline-none focus:border-white/30"
+                      className="field mt-0.5"
                     />
                   </div>
                 </div>
-                {dateError && <p className="text-xs text-red-400">{dateError}</p>}
+                {dateError && <p className="text-xs" style={{ color: "var(--live)" }}>{dateError}</p>}
                 <div className="flex gap-2">
                   <button
                     disabled={savingDates}
@@ -812,7 +929,7 @@ function StageCard({
                   </button>
                   <button
                     onClick={() => { setEditingDates(false); setDateError(""); }}
-                    className="rounded-xl px-4 py-1.5 text-xs font-semibold text-gray-400 hover:text-white transition"
+                    className="rounded-xl px-4 py-1.5 text-xs font-semibold muted hover:text-[var(--ink)] transition"
                   >
                     Cancel
                   </button>
@@ -821,7 +938,8 @@ function StageCard({
             ) : (
               <button
                 onClick={() => setEditingDates(true)}
-                className="text-xs text-indigo-400 hover:text-indigo-300 transition"
+                className="text-xs transition"
+                style={{ color: "var(--accent)" }}
               >
                 Edit Dates
               </button>
@@ -831,7 +949,7 @@ function StageCard({
               {stage.type === "KNOCKOUT" && (
                 <button
                   onClick={() => setModal("matchEntry")}
-                  className="rounded-xl border border-white/10 px-3 py-1.5 text-xs font-semibold text-gray-300 hover:text-white transition"
+                  className="btn btn-ghost text-xs font-semibold"
                 >
                   Enter Matches
                 </button>
@@ -852,27 +970,27 @@ function StageCard({
           <div className="space-y-4">
             <div className="flex flex-wrap items-center gap-6">
               <div>
-                <p className="text-xs text-gray-500 mb-0.5">Closes in</p>
+                <p className="text-xs muted mb-0.5">Closes in</p>
                 <p className="text-lg font-mono font-bold text-green-400">{countdown || formatDate(stage.closesAt)}</p>
               </div>
               <div>
-                <p className="text-xs text-gray-500 mb-0.5">Submissions</p>
-                <p className="text-lg font-bold text-white">{stage.submittedCount} submitted</p>
+                <p className="text-xs muted mb-0.5">Submissions</p>
+                <p className="text-lg font-bold" style={{ color: "var(--ink)" }}>{stage.submittedCount} submitted</p>
               </div>
             </div>
 
             {editingCloseDate ? (
               <div className="space-y-2">
                 <div>
-                  <label className="text-xs text-gray-500">New Close Date</label>
+                  <label className="text-xs muted">New Close Date</label>
                   <input
                     type="datetime-local"
                     value={closesAt}
                     onChange={(e) => setClosesAt(e.target.value)}
-                    className="mt-0.5 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white outline-none focus:border-white/30"
+                    className="field mt-0.5"
                   />
                 </div>
-                {dateError && <p className="text-xs text-red-400">{dateError}</p>}
+                {dateError && <p className="text-xs" style={{ color: "var(--live)" }}>{dateError}</p>}
                 <div className="flex gap-2">
                   <button
                     disabled={savingDates}
@@ -883,7 +1001,7 @@ function StageCard({
                   </button>
                   <button
                     onClick={() => { setEditingCloseDate(false); setDateError(""); }}
-                    className="rounded-xl px-4 py-1.5 text-xs font-semibold text-gray-400 hover:text-white transition"
+                    className="rounded-xl px-4 py-1.5 text-xs font-semibold muted hover:text-[var(--ink)] transition"
                   >
                     Cancel
                   </button>
@@ -892,7 +1010,8 @@ function StageCard({
             ) : (
               <button
                 onClick={() => setEditingCloseDate(true)}
-                className="text-xs text-indigo-400 hover:text-indigo-300 transition"
+                className="text-xs transition"
+                style={{ color: "var(--accent)" }}
               >
                 Edit Close Date
               </button>
@@ -906,61 +1025,103 @@ function StageCard({
                 Close Early
               </button>
             </div>
+            {stage.type === "GROUP_QUALIFICATION" && (
+              <GroupResultEditor
+                stageId={stage.id}
+                isClosedStage={false}
+                onLocked={onRefresh}
+              />
+            )}
+            {stage.type === "KNOCKOUT" && (
+              <div className="flex flex-wrap gap-2 mt-3">
+                <button
+                  onClick={() => setModal("resultEntry")}
+                  className="btn btn-ghost text-xs font-semibold"
+                >
+                  Enter Results
+                </button>
+              </div>
+            )}
           </div>
         )}
 
         {stage.status === "CLOSED" && (
           <div className="space-y-4">
             <div>
-              <p className="text-xs text-gray-500 mb-0.5">Submissions</p>
-              <p className="text-lg font-bold text-white">{stage.submittedCount} submitted</p>
+              <p className="text-xs muted mb-0.5">Submissions</p>
+              <p className="text-lg font-bold" style={{ color: "var(--ink)" }}>{stage.submittedCount} submitted</p>
             </div>
-            <div className="flex flex-wrap gap-2">
-              <button
-                onClick={() => setModal("resultEntry")}
-                className="rounded-xl border border-white/10 px-3 py-1.5 text-xs font-semibold text-gray-300 hover:text-white transition"
-              >
-                Enter Results
-              </button>
-              <button
-                onClick={() => setConfirm("score")}
-                className="rounded-xl bg-indigo-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-indigo-500 transition"
-              >
-                Score Stage
-              </button>
-              <a
-                href={`/dashboard/admin/tournaments/${tournamentId}/stages/${stage.id}/submissions`}
-                className="rounded-xl border border-white/10 px-3 py-1.5 text-xs font-semibold text-gray-300 hover:text-white transition inline-block"
-              >
-                View Submissions
-              </a>
-            </div>
+            {stage.type === "GROUP_QUALIFICATION" ? (
+              <>
+                <GroupResultEditor
+                  stageId={stage.id}
+                  isClosedStage={true}
+                  onLocked={onRefresh}
+                />
+                <div className="flex flex-wrap gap-2 pt-2">
+                  <a
+                    href={`/dashboard/admin/tournaments/${tournamentId}/stages/${stage.id}/submissions`}
+                    className="btn btn-ghost text-xs font-semibold inline-block"
+                  >
+                    View Submissions
+                  </a>
+                </div>
+              </>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => setModal("resultEntry")}
+                  className="btn btn-ghost text-xs font-semibold"
+                >
+                  Enter Results
+                </button>
+                <button
+                  onClick={() => setConfirm("score")}
+                  className="rounded-xl bg-indigo-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-indigo-500 transition"
+                >
+                  Score Stage
+                </button>
+                <a
+                  href={`/dashboard/admin/tournaments/${tournamentId}/stages/${stage.id}/submissions`}
+                  className="btn btn-ghost text-xs font-semibold inline-block"
+                >
+                  View Submissions
+                </a>
+              </div>
+            )}
           </div>
         )}
 
         {stage.status === "SCORED" && (
           <div className="space-y-2">
-            <p className="text-sm text-gray-400">
-              Stage scored. <span className="font-bold text-white">{stage.submittedCount}</span> submissions counted.
+            <p className="text-sm muted">
+              Stage scored. <span className="font-bold" style={{ color: "var(--ink)" }}>{stage.submittedCount}</span> submissions counted.
             </p>
-            <p className="text-xs text-gray-600">No further actions available for scored stages.</p>
+            <p className="text-xs muted-2">No further actions available for scored stages.</p>
           </div>
         )}
 
         {/* Feedback */}
         {actionError && (
-          <p className="mt-3 rounded-xl bg-red-900/40 px-3 py-2 text-xs text-red-300">{actionError}</p>
+          <p
+            className="mt-3 rounded-xl px-3 py-2 text-xs"
+            style={{ background: "color-mix(in srgb, var(--live) 12%, transparent)", color: "var(--live)", border: "1px solid var(--live)" }}
+          >{actionError}</p>
         )}
         {actionSuccess && (
-          <p className="mt-3 rounded-xl bg-green-900/40 px-3 py-2 text-xs text-green-300">{actionSuccess}</p>
+          <p
+            className="mt-3 rounded-xl px-3 py-2 text-xs"
+            style={{ background: "var(--accent-soft)", color: "var(--accent-ink)", border: "1px solid var(--accent)" }}
+          >{actionSuccess}</p>
         )}
 
         {/* Reset button (for non-scored stages) */}
         {stage.status !== "SCORED" && (
-          <div className="mt-4 pt-4 border-t border-white/5">
+          <div className="mt-4 pt-4" style={{ borderTop: "1px solid var(--border)" }}>
             <button
               onClick={() => setConfirm("reset")}
-              className="text-xs text-red-500 hover:text-red-400 transition"
+              className="text-xs transition"
+              style={{ color: "var(--live)" }}
             >
               Reset Stage
             </button>
@@ -1039,20 +1200,23 @@ export default function StagedTournamentAdminPage() {
 
   if (authStatus === "loading" || loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <p className="text-gray-400 text-sm animate-pulse">Loading…</p>
+      <div className="flex min-h-screen items-center justify-center" style={{ background: "var(--bg)" }}>
+        <p className="muted text-sm animate-pulse">Loading…</p>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="flex min-h-screen items-center justify-center p-8">
-        <div className="rounded-2xl bg-red-900/30 p-6 text-center">
-          <p className="text-red-300 font-semibold">{error}</p>
+      <div className="flex min-h-screen items-center justify-center p-8" style={{ background: "var(--bg)" }}>
+        <div
+          className="rounded-2xl p-6 text-center"
+          style={{ background: "color-mix(in srgb, var(--live) 10%, transparent)", border: "1px solid var(--live)" }}
+        >
+          <p className="font-semibold" style={{ color: "var(--live)" }}>{error}</p>
           <button
             onClick={fetchTournament}
-            className="mt-4 rounded-xl bg-white/10 px-4 py-2 text-sm text-white hover:bg-white/20 transition"
+            className="btn mt-4 text-sm"
           >
             Retry
           </button>
@@ -1079,16 +1243,16 @@ export default function StagedTournamentAdminPage() {
         />
       )}
 
-      <div className="min-h-screen px-4 py-8 md:px-8" style={{ background: "var(--bg-base, #13131f)" }}>
+      <div className="min-h-screen px-4 py-8 md:px-8" style={{ background: "var(--bg)" }}>
         <div className="mx-auto max-w-4xl">
 
           {/* Page header */}
           <div className="mb-6">
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-gray-500 mb-1">
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] muted mb-1">
               Staged Tournament Admin
             </p>
-            <h1 className="text-3xl font-bold text-white">{tournament.name}</h1>
-            <p className="mt-1 text-sm text-gray-500">{tournament.type}</p>
+            <h1 className="text-3xl font-bold" style={{ color: "var(--ink)" }}>{tournament.name}</h1>
+            <p className="mt-1 text-sm muted">{tournament.type}</p>
           </div>
 
           {/* Status bar */}
@@ -1107,20 +1271,48 @@ export default function StagedTournamentAdminPage() {
             ))}
           </div>
 
+          {/* Finalize Tournament */}
+          {sortedStages.every((s) => s.status === "SCORED") && (
+            <div
+              className="rounded-3xl p-6 mb-6"
+              style={{ background: "var(--paper)", border: "1px solid color-mix(in srgb, var(--accent) 40%, transparent)" }}
+            >
+              <h2 className="text-sm font-bold uppercase tracking-widest mb-1" style={{ color: "var(--accent-strong)" }}>
+                {tournament.finalizedAt ? "Tournament Finalized" : "All Stages Scored"}
+              </h2>
+              {tournament.finalizedAt ? (
+                <p className="text-xs muted">
+                  Finalized on {new Date(tournament.finalizedAt).toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })}. The group leaderboard is showing the final podium.
+                </p>
+              ) : (
+                <>
+                  <p className="text-xs muted mb-4">All stages are scored. Finalize the tournament to reveal the final podium to group members.</p>
+                  <FinalizeButton tournamentId={id} onFinalized={fetchTournament} />
+                </>
+              )}
+            </div>
+          )}
+
           {/* Danger zone */}
           <div
             className="rounded-3xl p-6"
-            style={{ background: "var(--bg-surface, #1e1e2e)", border: "1px solid rgba(239,68,68,0.15)" }}
+            style={{ background: "var(--paper)", border: "1px solid color-mix(in srgb, var(--live) 25%, transparent)" }}
           >
-            <h2 className="text-sm font-bold uppercase tracking-widest text-red-500 mb-2">Danger Zone</h2>
-            <p className="text-xs text-gray-500 mb-4">
+            <h2 className="text-sm font-bold uppercase tracking-widest mb-2" style={{ color: "var(--live)" }}>Danger Zone</h2>
+            <p className="text-xs muted mb-4">
               Resetting the tournament clears all stage data, submissions, matches, and scores. This cannot be undone.
             </p>
             {resetError && (
-              <p className="mb-3 rounded-xl bg-red-900/40 px-4 py-2 text-sm text-red-300">{resetError}</p>
+              <p
+                className="mb-3 rounded-xl px-4 py-2 text-sm"
+                style={{ background: "color-mix(in srgb, var(--live) 12%, transparent)", color: "var(--live)", border: "1px solid var(--live)" }}
+              >{resetError}</p>
             )}
             {resetSuccess && (
-              <p className="mb-3 rounded-xl bg-green-900/40 px-4 py-2 text-sm text-green-300">{resetSuccess}</p>
+              <p
+                className="mb-3 rounded-xl px-4 py-2 text-sm"
+                style={{ background: "var(--accent-soft)", color: "var(--accent-ink)", border: "1px solid var(--accent)" }}
+              >{resetSuccess}</p>
             )}
             <button
               onClick={() => setResetConfirm(true)}
