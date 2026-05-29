@@ -598,7 +598,9 @@ model StagePrediction {
   qualificationPicks  Json?
   matchPicks          Json?
 
-  submittedAt  DateTime?
+  submittedAt       DateTime?
+  unlockedAt        DateTime?
+  lockedOutMatchIds Json?
 
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt

@@ -69,7 +69,11 @@ export async function scoreStage(stageId: string): Promise<void> {
 
         let correctPicks = 0;
         if (prediction?.matchPicks) {
+          const lockedOut = new Set(
+            Array.isArray(prediction.lockedOutMatchIds) ? (prediction.lockedOutMatchIds as string[]) : []
+          );
           for (const pick of prediction.matchPicks as Array<{ matchId: string; winnerId: string }>) {
+            if (lockedOut.has(pick.matchId)) continue;
             if (winnerMap.get(pick.matchId) === pick.winnerId) correctPicks++;
           }
         }

@@ -186,11 +186,15 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
 
   const isPortalAdmin = user.role === "ADMIN";
   if (!isPortalAdmin) {
-    const callerMembership = await prisma.groupMembership.findUnique({
-      where: { userId_groupId: { userId: user.id, groupId } },
-    });
-    if (!callerMembership || callerMembership.role !== "GROUP_ADMIN") {
-      return forbidden("Only group admins or portal admins can unlock predictions");
+    const group = await prisma.groupRoom.findUnique({ where: { id: groupId }, select: { ownerId: true } });
+    const isGroupOwner = group?.ownerId === user.id;
+    if (!isGroupOwner) {
+      const callerMembership = await prisma.groupMembership.findUnique({
+        where: { userId_groupId: { userId: user.id, groupId } },
+      });
+      if (!callerMembership || callerMembership.role !== "GROUP_ADMIN") {
+        return forbidden("Only group admins or portal admins can unlock predictions");
+      }
     }
   }
 
@@ -198,19 +202,53 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
   if (!stage) return badRequest("Stage not found");
   if (new Date() >= stage.closesAt) return badRequest("Stage is no longer open");
 
+  const halfwayMs = (stage.closesAt.getTime() - stage.opensAt.getTime()) / 2;
+  if (Date.now() - stage.opensAt.getTime() > halfwayMs) {
+    return new Response(
+      JSON.stringify({ error: "Predictions can only be unlocked in the first half of the stage window" }),
+      { status: 409 }
+    );
+  }
+
+  const existing = await prisma.stagePrediction.findUnique({
+    where: { userId_stageId_groupId: { userId: targetUserId, stageId, groupId } },
+  });
+  if (!existing) return badRequest("No prediction found for this user");
+  if (existing.submittedAt === null) return badRequest("This prediction is not locked");
+  if (existing.unlockedAt !== null) {
+    return new Response(
+      JSON.stringify({ error: "This prediction has already been unlocked once and cannot be unlocked again" }),
+      { status: 409 }
+    );
+  }
+
+  // For KNOCKOUT: snapshot already-decided match IDs so they're excluded from scoring
+  let lockedOutMatchIds: string[] = [];
+  if (stage.type === "KNOCKOUT") {
+    const decidedMatches = await prisma.stageMatch.findMany({
+      where: { stageId, winnerId: { not: null } },
+      select: { id: true },
+    });
+    lockedOutMatchIds = decidedMatches.map((m) => m.id);
+  }
+
   const prediction = await prisma.stagePrediction.update({
     where: { userId_stageId_groupId: { userId: targetUserId, stageId, groupId } },
-    data: { submittedAt: null },
+    data: {
+      submittedAt: null,
+      unlockedAt: new Date(),
+      lockedOutMatchIds: lockedOutMatchIds.length > 0 ? lockedOutMatchIds : undefined,
+    },
   });
 
   const targetUser = await prisma.user.findUnique({ where: { id: targetUserId }, select: { email: true } });
   if (targetUser?.email) {
     const baseUrl = process.env.NEXTAUTH_URL ?? '';
-    const predictionUrl = `${baseUrl}/groups/${groupId}`;
-    const group = await prisma.groupRoom.findUnique({ where: { id: groupId }, select: { name: true } });
+    const predictionUrl = `${baseUrl}/dashboard/groups/${groupId}`;
+    const groupData = await prisma.groupRoom.findUnique({ where: { id: groupId }, select: { name: true } });
     const { subject, html } = predictionUnlockedEmail(
       stage.name,
-      group?.name ?? groupId,
+      groupData?.name ?? groupId,
       stage.closesAt,
       predictionUrl,
     );

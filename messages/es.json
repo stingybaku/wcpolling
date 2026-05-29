@@ -326,7 +326,8 @@
       "activateButton": "Activar",
       "deactivateButton": "Desactivar",
       "promoteButton": "Promover",
-      "demoteButton": "Degradar"
+      "demoteButton": "Degradar",
+      "unlockButton": "Desbloquear picks"
     }
   },
   "stagedPredictions": {

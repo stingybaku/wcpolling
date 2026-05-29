@@ -427,8 +427,10 @@ export default function GroupDetailPage() {
     stageName: string;
   } | null>(null);
   const [openStageName, setOpenStageName] = useState<string | null>(null);
+  const [openStageId, setOpenStageId] = useState<string | null>(null);
   const [stagedLeaderboard, setStagedLeaderboard] = useState<StagedLeaderboardEntry[]>([]);
   const [stagedStages, setStagedStages] = useState<StagedStage[]>([]);
+  const [memberSubmissions, setMemberSubmissions] = useState<Record<string, { submittedAt: string | null; unlockedAt: string | null }>>({});
 
   const currentUserEmail = session?.user?.email;
   const currentUserId = (session?.user as { id?: string } | undefined)?.id;
@@ -471,6 +473,7 @@ export default function GroupDetailPage() {
       const openStage = allStages.find((s) => s.status === "OPEN");
       if (openStage) {
         setOpenStageName(openStage.name);
+        setOpenStageId(openStage.id);
         const predRes = await fetch(`/api/staged/groups/${params.groupId}/stages/${openStage.id}/prediction`);
         if (predRes.ok) {
           const predData = await predRes.json();
@@ -480,9 +483,20 @@ export default function GroupDetailPage() {
             : null
           );
         }
+        const subRes = await fetch(`/api/staged/groups/${params.groupId}/stages/${openStage.id}/submissions`);
+        if (subRes.ok) {
+          const subData = await subRes.json();
+          const map: Record<string, { submittedAt: string | null; unlockedAt: string | null }> = {};
+          for (const s of (subData.submissions ?? []) as { userId: string; submittedAt: string | null; unlockedAt: string | null }[]) {
+            map[s.userId] = { submittedAt: s.submittedAt, unlockedAt: s.unlockedAt };
+          }
+          setMemberSubmissions(map);
+        }
       } else {
         setOpenStageName(null);
+        setOpenStageId(null);
         setStagedStatus(null);
+        setMemberSubmissions({});
       }
 
       const lbRes = await fetch(`/api/staged/groups/${params.groupId}/leaderboard?tournamentId=${tournamentId}`);
@@ -493,6 +507,17 @@ export default function GroupDetailPage() {
     } catch {
       // silently ignore — banner falls back to default CTA
     }
+  }
+
+  async function unlockPrediction(targetUserId: string, stageId: string) {
+    const res = await fetch(
+      `/api/staged/groups/${params.groupId}/stages/${stageId}/prediction?userId=${targetUserId}`,
+      { method: "DELETE" }
+    );
+    const data = await res.json();
+    if (!res.ok) { alert(data.error ?? "Failed to unlock prediction"); return; }
+    const tournamentId = group?.tournament?.id;
+    if (tournamentId) void loadStagedStatus(tournamentId);
   }
 
   async function loadMyPredictions() {
@@ -1195,6 +1220,14 @@ export default function GroupDetailPage() {
                             style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--muted)", background: "transparent", border: "1px solid var(--border)", borderRadius: 4, padding: "2px 5px", cursor: "pointer" }}
                           >
                             {t("demoteButton")}
+                          </button>
+                        )}
+                        {canManage && !isMe && openStageId && memberSubmissions[m.userId]?.submittedAt && !memberSubmissions[m.userId]?.unlockedAt && (
+                          <button
+                            onClick={() => void unlockPrediction(m.userId, openStageId)}
+                            style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--accent-strong)", background: "transparent", border: "1px solid var(--accent)", borderRadius: 4, padding: "2px 5px", cursor: "pointer" }}
+                          >
+                            {t("unlockButton")}
                           </button>
                         )}
                       </div>
