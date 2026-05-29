@@ -48,9 +48,12 @@ export async function POST(request: NextRequest) {
     const tieBreakers = Array.isArray(body.tieBreakers) ? (body.tieBreakers as Array<TieBreakerInput & { id?: string; correctAnswer?: string | null }>) : [];
     const tags = Array.isArray(body.tags) ? (body.tags as TagInput[]) : [];
 
+    const tournamentType = String(body.type ?? "CLASSIC").trim();
     if (!name || !slug) return badRequest("Tournament name and slug are required");
-    if (groups.length === 0) return badRequest("At least one group is required");
-    if (phases.length === 0) return badRequest("At least one phase is required");
+    if (tournamentType !== "STAGED") {
+      if (groups.length === 0) return badRequest("At least one group is required");
+      if (phases.length === 0) return badRequest("At least one phase is required");
+    }
 
     await prisma.tournament.updateMany({
       where: { isActive: true, ...(tournamentId ? { id: { not: tournamentId } } : {}) },
