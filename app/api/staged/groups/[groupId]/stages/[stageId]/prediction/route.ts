@@ -70,20 +70,37 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     if (submit && user.email) {
       const baseUrl = process.env.NEXTAUTH_URL ?? '';
       const predictionUrl = `${baseUrl}/dashboard/groups/${groupId}`;
-      const tournament = await prisma.tournament.findUnique({
-        where: { id: stage.tournamentId },
-        select: { name: true },
-      });
-      const tournamentGroups = await prisma.tournamentGroup.findMany({
-        where: { tournamentId: stage.tournamentId },
-        include: { teams: { include: { team: { select: { id: true, name: true } } }, orderBy: { seed: "asc" } } },
-        orderBy: { sortOrder: "asc" },
-      });
-      const pickedSet = new Set(qualificationPicks);
-      const groupPickData = tournamentGroups.map((g) => ({
-        groupName: g.name,
-        teams: g.teams.map((t) => ({ name: t.team.name, picked: pickedSet.has(t.teamId) })),
-      }));
+      const [tournament, pickedTeams] = await Promise.all([
+        prisma.tournament.findUnique({ where: { id: stage.tournamentId }, select: { name: true } }),
+        prisma.team.findMany({
+          where: { id: { in: qualificationPicks } },
+          select: {
+            id: true,
+            name: true,
+            groupMemberships: {
+              where: { group: { tournamentId: stage.tournamentId } },
+              select: { group: { select: { name: true, sortOrder: true } } },
+            },
+          },
+        }),
+      ]);
+      const groupMap = new Map<string, { sortOrder: number; teams: string[] }>();
+      const ungrouped: string[] = [];
+      for (const team of pickedTeams) {
+        const gm = team.groupMemberships[0];
+        if (gm) {
+          const key = gm.group.name;
+          if (!groupMap.has(key)) groupMap.set(key, { sortOrder: gm.group.sortOrder, teams: [] });
+          groupMap.get(key)!.teams.push(team.name);
+        } else {
+          ungrouped.push(team.name);
+        }
+      }
+      const groupPickData = [...groupMap.entries()]
+        .sort((a, b) => a[1].sortOrder - b[1].sortOrder)
+        .map(([groupName, { teams }]) => ({ groupName, teams }));
+      if (ungrouped.length > 0) groupPickData.push({ groupName: "Other", teams: ungrouped });
+
       const { subject, html } = groupQualificationConfirmEmail(
         stage.name,
         tournament?.name ?? "",

@@ -22,7 +22,7 @@ function formatDeadline(d: Date): string {
 
 export type GroupPickData = {
   groupName: string;
-  teams: { name: string; picked: boolean }[];
+  teams: string[]; // names of picked teams
 };
 
 export function groupQualificationConfirmEmail(
@@ -34,17 +34,18 @@ export function groupQualificationConfirmEmail(
 ): { subject: string; html: string } {
   const subject = `✅ Your ${stageName} picks are locked in — ${tournamentName}`;
 
+  const totalPicked = groups.reduce((n, g) => n + g.teams.length, 0);
+
   const groupCells = groups
     .map(
       (g) => `
-    <td style="padding:10px;vertical-align:top;width:50%;">
+    <td style="padding:8px;vertical-align:top;width:50%;">
       <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:14px;">
         <div style="font-size:11px;font-weight:700;letter-spacing:1.5px;color:#6b7280;text-transform:uppercase;margin-bottom:10px;">Group ${g.groupName}</div>
         ${g.teams
-          .map((t) =>
-            t.picked
-              ? `<div style="background:#dbeafe;color:#1e3a8a;padding:5px 10px;border-radius:20px;font-size:13px;font-weight:600;margin-bottom:5px;display:inline-block;">✔ ${t.name}</div>`
-              : `<div style="color:#9ca3af;padding:5px 10px;font-size:13px;margin-bottom:5px;display:inline-block;text-decoration:line-through;">${t.name}</div>`,
+          .map(
+            (name) =>
+              `<div style="background:#dbeafe;color:#1e3a8a;padding:5px 10px;border-radius:20px;font-size:13px;font-weight:600;margin-bottom:5px;display:inline-block;">✔ ${name}</div>`,
           )
           .join("")}
       </div>
@@ -59,15 +60,13 @@ export function groupQualificationConfirmEmail(
     .map((row) => `<tr>${row.join("")}</tr>`)
     .join("");
 
-  const pickedCount = groups.reduce((n, g) => n + g.teams.filter((t) => t.picked).length, 0);
-
   const header = `
     <div style="font-size:11px;letter-spacing:1px;opacity:0.6;text-transform:uppercase;margin-bottom:6px;">${tournamentName}</div>
     <h2 style="margin:0 0 6px;font-size:22px;font-weight:700;">✅ Picks locked in</h2>
-    <div style="font-size:14px;opacity:0.8;">${stageName} · ${pickedCount} teams selected to qualify</div>`;
+    <div style="font-size:14px;opacity:0.8;">${stageName} · ${totalPicked} teams selected to qualify</div>`;
 
   const body = `
-    <p style="margin:0 0 20px;color:#374151;">Your group stage qualification picks have been submitted. Teams you picked are highlighted below.</p>
+    <p style="margin:0 0 20px;color:#374151;">Your group stage qualification picks have been submitted. Here are the ${totalPicked} teams you selected.</p>
     <table style="border-collapse:collapse;width:100%;" cellspacing="0" cellpadding="0">
       ${groupCells}
     </table>
