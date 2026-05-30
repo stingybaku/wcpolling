@@ -921,11 +921,13 @@ function StageCard({
   tournamentId,
   teams,
   onRefresh,
+  previousStageScored,
 }: {
   stage: Stage;
   tournamentId: string;
   teams: Team[];
   onRefresh: () => void;
+  previousStageScored: boolean;
 }) {
   const [opensAt, setOpensAt] = useState(toDatetimeLocal(stage.opensAt));
   const [closesAt, setClosesAt] = useState(toDatetimeLocal(stage.closesAt));
@@ -1135,9 +1137,15 @@ function StageCard({
                 </button>
               )}
               <button
-                disabled={stage.type === "KNOCKOUT" && hasMatches === false}
+                disabled={!previousStageScored || (stage.type === "KNOCKOUT" && hasMatches === false)}
                 onClick={() => setConfirm("open")}
-                title={stage.type === "KNOCKOUT" && !hasMatches ? "Enter matches first" : undefined}
+                title={
+                  !previousStageScored
+                    ? "Previous stage must be scored first"
+                    : stage.type === "KNOCKOUT" && !hasMatches
+                      ? "Enter matches first"
+                      : undefined
+                }
                 className="rounded-xl bg-green-700 px-3 py-1.5 text-xs font-bold text-white hover:bg-green-600 disabled:opacity-40 transition"
               >
                 Open Stage
@@ -1207,6 +1215,7 @@ function StageCard({
             </div>
             {stage.type === "GROUP_QUALIFICATION" && (
               <GroupResultEditor
+                key={`${stage.id}-${stage.status}`}
                 stageId={stage.id}
                 isClosedStage={false}
                 onLocked={onRefresh}
@@ -1234,6 +1243,7 @@ function StageCard({
             {stage.type === "GROUP_QUALIFICATION" ? (
               <>
                 <GroupResultEditor
+                  key={`${stage.id}-${stage.status}`}
                   stageId={stage.id}
                   isClosedStage={true}
                   onLocked={onRefresh}
@@ -1440,15 +1450,20 @@ export default function StagedTournamentAdminPage() {
 
           {/* Stage cards */}
           <div className="space-y-4 mb-10">
-            {sortedStages.map((stage) => (
-              <StageCard
-                key={stage.id}
-                stage={stage}
-                tournamentId={id}
-                teams={teams}
-                onRefresh={fetchTournament}
-              />
-            ))}
+            {sortedStages.map((stage, idx) => {
+              const previousStage = sortedStages[idx - 1];
+              const previousStageScored = idx === 0 || previousStage?.status === "SCORED";
+              return (
+                <StageCard
+                  key={stage.id}
+                  stage={stage}
+                  tournamentId={id}
+                  teams={teams}
+                  onRefresh={fetchTournament}
+                  previousStageScored={previousStageScored}
+                />
+              );
+            })}
           </div>
 
           {/* Tie-Breaker Admin */}

@@ -33,7 +33,8 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
     prisma.stagePrediction.deleteMany({ where: { stageId: { in: stageIds } } }),
     prisma.stageScore.deleteMany({ where: { stageId: { in: stageIds } } }),
     prisma.stageQualificationResult.deleteMany({ where: { stageId: { in: stageIds } } }),
-    prisma.stageMatch.updateMany({ where: { stageId: { in: stageIds } }, data: { winnerId: null } }),
+    prisma.stageGroupResult.deleteMany({ where: { stageId: { in: stageIds } } }),
+    prisma.stageMatch.deleteMany({ where: { stageId: { in: stageIds } } }),
     prisma.stageTieBreakerAnswer.deleteMany({ where: { tournamentId } }),
     prisma.emailLog.deleteMany({ where: { refId: { in: stageIds } } }),
     prisma.tournamentStage.updateMany({
