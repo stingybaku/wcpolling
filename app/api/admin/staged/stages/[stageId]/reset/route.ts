@@ -29,6 +29,8 @@ export async function POST(_request: Request, context: { params: Promise<{ stage
   await prisma.$transaction([
     prisma.stagePrediction.deleteMany({ where: { stageId } }),
     prisma.stageScore.deleteMany({ where: { stageId } }),
+    prisma.stageQualificationResult.deleteMany({ where: { stageId } }),
+    prisma.stageMatch.updateMany({ where: { stageId }, data: { winnerId: null } }),
     prisma.emailLog.deleteMany({ where: { refId: stageId } }),
     prisma.tournamentStage.update({
       where: { id: stageId },
