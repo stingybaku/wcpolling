@@ -3,29 +3,47 @@ import createMiddleware from "next-intl/middleware";
 import { NextRequest, NextResponse } from "next/server";
 import { routing } from "@/i18n/routing";
 
-// Strip the internal port injected by Railway's reverse proxy from outgoing
-// redirect Location headers so the browser never sees :3000 in the URL.
-function stripPortFromRedirect(res: NextResponse): NextResponse {
+// Returns the real public hostname from x-forwarded-host, falling back to the
+// request hostname. Railway binds internally to 0.0.0.0 but sets x-forwarded-host
+// to the actual public domain.
+function publicHost(req: NextRequest): string {
+  const fwd = req.headers.get("x-forwarded-host");
+  return fwd ? fwd.split(":")[0] : req.nextUrl.hostname;
+}
+
+// Strip the internal port and 0.0.0.0 hostname from outgoing redirect Location
+// headers so the browser never sees Railway's internal binding.
+function stripPortFromRedirect(res: NextResponse, req: NextRequest): NextResponse {
   const location = res.headers.get("location");
   if (!location) return res;
   try {
     const url = new URL(location);
+    let changed = false;
     if (url.port && url.hostname !== "localhost") {
       url.port = "";
-      res.headers.set("location", url.toString());
+      changed = true;
     }
+    if (url.hostname === "0.0.0.0") {
+      url.hostname = publicHost(req);
+      changed = true;
+    }
+    if (changed) res.headers.set("location", url.toString());
   } catch {
     // relative URL — nothing to strip
   }
   return res;
 }
 
-// Strip port from the incoming request URL so middleware logic (e.g. path
-// matching) doesn't see the internal port either.
+// Strip port and replace 0.0.0.0 on the incoming request URL so that
+// middleware logic (path matching, NextAuth sign-in redirects) uses the
+// correct public origin.
 function stripPort(req: NextRequest): NextRequest {
-  if (!req.nextUrl.port || req.nextUrl.hostname === "localhost") return req;
+  const needsHostFix = req.nextUrl.hostname === "0.0.0.0";
+  const needsPortFix = !!req.nextUrl.port && req.nextUrl.hostname !== "localhost";
+  if (!needsHostFix && !needsPortFix) return req;
   const url = req.nextUrl.clone();
-  url.port = "";
+  if (needsPortFix) url.port = "";
+  if (needsHostFix) url.hostname = publicHost(req);
   return new NextRequest(url, req);
 }
 
@@ -71,10 +89,10 @@ export default async function middleware(req: NextRequest) {
 
   if (isProtected) {
     const locale = locales.find((l) => pathname.startsWith(`/${l}/`) || pathname === `/${l}`) ?? defaultLocale;
-    return stripPortFromRedirect(await (authMiddlewares[locale] as any)(req, {}));
+    return stripPortFromRedirect(await (authMiddlewares[locale] as any)(req, {}), req);
   }
 
-  return stripPortFromRedirect(await intlMiddleware(req));
+  return stripPortFromRedirect(await intlMiddleware(req), req);
 }
 
 export const config = {
