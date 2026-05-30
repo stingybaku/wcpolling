@@ -1222,7 +1222,7 @@ export default function GroupDetailPage() {
                             {t("demoteButton")}
                           </button>
                         )}
-                        {canManage && !isMe && openStageId && memberSubmissions[m.userId]?.submittedAt && !memberSubmissions[m.userId]?.unlockedAt && (
+                        {isGroupAdmin && !isMe && openStageId && memberSubmissions[m.userId]?.submittedAt && !memberSubmissions[m.userId]?.unlockedAt && (
                           <button
                             onClick={() => void unlockPrediction(m.userId, openStageId)}
                             style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--accent-strong)", background: "transparent", border: "1px solid var(--accent)", borderRadius: 4, padding: "2px 5px", cursor: "pointer" }}

@@ -813,7 +813,7 @@ export default function PredictionsPage() {
 
         const gqOpen = fetchedStages.find((s) => s.type === "GROUP_QUALIFICATION" && s.status !== "UPCOMING");
         if (gqOpen) {
-          const teamsRes = await fetch("/api/admin/teams");
+          const teamsRes = await fetch("/api/teams");
           const teamsData = await teamsRes.json();
           setTeams(teamsData.teams ?? []);
         }
@@ -822,7 +822,7 @@ export default function PredictionsPage() {
         if (knockoutActive.length > 0) {
           const matchEntries = await Promise.all(
             knockoutActive.map(async (s) => {
-              const res = await fetch(`/api/admin/staged/stages/${s.id}/matches`);
+              const res = await fetch(`/api/staged/stages/${s.id}/matches`);
               const data = await res.json();
               return [s.id, data.matches ?? []] as [string, StageMatch[]];
             })
