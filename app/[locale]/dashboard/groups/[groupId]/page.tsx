@@ -565,8 +565,7 @@ export default function GroupDetailPage() {
 
   function copyInviteLink() {
     if (!group?.inviteCode) return;
-    const base = window.location.href.split("/dashboard")[0];
-    void navigator.clipboard.writeText(`${base}/dashboard/groups?code=${group.inviteCode}`);
+    void navigator.clipboard.writeText(`${window.location.origin}/dashboard/groups?code=${group.inviteCode}`);
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 2000);
   }
