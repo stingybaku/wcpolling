@@ -32,6 +32,9 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
   await prisma.$transaction([
     prisma.stagePrediction.deleteMany({ where: { stageId: { in: stageIds } } }),
     prisma.stageScore.deleteMany({ where: { stageId: { in: stageIds } } }),
+    prisma.stageQualificationResult.deleteMany({ where: { stageId: { in: stageIds } } }),
+    prisma.stageMatch.updateMany({ where: { stageId: { in: stageIds } }, data: { winnerId: null } }),
+    prisma.stageTieBreakerAnswer.deleteMany({ where: { tournamentId } }),
     prisma.emailLog.deleteMany({ where: { refId: { in: stageIds } } }),
     prisma.tournamentStage.updateMany({
       where: { id: { in: stageIds } },
@@ -39,7 +42,7 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
     }),
     prisma.tournament.update({
       where: { id: tournamentId },
-      data: { finalizedAt: null },
+      data: { finalizedAt: null, tieBreakerClosedAt: null },
     }),
   ]);
 
