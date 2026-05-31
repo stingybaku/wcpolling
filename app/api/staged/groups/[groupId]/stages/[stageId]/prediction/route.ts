@@ -4,6 +4,7 @@ import { getCurrentUser, unauthorized, forbidden, badRequest } from "@/app/api/h
 import { sendEmail } from "@/lib/email";
 import { predictionUnlockedEmail } from "@/lib/emails/predictionUnlocked";
 import { groupQualificationConfirmEmail, knockoutConfirmEmail } from "@/lib/emails/stagePredictionConfirm";
+import { scoreStage } from "@/lib/stage-scoring";
 
 type RouteContext = { params: Promise<{ groupId: string; stageId: string }> };
 
@@ -111,6 +112,11 @@ export async function PUT(request: NextRequest, context: RouteContext) {
       sendEmail({ to: user.email, subject, html }).catch(() => null);
     }
 
+    if (submit) {
+      const hasResults = await prisma.stageQualificationResult.findUnique({ where: { stageId } });
+      if (hasResults) scoreStage(stageId).catch(() => null);
+    }
+
     return new Response(JSON.stringify({ prediction }), { status: 200 });
   }
 
@@ -167,6 +173,11 @@ export async function PUT(request: NextRequest, context: RouteContext) {
         predictionUrl,
       );
       sendEmail({ to: user.email, subject, html }).catch(() => null);
+    }
+
+    if (submit) {
+      const hasResults = await prisma.stageMatch.count({ where: { stageId, winnerId: { not: null } } });
+      if (hasResults > 0) scoreStage(stageId).catch(() => null);
     }
 
     return new Response(JSON.stringify({ prediction }), { status: 200 });
