@@ -1,6 +1,7 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Link } from "@/lib/navigation";
@@ -9,9 +10,18 @@ type Phase = "request" | "confirm" | "done";
 
 export default function ResetPasswordPage() {
   const t = useTranslations("auth.resetPassword");
+  const searchParams = useSearchParams();
   const [phase, setPhase] = useState<Phase>("request");
   const [email, setEmail] = useState("");
   const [token, setToken] = useState("");
+
+  useEffect(() => {
+    const tokenParam = searchParams.get("token");
+    if (tokenParam) {
+      setToken(tokenParam);
+      setPhase("confirm");
+    }
+  }, [searchParams]);
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [message, setMessage] = useState("");
@@ -33,7 +43,7 @@ export default function ResetPasswordPage() {
       setError(data?.error ?? t("requestFailed"));
       return;
     }
-    setMessage(data?.message ?? "Check the server console for your reset token.");
+    setMessage(data?.message ?? t("checkEmail"));
     setPhase("confirm");
   }
 

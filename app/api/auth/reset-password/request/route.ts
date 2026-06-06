@@ -1,4 +1,6 @@
 import { prisma } from "@/lib/prisma";
+import { sendEmail } from "@/lib/email";
+import { resetPasswordEmail } from "@/lib/emails/resetPassword";
 import crypto from "crypto";
 
 export async function POST(request: Request) {
@@ -20,13 +22,15 @@ export async function POST(request: Request) {
     await prisma.verificationToken.deleteMany({ where: { identifier: email } });
     await prisma.verificationToken.create({ data: { identifier: email, token, expires } });
 
-    // No email infrastructure — log to server console for development use
-    console.log(`[Password Reset] Token for ${email}: ${token}`);
-    console.log(`[Password Reset] Expires: ${expires.toISOString()}`);
+    const baseUrl = process.env.NEXTAUTH_URL ?? "http://localhost:3000";
+    const resetUrl = `${baseUrl}/auth/reset-password?token=${token}`;
+
+    const { subject, html } = resetPasswordEmail(resetUrl);
+    await sendEmail({ to: email, subject, html });
   }
 
   return new Response(
-    JSON.stringify({ message: "If that email is registered, a reset token has been printed to the server console." }),
+    JSON.stringify({ message: "If that email is registered, you will receive a password reset link shortly." }),
     { status: 200 }
   );
 }
