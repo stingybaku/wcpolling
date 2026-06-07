@@ -145,8 +145,8 @@ button, input, select, textarea { font: inherit; }
 /* ─── Accessibility: text-size scaling ────────────────────────────
    Applied to <body> (not the app root) so portal-rendered content
    such as modals — which mount on document.body — scales too. */
-html[data-font-scale="large"]  body { zoom: 1.15; }
-html[data-font-scale="xlarge"] body { zoom: 1.30; }
+html[data-font-scale="large"]  body { zoom: 1.25; }
+html[data-font-scale="xlarge"] body { zoom: 1.50; }
 
 /* ─── Typography atoms ────────────────────────────────────────── */
 
