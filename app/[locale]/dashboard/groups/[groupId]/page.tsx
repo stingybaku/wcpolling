@@ -7,6 +7,7 @@ import { useSession } from "next-auth/react";
 import { useLocale, useTranslations } from "next-intl";
 import { Link } from "@/lib/navigation";
 import { flagEmoji } from "@/lib/fifa-flags";
+import { GroupNews } from "@/components/group-news";
 import {
   buildGroupStandingsMap,
   buildKnockoutPicksMap,
@@ -1237,6 +1238,9 @@ export default function GroupDetailPage() {
             </div>
           </div>
         </div>
+
+        {/* ── Tournament news (collapsible, subtle) ──────────────────── */}
+        <GroupNews tournamentId={group?.tournament?.id} />
 
         {/* ── Mobile bottom spacing (offsets bottom nav) ─────────────── */}
         <div className="h-28 lg:h-0" />
