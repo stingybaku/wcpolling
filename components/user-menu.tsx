@@ -107,7 +107,7 @@ export function UserMenu({
       </button>
 
       {open ? (
-        <div className="surface absolute right-0 top-[calc(100%+0.75rem)] z-50 w-[min(18rem,calc(100vw-1.5rem))] rounded-[1.4rem] p-3 sm:w-[20rem] sm:rounded-[1.6rem]">
+        <div className="menu-panel surface absolute right-0 top-[calc(100%+0.75rem)] z-50 w-[min(18rem,calc(100vw-1.5rem))] rounded-[1.4rem] p-3 sm:w-[20rem] sm:rounded-[1.6rem]">
           <div className="rounded-[1.2rem] border px-4 py-3" style={{ borderColor: "var(--border)", background: "var(--bg-strong)" }}>
             <p className="text-xs font-semibold uppercase tracking-[0.26em] muted">{t("account")}</p>
             <p className="mt-2 truncate text-sm font-bold">{name ?? email ?? "Unknown user"}</p>

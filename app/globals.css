@@ -152,6 +152,14 @@ button, input, select, textarea { font: inherit; }
 html[data-font-scale="large"]  body { zoom: 1.25; }
 html[data-font-scale="xlarge"] body { zoom: 1.50; }
 
+/* Dropdown panels that must stay within the viewport (e.g. the user menu).
+   Scroll internally, and shrink the vh cap per zoom level — since vh inside a
+   zoomed element is multiplied by the zoom, dividing by the factor keeps the
+   rendered height ~80vh at every text size. */
+.menu-panel { max-height: 80vh; overflow-y: auto; }
+html[data-font-scale="large"]  .menu-panel { max-height: 64vh; } /* 64 * 1.25 ≈ 80vh */
+html[data-font-scale="xlarge"] .menu-panel { max-height: 53vh; } /* 53 * 1.50 ≈ 80vh */
+
 /* ─── Typography atoms ────────────────────────────────────────── */
 
 .eyebrow {
