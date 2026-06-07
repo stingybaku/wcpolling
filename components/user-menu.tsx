@@ -6,6 +6,7 @@ import { signOut } from "next-auth/react";
 import { useTranslations } from "next-intl";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { LocaleSwitcher } from "@/components/locale-switcher";
+import { FontSizeControl } from "@/components/font-size-control";
 import { TournamentSwitcher } from "@/components/tournament-switcher";
 import { Link } from "@/lib/navigation";
 
@@ -128,6 +129,7 @@ export function UserMenu({
             </Link>
             <LocaleSwitcher className="flex w-full items-center justify-center rounded-[1.2rem] border px-4 py-3 text-sm font-semibold transition hover:opacity-90" />
             <ThemeToggle className="flex w-full items-center justify-center rounded-[1.2rem] border px-4 py-3 text-sm font-semibold transition hover:opacity-90" />
+            <FontSizeControl className="w-full rounded-[1.2rem] border px-4 py-3" style={{ borderColor: "var(--border)", background: "var(--bg-strong)" }} />
             <button
               className="w-full rounded-[1.2rem] px-4 py-3 text-sm font-semibold text-white transition hover:opacity-90"
               onClick={() => {

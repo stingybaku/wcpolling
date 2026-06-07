@@ -127,6 +127,10 @@
     "role": "Rol: {role}",
     "adminDashboard": "Panel de administración",
     "viewProfile": "Ver o editar perfil",
+    "textSize": "Tamaño de texto",
+    "textSize_normal": "Tamaño de texto normal",
+    "textSize_large": "Tamaño de texto grande",
+    "textSize_xlarge": "Tamaño de texto extra grande",
     "signOut": "Cerrar sesión"
   },
   "tournamentSwitcher": {

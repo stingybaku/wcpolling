@@ -5,6 +5,7 @@ import { getMessages } from "next-intl/server";
 import { notFound } from "next/navigation";
 import { routing } from "@/i18n/routing";
 import { ThemeInitializer } from "@/components/theme-toggle";
+import { FontSizeInitializer } from "@/components/font-size-control";
 import { SessionProvider } from "@/components/session-provider";
 import "../globals.css";
 
@@ -58,6 +59,7 @@ export default async function LocaleLayout({
         <NextIntlClientProvider messages={messages}>
           <SessionProvider>
             <ThemeInitializer />
+            <FontSizeInitializer />
             {children}
           </SessionProvider>
         </NextIntlClientProvider>

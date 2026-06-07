@@ -127,6 +127,10 @@
     "role": "Role: {role}",
     "adminDashboard": "Admin Dashboard",
     "viewProfile": "View or edit profile",
+    "textSize": "Text size",
+    "textSize_normal": "Normal text size",
+    "textSize_large": "Large text size",
+    "textSize_xlarge": "Extra large text size",
     "signOut": "Sign out"
   },
   "tournamentSwitcher": {
