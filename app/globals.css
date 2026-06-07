@@ -123,6 +123,10 @@ html {
   min-height: 100%;
   background: var(--bg);
   color: var(--ink);
+  /* Disable mobile auto text-inflation so the text-size zoom (below) scales
+     every element uniformly instead of boosting only some blocks. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 body {
