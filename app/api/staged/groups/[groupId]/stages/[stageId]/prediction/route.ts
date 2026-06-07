@@ -20,11 +20,17 @@ export async function GET(request: NextRequest, context: RouteContext) {
   if (!membership) return forbidden("Not a member of this group");
   if (!membership.isActive) return forbidden("Your access to this group is paused");
 
-  const prediction = await prisma.stagePrediction.findUnique({
-    where: { userId_stageId_groupId: { userId: user.id, stageId, groupId } },
-  });
+  const [prediction, score] = await Promise.all([
+    prisma.stagePrediction.findUnique({
+      where: { userId_stageId_groupId: { userId: user.id, stageId, groupId } },
+    }),
+    prisma.stageScore.findUnique({
+      where: { userId_stageId_groupId: { userId: user.id, stageId, groupId } },
+      select: { points: true, correctPicks: true },
+    }),
+  ]);
 
-  return new Response(JSON.stringify({ prediction }), { status: 200 });
+  return new Response(JSON.stringify({ prediction, score }), { status: 200 });
 }
 
 export async function PUT(request: NextRequest, context: RouteContext) {

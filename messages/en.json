@@ -365,7 +365,22 @@
     "tieBreakerSave": "Save answers",
     "tieBreakerSaved": "Answers saved",
     "tieBreakerClosed": "Submissions closed",
-    "tieBreakerClosedDesc": "Tie-breaker submissions have been closed by the admin."
+    "tieBreakerClosedDesc": "Tie-breaker submissions have been closed by the admin.",
+    "liveBadge": "Live",
+    "resultsProvisional": "Results update live and may change until this stage is finalized.",
+    "resultsNotStarted": "Your picks are in — results haven't started yet.",
+    "decidedKnockout": "{decided} of {total} decided",
+    "correctSoFar": "{correct} correct",
+    "missedCount": "{missed} missed",
+    "pendingCount": "{pending} pending",
+    "pointsSoFar": "{points} pts so far",
+    "pending": "Not decided",
+    "waitingResult": "waiting for result…",
+    "yourPick": "your pick",
+    "won": "won",
+    "excludedPick": "Not counted (unlocked after result)",
+    "recapTitle": "Your tournament so far",
+    "recapSummary": "{points} pts · {correct} correct · {live} live"
   },
   "predictions": {
     "tagline": "Predictions",

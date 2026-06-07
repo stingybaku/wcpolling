@@ -365,7 +365,22 @@
     "tieBreakerSave": "Guardar respuestas",
     "tieBreakerSaved": "Respuestas guardadas",
     "tieBreakerClosed": "Envíos cerrados",
-    "tieBreakerClosedDesc": "El administrador ha cerrado los envíos de desempate."
+    "tieBreakerClosedDesc": "El administrador ha cerrado los envíos de desempate.",
+    "liveBadge": "En vivo",
+    "resultsProvisional": "Los resultados se actualizan en vivo y pueden cambiar hasta que se finalice esta fase.",
+    "resultsNotStarted": "Tus picks están listos — los resultados aún no han comenzado.",
+    "decidedKnockout": "{decided} de {total} definidos",
+    "correctSoFar": "{correct} correctos",
+    "missedCount": "{missed} fallados",
+    "pendingCount": "{pending} pendientes",
+    "pointsSoFar": "{points} pts hasta ahora",
+    "pending": "Sin definir",
+    "waitingResult": "esperando resultado…",
+    "yourPick": "tu pick",
+    "won": "ganó",
+    "excludedPick": "No cuenta (desbloqueado tras el resultado)",
+    "recapTitle": "Tu torneo hasta ahora",
+    "recapSummary": "{points} pts · {correct} correctos · {live} en vivo"
   },
   "predictions": {
     "tagline": "Predicciones",

@@ -27,8 +27,11 @@ type Stage = {
 type StagePrediction = {
   qualificationPicks: string[] | null;
   matchPicks: { matchId: string; winnerId: string }[] | null;
+  lockedOutMatchIds: string[] | null;
   submittedAt: string | null;
 } | null;
+
+type StageScore = { points: number; correctPicks: number } | null;
 
 type Team = {
   id: string;
@@ -392,16 +395,84 @@ function KnockoutForm({
   );
 }
 
-// ─── Read-only picks display ──────────────────────────────────────────────────
+// ─── Picks comparison (live vs. actual results) ───────────────────────────────
+
+type PickState = "correct" | "missed" | "pending" | "excluded";
+
+const STATE_STYLE: Record<PickState, { background: string; border: string }> = {
+  correct: { background: "color-mix(in srgb, #22c55e 12%, transparent)", border: "1px solid #86efac" },
+  missed: { background: "color-mix(in srgb, #ef4444 10%, transparent)", border: "1px solid #fca5a5" },
+  pending: { background: "var(--paper-strong)", border: "1px solid var(--border)" },
+  excluded: { background: "var(--paper-strong)", border: "1px dashed var(--border)" },
+};
+
+const STATE_MARK: Record<PickState, { glyph: string; color: string } | null> = {
+  correct: { glyph: "✓", color: "#22c55e" },
+  missed: { glyph: "✗", color: "var(--live)" },
+  pending: { glyph: "⏳", color: "var(--muted)" },
+  excluded: null,
+};
+
+type ComparisonStats = { total: number; decided: number; correct: number; missed: number; pending: number };
+
+function summarize(states: PickState[]): ComparisonStats {
+  const counted = states.filter((s) => s !== "excluded");
+  const correct = counted.filter((s) => s === "correct").length;
+  const missed = counted.filter((s) => s === "missed").length;
+  const pending = counted.filter((s) => s === "pending").length;
+  return { total: counted.length, decided: correct + missed, correct, missed, pending };
+}
+
+function StageResultSummary({ stats, score, isFinal }: { stats: ComparisonStats; score: StageScore; isFinal: boolean }) {
+  const t = useTranslations("stagedPredictions");
+  const points = score?.points ?? 0;
+  const pct = stats.total > 0 ? Math.round((stats.decided / stats.total) * 100) : 0;
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="flex items-center gap-3 text-sm flex-wrap">
+          <span className="font-semibold tabular-nums" style={{ color: "#22c55e" }}>
+            {t("correctSoFar", { correct: stats.correct })}
+          </span>
+          {stats.missed > 0 && (
+            <span className="tabular-nums" style={{ color: "var(--live)" }}>{t("missedCount", { missed: stats.missed })}</span>
+          )}
+          {stats.pending > 0 && (
+            <span className="tabular-nums muted">{t("pendingCount", { pending: stats.pending })}</span>
+          )}
+          <span className="font-semibold tabular-nums" style={{ color: "var(--accent)" }}>
+            {t("pointsSoFar", { points })}
+          </span>
+        </div>
+        {!isFinal && (
+          <span
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold"
+            style={{ background: "color-mix(in srgb, #ef4444 12%, transparent)", color: "var(--live)" }}
+          >
+            <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "var(--live)" }} />
+            {t("liveBadge")}
+          </span>
+        )}
+      </div>
+      <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "var(--paper-strong)" }}>
+        <div className="h-full rounded-full" style={{ width: `${pct}%`, background: "var(--accent)" }} />
+      </div>
+      {!isFinal && <p className="text-xs muted">{t("resultsProvisional")}</p>}
+    </div>
+  );
+}
 
 function ReadOnlyPicks({
   stage,
   prediction,
+  score,
   teams,
   matches,
 }: {
   stage: Stage;
   prediction: StagePrediction;
+  score: StageScore;
   teams: Team[];
   matches: StageMatch[];
 }) {
@@ -409,54 +480,48 @@ function ReadOnlyPicks({
 
   if (!prediction) return <p className="text-sm italic muted">{t("noPicks")}</p>;
 
+  const isFinal = stage.status === "SCORED";
+
   if (stage.type === "GROUP_QUALIFICATION" && prediction.qualificationPicks) {
     const teamMap = Object.fromEntries(teams.map((tm) => [tm.id, tm]));
-    const qualifierSet = stage.status === "SCORED" && Array.isArray(stage.qualificationResult?.qualifiers)
+    const qualifierSet = Array.isArray(stage.qualificationResult?.qualifiers)
       ? new Set(stage.qualificationResult.qualifiers as string[])
       : null;
+    const hasResults = qualifierSet !== null;
+
+    const rows = prediction.qualificationPicks.map((id) => ({
+      id,
+      team: teamMap[id],
+      state: (!hasResults ? "pending" : qualifierSet!.has(id) ? "correct" : "missed") as PickState,
+    }));
+    const stats = summarize(rows.map((r) => r.state));
+
     return (
-      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
-        {prediction.qualificationPicks.map((id) => {
-          const team = teamMap[id];
-          if (!team) return null;
-          const correct = qualifierSet ? qualifierSet.has(id) : null;
-          return (
-            <div
-              key={id}
-              className="relative flex flex-col items-center gap-1 p-2 rounded-lg text-xs font-medium"
-              style={
-                correct === true
-                  ? {
-                      background: "color-mix(in srgb, #22c55e 12%, transparent)",
-                      border: "1px solid #86efac",
-                      color: "var(--ink)",
-                    }
-                  : correct === false
-                    ? {
-                        background: "color-mix(in srgb, #ef4444 10%, transparent)",
-                        border: "1px solid #fca5a5",
-                        color: "var(--ink)",
-                      }
-                    : {
-                        background: "color-mix(in srgb, #22c55e 12%, transparent)",
-                        border: "1px solid #86efac",
-                        color: "var(--ink)",
-                      }
-              }
-            >
-              {correct !== null && (
-                <span
-                  className="absolute top-1 right-1 text-[10px] font-bold"
-                  style={{ color: correct ? "#22c55e" : "var(--live)" }}
-                >
-                  {correct ? "✓" : "✗"}
-                </span>
-              )}
-              <span className="text-xl">{flagEmoji(team.fifaCode)}</span>
-              <span className="text-center">{team.name}</span>
-            </div>
-          );
-        })}
+      <div className="space-y-4">
+        {hasResults
+          ? <StageResultSummary stats={stats} score={score} isFinal={isFinal} />
+          : <p className="text-sm muted">{t("resultsNotStarted")}</p>}
+        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
+          {rows.map(({ id, team, state }) => {
+            if (!team) return null;
+            const mark = STATE_MARK[state];
+            return (
+              <div
+                key={id}
+                className="relative flex flex-col items-center gap-1 p-2 rounded-lg text-xs font-medium"
+                style={{ ...STATE_STYLE[state], color: "var(--ink)" }}
+              >
+                {mark && (
+                  <span className="absolute top-1 right-1 text-[10px] font-bold" style={{ color: mark.color }}>
+                    {mark.glyph}
+                  </span>
+                )}
+                <span className="text-xl">{flagEmoji(team.fifaCode)}</span>
+                <span className="text-center">{team.name}</span>
+              </div>
+            );
+          })}
+        </div>
       </div>
     );
   }
@@ -469,36 +534,59 @@ function ReadOnlyPicks({
       if (m.awayTeam) teamMap[m.awayTeam.id] = m.awayTeam;
     }
     const matchMap = Object.fromEntries(matches.map((m) => [m.id, m]));
-    const actualResult = stage.status === "SCORED"
-      ? Object.fromEntries(matches.filter(m => m.winnerId).map(m => [m.id, m.winnerId!]))
-      : null;
+    const lockedOut = new Set(prediction.lockedOutMatchIds ?? []);
+    const hasResults = matches.some((m) => m.winnerId);
+
+    const rows = prediction.matchPicks.map((p) => {
+      const match = matchMap[p.matchId];
+      const picked = teamMap[p.winnerId];
+      const actualWinner = match?.winnerId ? teamMap[match.winnerId] : null;
+      let state: PickState;
+      if (lockedOut.has(p.matchId)) state = "excluded";
+      else if (match?.winnerId) state = match.winnerId === p.winnerId ? "correct" : "missed";
+      else state = "pending";
+      return { pick: p, match, picked, actualWinner, state };
+    });
+    const stats = summarize(rows.map((r) => r.state));
+
     return (
-      <div className="space-y-2">
-        {prediction.matchPicks.map((p) => {
-          const match = matchMap[p.matchId];
-          const winner = teamMap[p.winnerId];
-          if (!match || !winner) return null;
-          const correct = actualResult ? actualResult[p.matchId] === p.winnerId : null;
-          return (
-            <div
-              key={p.matchId}
-              className="flex items-center gap-2 text-sm rounded-lg px-2 py-1"
-              style={
-                correct === true
-                  ? { background: "color-mix(in srgb, #22c55e 12%, transparent)" }
-                  : correct === false
-                    ? { background: "color-mix(in srgb, #ef4444 10%, transparent)" }
-                    : {}
-              }
-            >
-              <span className="w-6 text-center shrink-0 muted-2">{match.matchNumber}</span>
-              <span className="text-lg">{flagEmoji(winner.fifaCode)}</span>
-              <span className="font-medium flex-1" style={{ color: "var(--ink)" }}>{winner.name}</span>
-              {correct === true && <span className="text-xs font-semibold" style={{ color: "#22c55e" }}>✓</span>}
-              {correct === false && <span className="text-xs font-semibold" style={{ color: "var(--live)" }}>✗</span>}
-            </div>
-          );
-        })}
+      <div className="space-y-4">
+        {hasResults
+          ? <StageResultSummary stats={stats} score={score} isFinal={isFinal} />
+          : <p className="text-sm muted">{t("resultsNotStarted")}</p>}
+        <div className="space-y-2">
+          {rows.map(({ pick, match, picked, actualWinner, state }) => {
+            if (!match || !picked) return null;
+            const mark = STATE_MARK[state];
+            return (
+              <div
+                key={pick.matchId}
+                className="flex items-center gap-2 text-sm rounded-lg px-3 py-2"
+                style={STATE_STYLE[state]}
+              >
+                <span className="w-6 text-center shrink-0 muted-2">{match.matchNumber}</span>
+                <span className="flex items-center gap-1.5 flex-1 min-w-0">
+                  <span className="text-[10px] uppercase tracking-wide muted-2">{t("yourPick")}</span>
+                  <span className="text-lg">{flagEmoji(picked.fifaCode)}</span>
+                  <span className="font-medium truncate" style={{ color: "var(--ink)" }}>{picked.name}</span>
+                </span>
+                <span className="shrink-0 text-right">
+                  {state === "excluded" ? (
+                    <span className="text-xs italic muted">{t("excludedPick")}</span>
+                  ) : actualWinner ? (
+                    <span className="inline-flex items-center gap-1">
+                      <span className="text-lg">{flagEmoji(actualWinner.fifaCode)}</span>
+                      <span className="text-xs muted">{t("won")}</span>
+                      {mark && <span className="text-xs font-semibold" style={{ color: mark.color }}>{mark.glyph}</span>}
+                    </span>
+                  ) : (
+                    <span className="text-xs italic muted">{t("waitingResult")}</span>
+                  )}
+                </span>
+              </div>
+            );
+          })}
+        </div>
       </div>
     );
   }
@@ -637,6 +725,7 @@ function TieBreakerSection({ groupId }: { groupId: string }) {
 function StageCard({
   stage,
   prediction,
+  score,
   groupId,
   teams,
   matches,
@@ -645,6 +734,7 @@ function StageCard({
 }: {
   stage: Stage;
   prediction: StagePrediction;
+  score: StageScore;
   groupId: string;
   teams: Team[];
   matches: StageMatch[];
@@ -739,7 +829,7 @@ function StageCard({
                 </svg>
                 {t("lockedIn")}
               </div>
-              <ReadOnlyPicks stage={stage} prediction={prediction} teams={teams} matches={matches} />
+              <ReadOnlyPicks stage={stage} prediction={prediction} score={score} teams={teams} matches={matches} />
             </div>
           )}
 
@@ -764,13 +854,13 @@ function StageCard({
           )}
 
           {(stage.status === "CLOSED" || stage.status === "SCORED") && (
-            <ReadOnlyPicks stage={stage} prediction={prediction} teams={teams} matches={matches} />
+            <ReadOnlyPicks stage={stage} prediction={prediction} score={score} teams={teams} matches={matches} />
           )}
 
           {stage.status === "SCORED" && (
             <div className="pt-3" style={{ borderTop: "1px solid var(--border)" }}>
               <p className="text-xs font-medium uppercase tracking-wide mb-1 muted">{t("pointsEarned")}</p>
-              <p className="text-2xl font-bold" style={{ color: "var(--accent)" }}>–</p>
+              <p className="text-2xl font-bold" style={{ color: "var(--accent)" }}>{score?.points ?? "–"}</p>
             </div>
           )}
         </div>
@@ -787,34 +877,41 @@ export default function PredictionsPage() {
 
   const [stages, setStages] = useState<Stage[]>([]);
   const [predictions, setPredictions] = useState<Record<string, StagePrediction>>({});
+  const [scores, setScores] = useState<Record<string, StageScore>>({});
   const [teams, setTeams] = useState<Team[]>([]);
   const [matchesByStage, setMatchesByStage] = useState<Record<string, StageMatch[]>>({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!groupId || !tournamentId) return;
+    let cancelled = false;
 
-    async function load() {
-      setLoading(true);
+    // `silent` skips the loading skeleton so live refreshes don't flash the UI.
+    async function load(silent: boolean) {
+      if (!silent) setLoading(true);
       try {
         const stagesRes = await fetch(`/api/staged/tournaments/${tournamentId}/stages`);
         const stagesData = await stagesRes.json();
         const fetchedStages: Stage[] = stagesData.stages ?? [];
+        if (cancelled) return;
         setStages(fetchedStages);
 
         const predEntries = await Promise.all(
           fetchedStages.map(async (s) => {
             const res = await fetch(`/api/staged/groups/${groupId}/stages/${s.id}/prediction`);
             const data = await res.json();
-            return [s.id, data.prediction ?? null] as [string, StagePrediction];
+            return [s.id, data.prediction ?? null, data.score ?? null] as [string, StagePrediction, StageScore];
           })
         );
-        setPredictions(Object.fromEntries(predEntries));
+        if (cancelled) return;
+        setPredictions(Object.fromEntries(predEntries.map(([id, pred]) => [id, pred])));
+        setScores(Object.fromEntries(predEntries.map(([id, , score]) => [id, score])));
 
         const gqOpen = fetchedStages.find((s) => s.type === "GROUP_QUALIFICATION" && s.status !== "UPCOMING");
         if (gqOpen) {
           const teamsRes = await fetch("/api/teams");
           const teamsData = await teamsRes.json();
+          if (cancelled) return;
           setTeams(teamsData.teams ?? []);
         }
 
@@ -827,15 +924,25 @@ export default function PredictionsPage() {
               return [s.id, data.matches ?? []] as [string, StageMatch[]];
             })
           );
+          if (cancelled) return;
           setMatchesByStage(Object.fromEntries(matchEntries));
         }
 
       } finally {
-        setLoading(false);
+        if (!cancelled && !silent) setLoading(false);
       }
     }
 
-    load();
+    load(false);
+    // Results land while stages are still open, so poll + refresh on focus to keep the comparison live.
+    const interval = setInterval(() => load(true), 30_000);
+    const onFocus = () => load(true);
+    window.addEventListener("focus", onFocus);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+      window.removeEventListener("focus", onFocus);
+    };
   }, [groupId, tournamentId]);
 
   function handlePredictionUpdate(stageId: string, pred: StagePrediction) {
@@ -843,6 +950,23 @@ export default function PredictionsPage() {
   }
 
   const openStageIndex = stages.findIndex((s) => s.status === "OPEN");
+
+  const recap = stages.reduce(
+    (acc, s) => {
+      const score = scores[s.id];
+      if (score) {
+        acc.points += score.points;
+        acc.correct += score.correctPicks;
+      }
+      const hasResults =
+        (Array.isArray(s.qualificationResult?.qualifiers) && s.qualificationResult.qualifiers.length > 0) ||
+        (matchesByStage[s.id]?.some((m) => m.winnerId) ?? false);
+      if (hasResults && s.status !== "SCORED") acc.live += 1;
+      return acc;
+    },
+    { points: 0, correct: 0, live: 0 }
+  );
+  const showRecap = stages.some((s) => scores[s.id]);
 
   return (
     <div className="min-h-screen" style={{ background: "var(--bg)" }}>
@@ -860,6 +984,18 @@ export default function PredictionsPage() {
           </Link>
           <h1 className="text-2xl font-bold mt-3" style={{ color: "var(--ink)" }}>{t("pageTitle")}</h1>
         </div>
+
+        {showRecap && (
+          <div
+            className="rounded-xl p-5 mb-4"
+            style={{ background: "var(--paper)", border: "1px solid var(--border)" }}
+          >
+            <p className="text-xs font-medium uppercase tracking-wide muted">{t("recapTitle")}</p>
+            <p className="text-lg font-semibold mt-1" style={{ color: "var(--ink)" }}>
+              {t("recapSummary", { points: recap.points, correct: recap.correct, live: recap.live })}
+            </p>
+          </div>
+        )}
 
         <TieBreakerSection groupId={groupId} />
 
@@ -880,6 +1016,7 @@ export default function PredictionsPage() {
                 key={stage.id}
                 stage={stage}
                 prediction={predictions[stage.id] ?? null}
+                score={scores[stage.id] ?? null}
                 groupId={groupId}
                 teams={teams}
                 matches={matchesByStage[stage.id] ?? []}
