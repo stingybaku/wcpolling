@@ -13,12 +13,32 @@ type GNewsResponse = {
       url?: string | null;
     } | null;
   }>;
-  errors?: string[];
+  errors?: string[] | Record<string, string>;
 };
+
+// GNews query syntax only accepts words, quoted phrases, and the AND/OR/NOT
+// operators. Punctuation such as an em dash (e.g. "World Cup — Staged") triggers
+// a "query has a syntax error" 400, so strip anything that isn't a letter,
+// number, or whitespace before building the query.
+function sanitizeTerm(term: string) {
+  return term.replace(/[^\p{L}\p{N}\s]/gu, " ").replace(/\s+/g, " ").trim();
+}
 
 function buildQuery(context: NewsSyncContext) {
   const parts = [context.tournamentName, ...context.tags.map((tag) => tag.name)];
-  return Array.from(new Set(parts.map((part) => part.trim()).filter(Boolean))).join(" OR ");
+  const cleaned = parts.map(sanitizeTerm).filter(Boolean);
+  return Array.from(new Set(cleaned)).join(" OR ");
+}
+
+// GNews returns `errors` as either an array of strings or an object keyed by the
+// offending parameter (e.g. { q: "…" }); normalize both to a readable message.
+function extractError(errors: unknown): string | null {
+  if (Array.isArray(errors)) return errors[0] ?? null;
+  if (errors && typeof errors === "object") {
+    const values = Object.values(errors as Record<string, unknown>);
+    return values.length > 0 ? String(values[0]) : null;
+  }
+  return null;
 }
 
 export function createGNewsProvider(apiKey: string): NewsProvider {
@@ -37,7 +57,7 @@ export function createGNewsProvider(apiKey: string): NewsProvider {
       const response = await fetch(url.toString(), { cache: "no-store" });
       const payload = (await response.json().catch(() => null)) as GNewsResponse | null;
       if (!response.ok) {
-        throw new Error(payload?.errors?.[0] || `GNews request failed with ${response.status}`);
+        throw new Error(extractError(payload?.errors) || `GNews request failed with ${response.status}`);
       }
 
       return (payload?.articles ?? []).flatMap((article) => {
