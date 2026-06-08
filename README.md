@@ -1,200 +1,200 @@
 # World Cup 2026 Prediction Platform
 
-A fullstack Next.js platform for group-based match predictions with admin scoring.
+A fullstack Next.js platform for group-based football prediction games with
+admin-run tournaments, automatic scoring, and per-group leaderboards. Built for
+the FIFA World Cup 2026 but tournament-agnostic.
+
+## Tech Stack
+
+- **Next.js 16** (App Router) + **React 19**
+- **PostgreSQL** via **Prisma 7** using the `@prisma/adapter-pg` driver adapter
+- **NextAuth 4** (Google, Facebook, email/password)
+- **next-intl 4** — English + Spanish, locale-prefixed routing (`/[locale]/…`)
+- **Tailwind CSS 4**
+- **Resend** for transactional email
+- **Zod 4** for validation
 
 ## Features
 
-- Social login via Google and Facebook (plus credentials fallback)
-- Users can create and join groups with invite codes
-- Users create multiple prediction drafts and select one per group
-- Admin can create teams, create matches, and update match results
-- Automatic scoring for predictions when results are set
-- Group-only submission visibility and per-group leaderboard
-- No payment collection (prediction-only)
+### Tournament modes
+
+The platform supports two prediction formats per tournament (`TournamentType`):
+
+- **Classic** — players predict the *entire* tournament up front (every
+  scoreline, group standings, knockout slots, tiebreaker questions), submit one
+  selected prediction per group, and are scored as results come in.
+- **Staged** — the admin opens the tournament one **stage** at a time
+  (group-qualification and knockout rounds). Each stage has an open/close window;
+  players predict just that stage, the admin locks and scores it, and per-stage
+  plus cumulative leaderboards update. Stages move through
+  `UPCOMING → OPEN → CLOSED → SCORED`.
+
+### Core capabilities
+
+- Social login (Google, Facebook) plus email/password with token-based password
+  reset (emails sent via Resend)
+- Role-based access control (`USER` / `ADMIN`); group-level roles
+  (`MEMBER` / `GROUP_ADMIN`)
+- Profile editing and avatar upload
+- Private group rooms with auto-generated invite codes; join by code
+- Multiple prediction drafts per tournament; select one to submit per group
+- Admin console: tournaments, teams, matches, results, users, newsroom, and
+  staged-tournament stage management
+- Match participants by direct team assignment **or** dynamic resolution
+  (group winners/losers, best third-place) via iterative bracket resolution
+- Tiebreaker questions, group-standing predictions, and knockout-slot predictions
+- Automatic scoring on result entry; per-group leaderboards with score breakdown
+- **Newsroom**: NewsAPI / GNews integrations, tag-based article matching per
+  tournament, admin-triggered sync with URL dedup, and sponsored placements
+  (priority ranking + active date ranges)
+- Transactional emails for deadlines, submissions, stage open/scored, group
+  membership changes, admin promotion, reactivation, and more
+- Cron-driven deadline reminders (`/api/cron/deadline-reminder`)
+- Internationalization (English/Spanish) with domain-based locale defaults
+- Dark/light mode, adjustable text size (accessibility), responsive layout
+
+### Scoring
+
+**Classic** (`lib/scoring.ts`): exact score **5**, correct result **3**, group
+standing position **2**, knockout slot **1**, exact tiebreaker **3**.
+
+**Staged** (`lib/stage-scoring.ts`): group-qualification stages award
+`2 × correct picks`; knockout stages award `correct picks × round value` (later
+rounds worth more).
 
 ## Local Setup
 
+Requires Node `>=20.19` and a local PostgreSQL database.
+
 1. Clone and install:
 
-```bash
-git clone <your-repo-url>
-cd wcpolling
-npm install
-```
+   ```bash
+   git clone <your-repo-url>
+   cd wcpolling
+   npm install
+   ```
 
-2. Configure `.env`:
+2. Configure `.env` (see `.env.example`):
 
-```env
-DATABASE_URL="file:./dev.db"
-NEXTAUTH_URL="http://localhost:3000"
-NEXTAUTH_SECRET="your-secret"
-GOOGLE_CLIENT_ID=""
-GOOGLE_CLIENT_SECRET=""
-FACEBOOK_CLIENT_ID=""
-FACEBOOK_CLIENT_SECRET=""
-NEWS_PROVIDER=""
-NEWSAPI_KEY=""
-GNEWS_API_KEY=""
-```
+   ```env
+   DATABASE_URL="postgresql://user:password@localhost:5432/wcpolling"
+   NEXTAUTH_URL="http://localhost:3000"
+   NEXTAUTH_SECRET="your-secret"        # openssl rand -base64 32
+   GOOGLE_CLIENT_ID=""
+   GOOGLE_CLIENT_SECRET=""
+   FACEBOOK_CLIENT_ID=""
+   FACEBOOK_CLIENT_SECRET=""
+   RESEND_API_KEY=""                    # required for password reset / emails
+   RESEND_FROM="noreply@yourdomain.com"
+   NEWS_PROVIDER=""                     # "newsapi" or "gnews" (optional)
+   NEWSAPI_KEY=""
+   GNEWS_API_KEY=""
+   ```
 
-3. Generate Prisma client and push schema:
+3. Apply migrations and (optionally) seed the WC2026 tournament + teams:
 
-```bash
-npx prisma generate
-npx prisma db push
-```
+   ```bash
+   npx prisma migrate deploy   # or: npx prisma migrate dev
+   npx prisma db seed          # seeds FIFA World Cup 2026 tournament and teams
+   ```
 
-4. Start dev server:
+4. Start the dev server:
 
-```bash
-npm run dev
-```
+   ```bash
+   npm run dev
+   ```
 
-Open [http://localhost:3000](http://localhost:3000).
+   Open [http://localhost:3000](http://localhost:3000) (redirects to `/en` or
+   `/es`).
 
-### Admin login (local)
+### Creating an admin (local)
 
-To login as admin locally, run this script once after database setup:
+The seed does not create users. Register a normal account through the UI, then
+promote it to `ADMIN`. Easiest options:
 
-```bash
-node - <<'NODE'
-const { randomBytes, scryptSync } = require('crypto');
-const { PrismaClient } = require('@prisma/client');
-const { PrismaBetterSqlite3 } = require('@prisma/adapter-better-sqlite3');
+- **Prisma Studio:** `npx prisma studio`, open the `User` table, set `role` to
+  `ADMIN`.
+- **One-off script** (consistent with the app's pg adapter):
 
-(function seed() {
-  const password = 'Admin123!';
-  const salt = randomBytes(16).toString('hex');
-  const hash = scryptSync(password, salt, 64).toString('hex');
-  const passwordHash = `${salt}:${hash}`;
-
-(async () => {
-  const prisma = new PrismaClient({
-    adapter: new PrismaBetterSqlite3({ url: process.env.DATABASE_URL || 'file:./dev.db' }),
-  });
-  await prisma.user.upsert({
-    where: { email: 'admin@worldcup.com' },
-    update: { name: 'Admin', role: 'ADMIN', passwordHash },
-    create: { email: 'admin@worldcup.com', name: 'Admin', role: 'ADMIN', passwordHash },
-  });
-  console.log('Admin user ready: admin@worldcup.com / Admin123!');
+  ```bash
+  cat <<'TS' | npx tsx -
+  import { PrismaClient } from "@prisma/client";
+  import { PrismaPg } from "@prisma/adapter-pg";
+  const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }) });
+  await prisma.user.update({ where: { email: "you@example.com" }, data: { role: "ADMIN" } });
+  console.log("Promoted to ADMIN");
   await prisma.$disconnect();
-})();
-})();
-NODE
-```
-
-Then sign in at `/auth/signin`:
-
-1. Choose "Sign in with Email".
-2. Enter `admin@worldcup.com`.
-3. Enter password `Admin123!`.
-4. For OAuth, use a Google/Facebook account with the same email mapped to this user.
+  TS
+  ```
 
 Once signed in as admin, open `/dashboard/admin`.
 
-## API Endpoints
+## Key API Endpoints
 
-- `POST /api/auth/[...nextauth]` - authentication
-- `GET/POST /api/groups` - list/create groups
-- `POST /api/groups/join` - join group by code
-- `GET /api/groups/[groupId]` - group details
-- `POST /api/groups/[groupId]/submit` - submit selected prediction
-- `GET/POST /api/predictions` - manage prediction drafts
-- `POST /api/predictions/[id]/select` - set selected prediction
-- Admin endpoints for teams and matches under `/api/admin`
-- `GET /api/news` - newsroom feed for the selected tournament
-- `POST /api/admin/news/sync` - admin-only newsroom sync for one or all tournaments
-- `GET/POST /api/admin/sponsored` - admin sponsored newsroom placements
-- `PUT/DELETE /api/admin/sponsored/[placementId]` - edit/remove sponsored placements
+Auth & profile
+- `POST /api/auth/[...nextauth]` — authentication
+- `POST /api/auth/register` — account registration
+- `POST /api/auth/reset-password/request|confirm` — password reset
 
-## Usage Flow
+Predictions & groups (classic)
+- `GET/POST /api/predictions`, `PUT /api/predictions/[id]`,
+  `POST /api/predictions/[id]/select`
+- `GET/POST /api/groups`, `POST /api/groups/join`,
+  `GET /api/groups/[groupId]`, `POST /api/groups/[groupId]/submit`
+- `/api/groups/[groupId]/members` — membership management
 
-1. Sign in at `/auth/signin`.
-2. Create groups at `/dashboard/groups` and invite members.
-3. Add prediction drafts at `/dashboard/predictions`.
-4. Select one prediction and submit for a group.
-5. Admin updates match results at `/dashboard/admin` to recalc scores.
+Staged tournaments
+- `/api/staged/tournaments`, `/api/staged/stages/[stageId]`,
+  `/api/staged/groups/[groupId]/…` — player-facing staged play and leaderboards
+- `/api/admin/staged/…` — admin stage open/close/lock/score/reset and results
 
-## Production Deployment (Railway)
+Admin
+- `/api/admin/tournaments`, `/api/admin/teams`, `/api/admin/matches/[matchId]/result`
+- `/api/admin/tournament/resolve-bracket`, `…/tiebreakers`, `…/standings`
+- `/api/admin/users`, `/api/admin/news/sync`, `/api/admin/sponsored`
 
-1. Push repo to GitHub.
-2. Create Railway project and connect GitHub repo.
-3. Set env vars in Railway (same as `.env`, plus OAuth secrets).
-4. Use `npm run build` and `npm run start`.
+Other
+- `GET /api/news` — newsroom feed for the active tournament
+- `GET /api/cron/deadline-reminder` — cron-triggered reminders (requires
+  `x-cron-secret: $CRON_SECRET` header)
+- `GET /api/health` — health check (returns `ok`)
 
-Optionally add `railway.json` with service definitions.
+## Deployment
+
+The app reads `DATABASE_URL` and connects with the `pg` driver adapter, so it
+runs on any host with a PostgreSQL connection.
+
+### Railway
+
+1. Connect the GitHub repo to a Railway project.
+2. Set env vars (same as `.env`, plus OAuth/Resend secrets).
+3. Build with `npm run build`; `npm run start` runs `prisma migrate deploy`
+   then starts the server. `railway.toml` configures the build and
+   `/api/health` healthcheck.
+
+### Vercel
+
+1. Import the repo; set the same env vars (omit `DATABASE_URL` only if using the
+   IAM-auth setup that lives on the `vercel-deployment` branch).
+2. **Postgres TLS:** the JS `pg` driver verifies the server certificate chain by
+   default. For most managed Postgres providers append `?sslmode=no-verify` to
+   `DATABASE_URL` (encrypts without CA verification), or supply a CA bundle to
+   `PrismaPg({ ssl: { ca } })` for full verification. Without this, runtime DB
+   queries fail with `P1011: unable to get local issuer certificate` (it first
+   surfaces during OAuth login).
+3. Run migrations against the production database (`prisma migrate deploy`).
+
+For cron reminders, schedule a request to `/api/cron/deadline-reminder` with the
+`x-cron-secret` header set to `CRON_SECRET`.
 
 ## Notes
 
-- Ensure `NEXTAUTH_SECRET` is secure in production.
-- No payment integrations are included.
-- For the newsroom, set `NEWS_PROVIDER` to `newsapi` or `gnews` and provide the matching API key.
-- You can customize scoring in `app/api/groups/[groupId]/submit/route.ts` and `/api/admin/matches/[matchId]/result/route.ts`.
-
----
-
-For maintenance: ensure your `prisma` schema and migrations stay in sync. Run `npx prisma db push` after schema updates.
-
----
-
-## Implementation Status
-
-### Implemented
-
-**Authentication & Users**
-- Email/password login and registration
-- Google and Facebook OAuth
-- Password reset flow (token-based; currently console-only — no email provider wired)
-- Role-based access control (`USER` / `ADMIN`)
-- Profile editing and avatar upload
-
-**Tournaments & Matches**
-- Full tournament CRUD (create, archive, set active)
-- Team management
-- Match creation with direct team assignment or dynamic participant resolution (group winners/losers, best third-place)
-- Admin match result entry with automatic scoring triggered on save
-- Tiebreaker questions creation and scoring
-
-**Predictions & Groups**
-- Create and edit multiple prediction sets per tournament
-- Predict scorelines per match; predict group standings
-- Answer tiebreaker questions
-- Mark one prediction as selected
-- Create private group rooms with auto-generated invite codes
-- Join groups by invite code
-- Submit selected prediction to a group (one submission per user per group enforced)
-
-**Scoring & Leaderboards**
-- Exact score: 5 pts, correct result: 3 pts, group standings: 2 pts, knockout slot: 1 pt, tiebreaker: 3 pts
-- Per-match `PredictionScore` records with live aggregation
-- Group leaderboard with score breakdown
-
-**Bracket Resolution**
-- Iterative resolution of knockout-phase participants from group results, match results, and best third-place rules
-
-**Newsroom**
-- NewsAPI and GNews provider integrations (set via `NEWS_PROVIDER` env var)
-- Tag-based article matching per tournament
-- Admin-triggered sync; deduplication by source URL
-- Sponsored placements with priority ranking and active date ranges
-
-**Dashboard & UI**
-- Landing page, sign-in, and password reset pages
-- Dashboard with group performance summary, leaderboard, and news feed
-- Predictions manager, group browser/detail, and profile pages
-- Admin console for tournaments, teams, matches, users, news, and sponsored content
-- Dark/light mode toggle; responsive Tailwind layout
-
----
-
-### Known Gaps / Not Yet Implemented
-
-- **Email delivery** — password reset tokens are printed to the console; no SMTP/transactional email provider is configured
-- **Rate limiting** — no per-IP or per-user rate limits on API routes
-- **Input validation UI** — admin bracket-resolution inputs (e.g. placeholder text format) have no client-side format guidance
-- **Real-time updates** — scores and leaderboards require a page reload; no WebSocket/SSE layer
-- **Bracket-style prediction UI** — the data model supports knockout predictions, but there is no visual bracket interface yet
-- **Multi-language support** — UI is English-only
-- **Admin audit log** — no history of admin actions
-- **PostgreSQL migration** — currently SQLite only; schema is portable but no migration path is documented
+- Keep `NEXTAUTH_SECRET` and `CRON_SECRET` secret in production.
+- No payment integrations — predictions only.
+- For the newsroom, set `NEWS_PROVIDER` to `newsapi` or `gnews` and provide the
+  matching API key.
+- Scoring rules live in `lib/scoring.ts` (classic) and `lib/stage-scoring.ts`
+  (staged).
+- Internationalization messages are in `messages/en.json` and `messages/es.json`.
+- After schema changes, create a migration with `npx prisma migrate dev` and
+  keep `prisma/migrations` in sync.
