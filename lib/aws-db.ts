@@ -18,9 +18,12 @@ import type { PoolConfig } from "pg";
 
 function getAwsCredentials(): AwsCredentialIdentityProvider | undefined {
   // On Vercel, exchange the OIDC token for AWS credentials via STS AssumeRole.
+  // `awsCredentialsProvider` retrieves the OIDC token itself (from the env var or
+  // the request context), so we only gate on running on Vercel (`VERCEL` is set
+  // in every Vercel build and runtime) and having a role to assume.
   // Locally / in CI, fall back to the default AWS credential chain (env vars,
   // shared config/credentials files, etc.) by returning undefined.
-  if (process.env.VERCEL_OIDC_TOKEN && process.env.AWS_ROLE_ARN) {
+  if (process.env.VERCEL && process.env.AWS_ROLE_ARN) {
     return awsCredentialsProvider({ roleArn: process.env.AWS_ROLE_ARN });
   }
   return undefined;
