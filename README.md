@@ -25,7 +25,8 @@ npm install
 2. Configure `.env`:
 
 ```env
-DATABASE_URL="file:./dev.db"
+# Local Postgres connection. The app uses the node-postgres (`pg`) Prisma adapter.
+DATABASE_URL="postgresql://postgres:postgres@localhost:5432/wcpolling?schema=public"
 NEXTAUTH_URL="http://localhost:3000"
 NEXTAUTH_SECRET="your-secret"
 GOOGLE_CLIENT_ID=""
@@ -37,11 +38,12 @@ NEWSAPI_KEY=""
 GNEWS_API_KEY=""
 ```
 
-3. Generate Prisma client and push schema:
+3. Generate the Prisma client and apply migrations (optionally seed):
 
 ```bash
 npx prisma generate
-npx prisma db push
+npx prisma migrate dev
+npx prisma db seed   # optional: loads the World Cup 2026 teams, groups, and bracket
 ```
 
 4. Start dev server:
@@ -60,7 +62,7 @@ To login as admin locally, run this script once after database setup:
 node - <<'NODE'
 const { randomBytes, scryptSync } = require('crypto');
 const { PrismaClient } = require('@prisma/client');
-const { PrismaBetterSqlite3 } = require('@prisma/adapter-better-sqlite3');
+const { PrismaPg } = require('@prisma/adapter-pg');
 
 (function seed() {
   const password = 'Admin123!';
@@ -70,7 +72,7 @@ const { PrismaBetterSqlite3 } = require('@prisma/adapter-better-sqlite3');
 
 (async () => {
   const prisma = new PrismaClient({
-    adapter: new PrismaBetterSqlite3({ url: process.env.DATABASE_URL || 'file:./dev.db' }),
+    adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
   });
   await prisma.user.upsert({
     where: { email: 'admin@worldcup.com' },
@@ -116,14 +118,47 @@ Once signed in as admin, open `/dashboard/admin`.
 4. Select one prediction and submit for a group.
 5. Admin updates match results at `/dashboard/admin` to recalc scores.
 
+## Database
+
+The app runs on **PostgreSQL** via the node-postgres (`pg`) Prisma driver adapter.
+Connection setup lives in `lib/aws-db.ts`, which supports two modes:
+
+- **`DATABASE_URL` set** (local dev, Railway) — connects with the provided
+  connection string.
+- **`DATABASE_URL` unset** (Vercel + AWS Aurora) — connects to Aurora using
+  **IAM database authentication**, reading the `PG*` and `AWS_*` env vars injected
+  by the Vercel ⇄ AWS integration and minting a short-lived IAM auth token per
+  connection. See [`VERCEL_DEPLOYMENT.md`](./VERCEL_DEPLOYMENT.md) for details.
+
+Schema changes are managed with Prisma Migrate (`prisma/migrations`). Apply them
+with `npx prisma migrate deploy` (or `npm run migrate:deploy`, which mints an IAM
+token first when running against Aurora).
+
 ## Production Deployment (Railway)
 
 1. Push repo to GitHub.
 2. Create Railway project and connect GitHub repo.
-3. Set env vars in Railway (same as `.env`, plus OAuth secrets).
-4. Use `npm run build` and `npm run start`.
+3. Set env vars in Railway (same as `.env`, plus OAuth secrets) — including
+   `DATABASE_URL` for the Postgres instance.
+4. Use `npm run build` and `npm run start` (`start` runs `prisma migrate deploy`
+   before serving).
 
 Optionally add `railway.json` with service definitions.
+
+## Production Deployment (Vercel + AWS Aurora)
+
+1. Push repo to GitHub and import the project into Vercel.
+2. Create an Aurora PostgreSQL database from Vercel Storage and link it to the
+   project — this injects the `PG*` and `AWS_*` env vars.
+3. Enable **OIDC** for the project (Settings → Security) so a `VERCEL_OIDC_TOKEN`
+   is available for the AWS STS role exchange.
+4. Do **not** set `DATABASE_URL` in Vercel — leaving it unset activates the IAM
+   auth path.
+5. Vercel runs the `vercel-build` script (`tsx scripts/migrate.ts && next build`),
+   applying migrations before the build.
+
+Full setup notes and troubleshooting are in
+[`VERCEL_DEPLOYMENT.md`](./VERCEL_DEPLOYMENT.md).
 
 ## Notes
 
@@ -134,7 +169,7 @@ Optionally add `railway.json` with service definitions.
 
 ---
 
-For maintenance: ensure your `prisma` schema and migrations stay in sync. Run `npx prisma db push` after schema updates.
+For maintenance: ensure your `prisma` schema and migrations stay in sync. Create a migration with `npx prisma migrate dev --name <change>` after schema updates, and apply it in production with `npx prisma migrate deploy`.
 
 ---
 
@@ -197,4 +232,3 @@ For maintenance: ensure your `prisma` schema and migrations stay in sync. Run `n
 - **Bracket-style prediction UI** — the data model supports knockout predictions, but there is no visual bracket interface yet
 - **Multi-language support** — UI is English-only
 - **Admin audit log** — no history of admin actions
-- **PostgreSQL migration** — currently SQLite only; schema is portable but no migration path is documented
