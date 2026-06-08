@@ -1,7 +1,8 @@
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { getPoolConfig } from "../lib/aws-db";
 
-const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
+const adapter = new PrismaPg(getPoolConfig());
 const prisma = new PrismaClient({ adapter });
 
 const TOURNAMENT = {
