@@ -32,34 +32,45 @@ IAM path.
 
 ## Migrations
 
-The Prisma CLI can't use a function-valued password, so `scripts/migrate.ts`
-mints a token into a temporary `DATABASE_URL` and runs `prisma migrate deploy`.
-
 **Migrations do NOT run during the Vercel build.** The Vercel build container
 cannot reach Aurora over the network (only runtime functions get VPC access
 through the integration), so a build-time `prisma migrate deploy` fails with
 `P1001: Can't reach database server`. For that reason `vercel-build` is just
 `next build`.
 
-Apply migrations **out-of-band**, from an environment that can reach Aurora:
+Instead, migrations run from a **protected runtime route**, which executes inside
+a Vercel function where the IAM-authenticated DB connection works.
+
+### Applying migrations on Vercel (recommended)
+
+1. Set a `MIGRATE_SECRET` env var in Vercel (any long random string), for
+   Production and Preview, then redeploy so the function picks it up.
+2. Call the endpoint once (and again after any future schema change):
+
+   ```bash
+   curl -X POST https://<your-deployment>/api/admin/migrate \
+     -H "x-migrate-secret: $MIGRATE_SECRET"
+   ```
+
+   It returns the migrations it `applied` (and which were `alreadyApplied`). The
+   route (`app/api/admin/migrate/route.ts` → `lib/run-migrations.ts`) runs each
+   `prisma/migrations/*/migration.sql` in a transaction and records it in
+   `_prisma_migrations` exactly like `prisma migrate deploy`.
+
+### Alternative: run the Prisma CLI out-of-band
+
+If you have an environment that can reach Aurora **and** AWS credentials with
+`rds-db:connect`, you can instead run:
 
 ```bash
-# Provide the same PG*/AWS_* env vars (e.g. `vercel env pull`) plus AWS
-# credentials with rds-db:connect, then:
+# With PG*/AWS_* env vars present (e.g. `vercel env pull`):
 npm run migrate:deploy
 ```
 
-The script falls back to the default AWS credential chain (env vars or `~/.aws`)
-when there is no Vercel OIDC token. Reachability options, depending on your
-Aurora networking:
-
-- **Publicly accessible Aurora** → run `npm run migrate:deploy` from your laptop,
-  with your public IP allowed in the cluster's security group on port 5432.
-- **Private VPC Aurora** → run it from inside the VPC (a bastion host / EC2 /
-  one-off ECS task), since neither your laptop nor the Vercel build can reach it.
-
-Run this once before the first deploy (so the schema exists) and again after any
-schema change.
+`scripts/migrate.ts` mints an IAM token into a temporary `DATABASE_URL` and runs
+`prisma migrate deploy`, falling back to the default AWS credential chain locally.
+This needs the Aurora cluster to be reachable from where you run it (publicly
+accessible + your IP allowed, or from inside the VPC).
 
 ## Seeding
 
