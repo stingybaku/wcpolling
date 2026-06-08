@@ -74,8 +74,19 @@ accessible + your IP allowed, or from inside the VPC).
 
 ## Seeding
 
-`prisma/seed.ts` uses the same config helper, so `npx prisma db seed` works in
-both modes.
+The same Aurora network constraint applies to seeding, so there is a matching
+runtime route. After migrating, load the World Cup 2026 data (tournament, teams,
+groups, bracket, tie-breakers, staged tournament) by calling:
+
+```bash
+curl -X POST https://<your-deployment>/api/admin/seed \
+  -H "x-migrate-secret: $MIGRATE_SECRET"
+```
+
+The seed is idempotent (upserts + existence guards), so it is safe to re-run.
+`app/api/admin/seed/route.ts` invokes `seedDatabase()` from `prisma/seed.ts`,
+which still runs as a CLI seed (`npx prisma db seed`) wherever `DATABASE_URL` is
+set (local dev, Railway).
 
 ## Railway (unchanged)
 

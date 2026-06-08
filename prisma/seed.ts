@@ -1,3 +1,4 @@
+import { pathToFileURL } from "node:url";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { getPoolConfig } from "../lib/aws-db";
@@ -79,7 +80,7 @@ const GROUPS: { name: string; teamCodes: string[] }[] = [
   { name: "L", teamCodes: ["ENG", "CRO", "GHA", "PAN"] },
 ];
 
-async function main() {
+export async function seedDatabase() {
   console.log("Seeding FIFA World Cup 2026...");
 
   const tournament = await prisma.tournament.upsert({
@@ -310,9 +311,13 @@ async function seedStagedTournament() {
   console.log(`Seeded ${stages.length} stages for staged tournament.`);
 }
 
-main()
-  .catch((e) => {
-    console.error(e);
-    process.exit(1);
-  })
-  .finally(() => prisma.$disconnect());
+// Auto-run only when executed directly (`prisma db seed` / `tsx prisma/seed.ts`),
+// not when imported by the seed API route.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  seedDatabase()
+    .catch((e) => {
+      console.error(e);
+      process.exit(1);
+    })
+    .finally(() => prisma.$disconnect());
+}
