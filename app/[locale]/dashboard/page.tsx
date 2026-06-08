@@ -70,6 +70,9 @@ export default async function DashboardPage() {
   const tCommon = await getTranslations("common");
   const user = await getCurrentUser();
   const currentTournament = await getCurrentTournament();
+  // Staged tournaments use group-based stage predictions, not the standalone
+  // "My Predictions" sheet — hide that entry point in staged context.
+  const isStagedTournament = currentTournament?.type === "STAGED";
 
   if (!user) return null;
 
@@ -269,13 +272,15 @@ export default async function DashboardPage() {
                   </div>
 
                   <div className="row gap-3" style={{ alignItems: "center", marginTop: 16, paddingTop: 12, borderTop: "1px solid #1c2434" }}>
-                    <Link
-                      href="/dashboard/predictions"
-                      className="btn btn-sm"
-                      style={{ background: "transparent", borderColor: "#334155", color: "#fff" }}
-                    >
-                      {t("myPredictionsLink")}
-                    </Link>
+                    {!isStagedTournament && (
+                      <Link
+                        href="/dashboard/predictions"
+                        className="btn btn-sm"
+                        style={{ background: "transparent", borderColor: "#334155", color: "#fff" }}
+                      >
+                        {t("myPredictionsLink")}
+                      </Link>
+                    )}
                     <Link
                       href="/dashboard/groups"
                       className="btn btn-sm"
@@ -294,9 +299,11 @@ export default async function DashboardPage() {
                     {currentTournament?.name ?? "World Cup 2026"}
                   </span>
                   <div className="row gap-3" style={{ marginTop: 8 }}>
-                    <Link href="/dashboard/predictions" className="btn btn-sm" style={{ background: "transparent", borderColor: "#334155", color: "#fff" }}>
-                      {t("myPredictionsLink")}
-                    </Link>
+                    {!isStagedTournament && (
+                      <Link href="/dashboard/predictions" className="btn btn-sm" style={{ background: "transparent", borderColor: "#334155", color: "#fff" }}>
+                        {t("myPredictionsLink")}
+                      </Link>
+                    )}
                     <Link href="/dashboard/groups" className="btn btn-sm" style={{ background: "transparent", borderColor: "#334155", color: "#94a3b8" }}>
                       {t("groupsLink")}
                     </Link>
