@@ -35,21 +35,31 @@ IAM path.
 The Prisma CLI can't use a function-valued password, so `scripts/migrate.ts`
 mints a token into a temporary `DATABASE_URL` and runs `prisma migrate deploy`.
 
-- **Build-time (default):** `package.json` defines `vercel-build` as
-  `tsx scripts/migrate.ts && next build`. Vercel runs this automatically, so
-  migrations apply on every deploy.
-- **Caveat:** this requires the Vercel **build** container to (a) receive the
-  OIDC token and (b) reach Aurora over the network. If a deploy fails at the
-  migrate step, remove `tsx scripts/migrate.ts &&` from `vercel-build` and run
-  migrations yourself instead:
+**Migrations do NOT run during the Vercel build.** The Vercel build container
+cannot reach Aurora over the network (only runtime functions get VPC access
+through the integration), so a build-time `prisma migrate deploy` fails with
+`P1001: Can't reach database server`. For that reason `vercel-build` is just
+`next build`.
 
-  ```bash
-  # With local AWS credentials that can assume the role / have rds_iam:
-  npm run migrate:deploy
-  ```
+Apply migrations **out-of-band**, from an environment that can reach Aurora:
 
-  Locally the script falls back to the default AWS credential chain (env vars or
-  `~/.aws`) since there is no Vercel OIDC token.
+```bash
+# Provide the same PG*/AWS_* env vars (e.g. `vercel env pull`) plus AWS
+# credentials with rds-db:connect, then:
+npm run migrate:deploy
+```
+
+The script falls back to the default AWS credential chain (env vars or `~/.aws`)
+when there is no Vercel OIDC token. Reachability options, depending on your
+Aurora networking:
+
+- **Publicly accessible Aurora** → run `npm run migrate:deploy` from your laptop,
+  with your public IP allowed in the cluster's security group on port 5432.
+- **Private VPC Aurora** → run it from inside the VPC (a bastion host / EC2 /
+  one-off ECS task), since neither your laptop nor the Vercel build can reach it.
+
+Run this once before the first deploy (so the schema exists) and again after any
+schema change.
 
 ## Seeding
 

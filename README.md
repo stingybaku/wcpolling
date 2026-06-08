@@ -154,8 +154,9 @@ Optionally add `railway.json` with service definitions.
    is available for the AWS STS role exchange.
 4. Do **not** set `DATABASE_URL` in Vercel — leaving it unset activates the IAM
    auth path.
-5. Vercel runs the `vercel-build` script (`tsx scripts/migrate.ts && next build`),
-   applying migrations before the build.
+5. Apply migrations **out-of-band** (`npm run migrate:deploy`) from an environment
+   that can reach Aurora — the Vercel build container cannot. See
+   [`VERCEL_DEPLOYMENT.md`](./VERCEL_DEPLOYMENT.md).
 
 Full setup notes and troubleshooting are in
 [`VERCEL_DEPLOYMENT.md`](./VERCEL_DEPLOYMENT.md).
