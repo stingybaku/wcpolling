@@ -341,6 +341,7 @@
     "pageTitle": "Tournament Predictions",
     "noStages": "No stages found for this tournament.",
     "closesIn": "Closes in {remaining}",
+    "closesOn": "Closes {date}",
     "closed": "Closed",
     "lockedIn": "Your picks are locked in. Contact a group admin to unlock.",
     "pick32Title": "Pick the {count} teams you think will qualify.",
