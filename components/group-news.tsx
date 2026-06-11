@@ -10,12 +10,13 @@ type Article = {
   sourceName: string | null;
   provider: string;
   publishedAt: string;
+  imageUrl: string | null;
 };
 
 export function GroupNews({ tournamentId }: { tournamentId?: string | null }) {
   const t = useTranslations("groups.groupRoom");
   const [articles, setArticles] = useState<Article[] | null>(null);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(true);
 
   useEffect(() => {
     if (!tournamentId) return;
@@ -59,12 +60,24 @@ export function GroupNews({ tournamentId }: { tournamentId?: string | null }) {
               rel="noreferrer"
               style={{ color: "inherit", textDecoration: "none" }}
             >
-              <div style={{ padding: "10px 0", borderBottom: "1px dashed var(--border)" }}>
-                <span className="text-xs mono muted" style={{ fontSize: 10, letterSpacing: "0.1em" }}>
-                  {article.sourceName ?? article.provider} ·{" "}
-                  {new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(new Date(article.publishedAt))}
-                </span>
-                <p className="bold text-sm" style={{ marginTop: 3, lineHeight: 1.35 }}>{article.title}</p>
+              <div style={{ display: "flex", gap: 10, padding: "10px 0", borderBottom: "1px dashed var(--border)" }}>
+                {article.imageUrl && (
+                  // eslint-disable-next-line @next/next/no-img-element -- arbitrary external news domains; next/image would need per-host remotePatterns
+                  <img
+                    src={article.imageUrl}
+                    alt=""
+                    loading="lazy"
+                    onError={(e) => { e.currentTarget.style.display = "none"; }}
+                    style={{ width: 64, height: 64, flexShrink: 0, objectFit: "cover", borderRadius: "var(--r-sm)", background: "var(--bg-strong)" }}
+                  />
+                )}
+                <div style={{ minWidth: 0 }}>
+                  <span className="text-xs mono muted" style={{ fontSize: 10, letterSpacing: "0.1em" }}>
+                    {article.sourceName ?? article.provider} ·{" "}
+                    {new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(new Date(article.publishedAt))}
+                  </span>
+                  <p className="bold text-sm" style={{ marginTop: 3, lineHeight: 1.35 }}>{article.title}</p>
+                </div>
               </div>
             </a>
           ))}
