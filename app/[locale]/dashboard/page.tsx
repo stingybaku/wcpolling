@@ -477,14 +477,14 @@ export default async function DashboardPage() {
                                   borderRadius: 5,
                                 }}
                               >
-                                <span className="mono muted" style={{ width: 18, fontSize: 10 }}>
+                                <span className="mono muted" style={{ width: 18, fontSize: 10, marginRight: 6 }}>
                                   #{row.rank}
                                 </span>
                                 <Avatar userId={row.userId} name={row.userName} size={18} />
                                 <span className="bold text-xs" style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                                   {row.userId === user.id ? t("youLabel") : row.userName}
                                 </span>
-                                <span className="mono extrabold tabnum text-sm">{row.points}</span>
+                                <span className="mono extrabold tabnum text-sm" style={{ marginLeft: 10 }}>{row.points}</span>
                               </div>
                             ))}
 
@@ -506,12 +506,12 @@ export default async function DashboardPage() {
                                       borderRadius: 5,
                                     }}
                                   >
-                                    <span className="mono muted" style={{ width: 18, fontSize: 10 }}>
+                                    <span className="mono muted" style={{ width: 18, fontSize: 10, marginRight: 6 }}>
                                       #{userRow.rank}
                                     </span>
                                     <Avatar userId={user.id} name={user.name ?? user.email ?? "You"} size={18} />
                                     <span className="bold text-xs" style={{ flex: 1 }}>You</span>
-                                    <span className="mono extrabold tabnum text-sm">{userRow.points}</span>
+                                    <span className="mono extrabold tabnum text-sm" style={{ marginLeft: 10 }}>{userRow.points}</span>
                                   </div>
                                 )}
                               </>
