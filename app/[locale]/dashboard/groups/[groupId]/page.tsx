@@ -465,6 +465,18 @@ export default function GroupDetailPage() {
   }
 
   async function loadStagedStatus(tournamentId: string) {
+    // Load the leaderboard independently so member points always render even if
+    // the stages/prediction/submission requests fail or are slow.
+    try {
+      const lbRes = await fetch(`/api/staged/groups/${params.groupId}/leaderboard?tournamentId=${tournamentId}`);
+      if (lbRes.ok) {
+        const lbData = await lbRes.json();
+        setStagedLeaderboard(lbData.leaderboard ?? []);
+      }
+    } catch {
+      // ignore — leaderboard just stays as-is
+    }
+
     try {
       const stagesRes = await fetch(`/api/staged/tournaments/${tournamentId}/stages`);
       if (!stagesRes.ok) return;
@@ -499,12 +511,6 @@ export default function GroupDetailPage() {
         setOpenStageId(null);
         setStagedStatus(null);
         setMemberSubmissions({});
-      }
-
-      const lbRes = await fetch(`/api/staged/groups/${params.groupId}/leaderboard?tournamentId=${tournamentId}`);
-      if (lbRes.ok) {
-        const lbData = await lbRes.json();
-        setStagedLeaderboard(lbData.leaderboard ?? []);
       }
     } catch {
       // silently ignore — banner falls back to default CTA
@@ -583,8 +589,24 @@ export default function GroupDetailPage() {
   const myMembership = group?.memberships.find(m => m.userId === currentUserId);
   const isCurrentUserActive = group?.ownerId === currentUserId || myMembership?.isActive === true;
   const isTournamentFinalized = isStagedTournament && !!group?.tournament?.finalizedAt;
-  const stagedScoreMap = Object.fromEntries(stagedLeaderboard.map((e) => [e.userId, e]));
   const sortedLeaderboard = [...stagedLeaderboard].sort((a, b) => b.totalPoints - a.totalPoints || b.totalCorrectPicks - a.totalCorrectPicks);
+
+  // Staged standings rows: use the API's canonical order (points → correct picks
+  // → tie-breaker distance) so ties resolve identically to the dashboard, then
+  // append members who don't have a score yet.
+  const membershipById = Object.fromEntries((group?.memberships ?? []).map((m) => [m.user.id, m]));
+  const scoredUserIds = new Set(stagedLeaderboard.map((e) => e.userId));
+  const stagedRows = [
+    ...stagedLeaderboard.map((e) => ({
+      userId: e.userId,
+      userName: membershipById[e.userId] ? displayName(membershipById[e.userId].user) : (e.userName ?? ""),
+      totalPoints: e.totalPoints,
+      stages: e.stages,
+    })),
+    ...(group?.memberships ?? [])
+      .filter((m) => !scoredUserIds.has(m.user.id))
+      .map((m) => ({ userId: m.user.id, userName: displayName(m.user), totalPoints: 0, stages: [] as StagedLeaderboardEntry["stages"] })),
+  ];
 
   return (
     <>
@@ -922,17 +944,7 @@ export default function GroupDetailPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {[...(group?.memberships ?? [])]
-                    .map((m) => {
-                      const scored = stagedScoreMap[m.user.id];
-                      return {
-                        userId: m.user.id,
-                        userName: displayName(m.user),
-                        totalPoints: scored?.totalPoints ?? 0,
-                        stages: scored?.stages ?? [],
-                      };
-                    })
-                    .sort((a, b) => b.totalPoints - a.totalPoints)
+                  {stagedRows
                     .map((entry, idx) => {
                       const isMe = entry.userId === currentUserId;
                       const stageMap = Object.fromEntries(entry.stages.map((s) => [s.stageId, s]));
