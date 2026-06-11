@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
+import { NewsImage } from "@/components/news-image";
 
 type Article = {
   id: string;
@@ -61,16 +62,7 @@ export function GroupNews({ tournamentId }: { tournamentId?: string | null }) {
               style={{ color: "inherit", textDecoration: "none" }}
             >
               <div style={{ display: "flex", gap: 10, padding: "10px 0", borderBottom: "1px dashed var(--border)" }}>
-                {article.imageUrl && (
-                  // eslint-disable-next-line @next/next/no-img-element -- arbitrary external news domains; next/image would need per-host remotePatterns
-                  <img
-                    src={article.imageUrl}
-                    alt=""
-                    loading="lazy"
-                    onError={(e) => { e.currentTarget.style.display = "none"; }}
-                    style={{ width: 64, height: 64, flexShrink: 0, objectFit: "cover", borderRadius: "var(--r-sm)", background: "var(--bg-strong)" }}
-                  />
-                )}
+                {article.imageUrl && <NewsImage src={article.imageUrl} />}
                 <div style={{ minWidth: 0 }}>
                   <span className="text-xs mono muted" style={{ fontSize: 10, letterSpacing: "0.1em" }}>
                     {article.sourceName ?? article.provider} ·{" "}
