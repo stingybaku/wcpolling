@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser, unauthorized, forbidden } from "@/app/api/helpers";
+import { unlocksRemaining } from "@/lib/staged-unlocks";
 
 type RouteContext = { params: Promise<{ groupId: string; stageId: string }> };
 
@@ -24,10 +25,15 @@ export async function GET(_request: NextRequest, context: RouteContext) {
     }
   }
 
-  const submissions = await prisma.stagePrediction.findMany({
+  const rows = await prisma.stagePrediction.findMany({
     where: { stageId, groupId },
-    select: { userId: true, submittedAt: true, unlockedAt: true },
+    select: { userId: true, submittedAt: true, unlockedAt: true, unlockCount: true },
   });
+
+  const submissions = rows.map((r) => ({
+    ...r,
+    unlocksRemaining: unlocksRemaining(r.unlockCount),
+  }));
 
   return new Response(JSON.stringify({ submissions }), { status: 200 });
 }

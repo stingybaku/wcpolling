@@ -301,8 +301,6 @@
       "confirmSwap": "Confirmar cambio",
       "updatingSwap": "Actualizando…",
       "newPrediction": "+ Nueva predicción",
-      "justHappened": "Últimas novedades",
-      "noActivity": "La actividad aparecerá aquí durante la puntuación en vivo.",
       "membersCount": "Miembros · {count}",
       "inviteButton": "Invitar +",
       "predictionSubmitted": "Predicción enviada.",
@@ -333,7 +331,8 @@
       "deactivateButton": "Desactivar",
       "promoteButton": "Promover",
       "demoteButton": "Degradar",
-      "unlockButton": "Desbloquear picks"
+      "unlockButton": "Desbloquear picks",
+      "unlocksRemaining": "{count} desbloqueos restantes"
     }
   },
   "stagedPredictions": {
@@ -341,6 +340,7 @@
     "pageTitle": "Predicciones del Torneo",
     "noStages": "No se encontraron fases para este torneo.",
     "closesIn": "Cierra en {remaining}",
+    "closesOn": "Cierra el {date}",
     "closed": "Cerrado",
     "lockedIn": "Tus picks están bloqueados. Contacta a un admin del grupo para desbloquear.",
     "pick32Title": "Elige los {count} equipos que crees que clasificarán.",

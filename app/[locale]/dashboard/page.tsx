@@ -1,10 +1,10 @@
-/* eslint-disable @next/next/no-img-element */
-
 import { getTranslations } from "next-intl/server";
 import { Link } from "@/lib/navigation";
 import { getCurrentTournament, getCurrentUser } from "@/app/api/helpers";
 import { NewsSyncButton } from "@/components/news-sync-button";
+import { NewsImage } from "@/components/news-image";
 import { CountUp } from "@/components/count-up";
+import { computeStagedLeaderboard } from "@/lib/staged-leaderboard";
 import { prisma } from "@/lib/prisma";
 
 type ScoreType = "MATCH" | "GROUP_STANDING" | "KNOCKOUT" | "TIEBREAKER";
@@ -86,6 +86,8 @@ export default async function DashboardPage() {
       include: {
         tournament: {
           select: {
+            id: true,
+            type: true,
             name: true,
             tags: { orderBy: { name: "asc" } },
             submissionDeadline: true,
@@ -130,20 +132,33 @@ export default async function DashboardPage() {
   ]);
 
   // ── Group performance ──────────────────────────────────────────
-  const groupPerformance = groups.map((group) => {
-    const leaderboard = group.submissions
-      .map((sub) => {
-        const s = summarizeScores(sub.scores as Array<{ points: number; scoreType: ScoreType }>);
-        return {
+  // Staged tournaments score through StageScore (not legacy submissions), so we
+  // build their leaderboard via the shared helper; legacy tournaments keep using
+  // submission scores.
+  const groupPerformance = await Promise.all(groups.map(async (group) => {
+    type PerfRow = { userId: string; userName: string; predictionName: string | null; points: number; rank: number };
+    let leaderboard: PerfRow[];
+
+    if (group.tournament?.type === "STAGED" && group.tournament.id) {
+      const staged = await computeStagedLeaderboard(group.id, group.tournament.id);
+      leaderboard = staged.map((e, i) => ({
+        userId: e.userId,
+        userName: e.userName ?? tCommon("unknown"),
+        predictionName: null,
+        points: e.totalPoints,
+        rank: i + 1,
+      }));
+    } else {
+      leaderboard = group.submissions
+        .map((sub) => ({
           userId: sub.user.id,
           userName: sub.user.name ?? sub.user.email ?? tCommon("unknown"),
-          predictionName: sub.prediction.name,
-          points: s.total,
-          breakdown: s,
-        };
-      })
-      .sort((a, b) => b.points - a.points || a.userName.localeCompare(b.userName))
-      .map((row, i) => ({ ...row, rank: i + 1 }));
+          predictionName: sub.prediction.name as string | null,
+          points: summarizeScores(sub.scores as Array<{ points: number; scoreType: ScoreType }>).total,
+        }))
+        .sort((a, b) => b.points - a.points || a.userName.localeCompare(b.userName))
+        .map((row, i) => ({ ...row, rank: i + 1 }));
+    }
 
     const userIdx = leaderboard.findIndex((e) => e.userId === user.id);
     const userRow = userIdx >= 0 ? leaderboard[userIdx] : null;
@@ -176,7 +191,7 @@ export default async function DashboardPage() {
           ? `Deadline in ${deadlineHours}h ${deadlineMins}m — no draft selected`
           : null,
     };
-  });
+  }));
 
   // ── Aggregate KPIs ─────────────────────────────────────────────
   const rankedGroups = groupPerformance.filter((g) => g.rank !== null);
@@ -462,14 +477,14 @@ export default async function DashboardPage() {
                                   borderRadius: 5,
                                 }}
                               >
-                                <span className="mono muted" style={{ width: 18, fontSize: 10 }}>
+                                <span className="mono muted" style={{ width: 18, fontSize: 10, marginRight: 6 }}>
                                   #{row.rank}
                                 </span>
                                 <Avatar userId={row.userId} name={row.userName} size={18} />
                                 <span className="bold text-xs" style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                                   {row.userId === user.id ? t("youLabel") : row.userName}
                                 </span>
-                                <span className="mono extrabold tabnum text-sm">{row.points}</span>
+                                <span className="mono extrabold tabnum text-sm" style={{ marginLeft: 10 }}>{row.points}</span>
                               </div>
                             ))}
 
@@ -491,12 +506,12 @@ export default async function DashboardPage() {
                                       borderRadius: 5,
                                     }}
                                   >
-                                    <span className="mono muted" style={{ width: 18, fontSize: 10 }}>
+                                    <span className="mono muted" style={{ width: 18, fontSize: 10, marginRight: 6 }}>
                                       #{userRow.rank}
                                     </span>
                                     <Avatar userId={user.id} name={user.name ?? user.email ?? "You"} size={18} />
                                     <span className="bold text-xs" style={{ flex: 1 }}>You</span>
-                                    <span className="mono extrabold tabnum text-sm">{userRow.points}</span>
+                                    <span className="mono extrabold tabnum text-sm" style={{ marginLeft: 10 }}>{userRow.points}</span>
                                   </div>
                                 )}
                               </>
@@ -638,20 +653,25 @@ export default async function DashboardPage() {
                     >
                       <div
                         style={{
+                          display: "flex",
+                          gap: 10,
                           padding: "10px 0",
                           borderBottom: "1px dashed var(--border)",
                         }}
                       >
-                        <span
-                          className="text-xs mono muted"
-                          style={{ fontSize: 10, letterSpacing: "0.1em" }}
-                        >
-                          {article.sourceName ?? article.provider} ·{" "}
-                          {new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(article.publishedAt)}
-                        </span>
-                        <p className="bold text-sm" style={{ marginTop: 3, lineHeight: 1.35 }}>
-                          {article.title}
-                        </p>
+                        {article.imageUrl && <NewsImage src={article.imageUrl} size={56} />}
+                        <div style={{ minWidth: 0 }}>
+                          <span
+                            className="text-xs mono muted"
+                            style={{ fontSize: 10, letterSpacing: "0.1em" }}
+                          >
+                            {article.sourceName ?? article.provider} ·{" "}
+                            {new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(article.publishedAt)}
+                          </span>
+                          <p className="bold text-sm" style={{ marginTop: 3, lineHeight: 1.35 }}>
+                            {article.title}
+                          </p>
+                        </div>
                       </div>
                     </a>
                   ))}

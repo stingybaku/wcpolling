@@ -431,7 +431,8 @@ export default function GroupDetailPage() {
   const [openStageId, setOpenStageId] = useState<string | null>(null);
   const [stagedLeaderboard, setStagedLeaderboard] = useState<StagedLeaderboardEntry[]>([]);
   const [stagedStages, setStagedStages] = useState<StagedStage[]>([]);
-  const [memberSubmissions, setMemberSubmissions] = useState<Record<string, { submittedAt: string | null; unlockedAt: string | null }>>({});
+  const [memberSubmissions, setMemberSubmissions] = useState<Record<string, { submittedAt: string | null; unlockedAt: string | null; unlocksRemaining: number }>>({});
+  const [membersOpen, setMembersOpen] = useState(false);
 
   const currentUserEmail = session?.user?.email;
   const currentUserId = (session?.user as { id?: string } | undefined)?.id;
@@ -464,6 +465,18 @@ export default function GroupDetailPage() {
   }
 
   async function loadStagedStatus(tournamentId: string) {
+    // Load the leaderboard independently so member points always render even if
+    // the stages/prediction/submission requests fail or are slow.
+    try {
+      const lbRes = await fetch(`/api/staged/groups/${params.groupId}/leaderboard?tournamentId=${tournamentId}`);
+      if (lbRes.ok) {
+        const lbData = await lbRes.json();
+        setStagedLeaderboard(lbData.leaderboard ?? []);
+      }
+    } catch {
+      // ignore — leaderboard just stays as-is
+    }
+
     try {
       const stagesRes = await fetch(`/api/staged/tournaments/${tournamentId}/stages`);
       if (!stagesRes.ok) return;
@@ -487,9 +500,9 @@ export default function GroupDetailPage() {
         const subRes = await fetch(`/api/staged/groups/${params.groupId}/stages/${openStage.id}/submissions`);
         if (subRes.ok) {
           const subData = await subRes.json();
-          const map: Record<string, { submittedAt: string | null; unlockedAt: string | null }> = {};
-          for (const s of (subData.submissions ?? []) as { userId: string; submittedAt: string | null; unlockedAt: string | null }[]) {
-            map[s.userId] = { submittedAt: s.submittedAt, unlockedAt: s.unlockedAt };
+          const map: Record<string, { submittedAt: string | null; unlockedAt: string | null; unlocksRemaining: number }> = {};
+          for (const s of (subData.submissions ?? []) as { userId: string; submittedAt: string | null; unlockedAt: string | null; unlocksRemaining: number }[]) {
+            map[s.userId] = { submittedAt: s.submittedAt, unlockedAt: s.unlockedAt, unlocksRemaining: s.unlocksRemaining ?? 0 };
           }
           setMemberSubmissions(map);
         }
@@ -498,12 +511,6 @@ export default function GroupDetailPage() {
         setOpenStageId(null);
         setStagedStatus(null);
         setMemberSubmissions({});
-      }
-
-      const lbRes = await fetch(`/api/staged/groups/${params.groupId}/leaderboard?tournamentId=${tournamentId}`);
-      if (lbRes.ok) {
-        const lbData = await lbRes.json();
-        setStagedLeaderboard(lbData.leaderboard ?? []);
       }
     } catch {
       // silently ignore — banner falls back to default CTA
@@ -582,8 +589,24 @@ export default function GroupDetailPage() {
   const myMembership = group?.memberships.find(m => m.userId === currentUserId);
   const isCurrentUserActive = group?.ownerId === currentUserId || myMembership?.isActive === true;
   const isTournamentFinalized = isStagedTournament && !!group?.tournament?.finalizedAt;
-  const stagedScoreMap = Object.fromEntries(stagedLeaderboard.map((e) => [e.userId, e]));
   const sortedLeaderboard = [...stagedLeaderboard].sort((a, b) => b.totalPoints - a.totalPoints || b.totalCorrectPicks - a.totalCorrectPicks);
+
+  // Staged standings rows: use the API's canonical order (points → correct picks
+  // → tie-breaker distance) so ties resolve identically to the dashboard, then
+  // append members who don't have a score yet.
+  const membershipById = Object.fromEntries((group?.memberships ?? []).map((m) => [m.user.id, m]));
+  const scoredUserIds = new Set(stagedLeaderboard.map((e) => e.userId));
+  const stagedRows = [
+    ...stagedLeaderboard.map((e) => ({
+      userId: e.userId,
+      userName: membershipById[e.userId] ? displayName(membershipById[e.userId].user) : (e.userName ?? ""),
+      totalPoints: e.totalPoints,
+      stages: e.stages,
+    })),
+    ...(group?.memberships ?? [])
+      .filter((m) => !scoredUserIds.has(m.user.id))
+      .map((m) => ({ userId: m.user.id, userName: displayName(m.user), totalPoints: 0, stages: [] as StagedLeaderboardEntry["stages"] })),
+  ];
 
   return (
     <>
@@ -921,17 +944,7 @@ export default function GroupDetailPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {[...(group?.memberships ?? [])]
-                    .map((m) => {
-                      const scored = stagedScoreMap[m.user.id];
-                      return {
-                        userId: m.user.id,
-                        userName: displayName(m.user),
-                        totalPoints: scored?.totalPoints ?? 0,
-                        stages: scored?.stages ?? [],
-                      };
-                    })
-                    .sort((a, b) => b.totalPoints - a.totalPoints)
+                  {stagedRows
                     .map((entry, idx) => {
                       const isMe = entry.userId === currentUserId;
                       const stageMap = Object.fromEntries(entry.stages.map((s) => [s.stageId, s]));
@@ -1124,47 +1137,36 @@ export default function GroupDetailPage() {
             </div>
             )}
 
-            {/* Just happened */}
-            <div style={{ padding: "20px", borderBottom: "1px solid var(--border)" }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-                <p className="eyebrow">{t("justHappened")}</p>
-                <span className="live-dot" />
-              </div>
-              {leaderboard.length === 0 ? (
-                <p style={{ fontSize: 12, color: "var(--muted)" }}>{t("noActivity")}</p>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
-                  {leaderboard.slice(0, 5).map((row, i) => (
-                    <div key={row.userId} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 0", borderBottom: i < 4 ? "1px dashed var(--border)" : "none" }}>
-                      <Avatar userId={row.userId} name={row.userName} size={18} />
-                      <span style={{ flex: 1, fontSize: 12 }}>
-                        <strong>{row.userName.split(" ")[0]}</strong>
-                        <span className="muted"> · {row.points} pts</span>
-                      </span>
-                      <span className="mono muted" style={{ fontSize: 11 }}>#{i + 1}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+            {/* Tournament news */}
+            <GroupNews tournamentId={group?.tournament?.id} />
 
-            {/* Members */}
+            {/* Members — group-admin only, collapsible */}
+            {isGroupAdmin && (
             <div style={{ padding: "20px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
-                <p className="eyebrow">{t("membersCount", { count: memberCount })}</p>
-                {isGroupAdmin && (
-                  <button className="btn btn-sm btn-ghost" style={{ fontSize: 11 }} onClick={copyInviteLink}>
-                    {t("inviteButton")}
-                  </button>
-                )}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: membersOpen ? 10 : 0 }}>
+                <button
+                  onClick={() => setMembersOpen(v => !v)}
+                  aria-expanded={membersOpen}
+                  style={{ display: "flex", alignItems: "center", gap: 8, background: "transparent", border: "none", padding: 0, cursor: "pointer", color: "var(--ink)" }}
+                >
+                  <span className="eyebrow">{t("membersCount", { count: memberCount })}</span>
+                  <span aria-hidden style={{ color: "var(--muted)", transform: membersOpen ? "rotate(180deg)" : undefined, transition: "transform 0.15s" }}>▾</span>
+                </button>
+                <button className="btn btn-sm btn-ghost" style={{ fontSize: 11 }} onClick={copyInviteLink}>
+                  {t("inviteButton")}
+                </button>
               </div>
+              {membersOpen && (
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                {(group?.memberships ?? []).map(m => {
+                {(group?.memberships ?? []).map((m, mi) => {
                   const isOwner = m.userId === group?.ownerId;
                   const isAdmin = isOwner || m.role === "GROUP_ADMIN";
                   const isMe = m.userId === currentUserId;
                   const canManage = isGroupAdmin && !isMe && !isOwner;
                   const isCurrentUserOwner = group?.ownerId === currentUserId;
+                  const sub = memberSubmissions[m.userId];
+                  const hasLockedSubmission = !!(openStageId && sub?.submittedAt);
+                  const remaining = sub?.unlocksRemaining ?? 0;
 
                   async function updateMember(body: { role?: string; isActive?: boolean }) {
                     await fetch(`/api/groups/${params.groupId}/members/${m.userId}`, {
@@ -1176,7 +1178,15 @@ export default function GroupDetailPage() {
                   }
 
                   return (
-                    <div key={m.user.id} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <div
+                      key={m.user.id}
+                      title={displayName(m.user)}
+                      style={{
+                        display: "flex", alignItems: "center", gap: 8,
+                        padding: "4px 6px", borderRadius: 6,
+                        background: mi % 2 === 1 ? "var(--bg-strong)" : "transparent",
+                      }}
+                    >
                       <Avatar userId={m.user.id} name={displayName(m.user)} size={28} />
                       <span style={{ flex: 1, fontSize: 12, fontWeight: 600, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: m.isActive || isOwner ? "var(--ink)" : "var(--muted)" }}>
                         {displayName(m.user)}{isMe && <span style={{ color: "var(--muted)", fontWeight: 400 }}> {t("youLabel")}</span>}
@@ -1222,7 +1232,15 @@ export default function GroupDetailPage() {
                             {t("demoteButton")}
                           </button>
                         )}
-                        {isGroupAdmin && !isMe && openStageId && memberSubmissions[m.userId]?.submittedAt && !memberSubmissions[m.userId]?.unlockedAt && (
+                        {isGroupAdmin && hasLockedSubmission && (
+                          <span
+                            title={t("unlocksRemaining", { count: remaining })}
+                            style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: remaining > 0 ? "var(--muted)" : "var(--muted-2)", whiteSpace: "nowrap" }}
+                          >
+                            {t("unlocksRemaining", { count: remaining })}
+                          </span>
+                        )}
+                        {isGroupAdmin && !isMe && hasLockedSubmission && remaining > 0 && openStageId && (
                           <button
                             onClick={() => void unlockPrediction(m.userId, openStageId)}
                             style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--accent-strong)", background: "transparent", border: "1px solid var(--accent)", borderRadius: 4, padding: "2px 5px", cursor: "pointer" }}
@@ -1235,12 +1253,11 @@ export default function GroupDetailPage() {
                   );
                 })}
               </div>
+              )}
             </div>
+            )}
           </div>
         </div>
-
-        {/* ── Tournament news (collapsible, subtle) ──────────────────── */}
-        <GroupNews tournamentId={group?.tournament?.id} />
 
         {/* ── Mobile bottom spacing (offsets bottom nav) ─────────────── */}
         <div className="h-28 lg:h-0" />

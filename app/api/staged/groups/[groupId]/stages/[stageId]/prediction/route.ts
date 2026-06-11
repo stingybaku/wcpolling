@@ -5,6 +5,7 @@ import { sendEmail } from "@/lib/email";
 import { predictionUnlockedEmail } from "@/lib/emails/predictionUnlocked";
 import { groupQualificationConfirmEmail, knockoutConfirmEmail } from "@/lib/emails/stagePredictionConfirm";
 import { scoreStage } from "@/lib/stage-scoring";
+import { UNLOCKS_PER_STAGE } from "@/lib/staged-unlocks";
 
 type RouteContext = { params: Promise<{ groupId: string; stageId: string }> };
 
@@ -232,21 +233,25 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
   });
   if (!existing) return badRequest("No prediction found for this user");
   if (existing.submittedAt === null) return badRequest("This prediction is not locked");
-  if (existing.unlockedAt !== null) {
+  if (existing.unlockCount >= UNLOCKS_PER_STAGE) {
     return new Response(
-      JSON.stringify({ error: "This prediction has already been unlocked once and cannot be unlocked again" }),
+      JSON.stringify({ error: "No unlocks remaining for this member in this phase" }),
       { status: 409 }
     );
   }
 
-  // For KNOCKOUT: snapshot already-decided match IDs so they're excluded from scoring
-  let lockedOutMatchIds: string[] = [];
+  // For KNOCKOUT: snapshot already-decided match IDs so they're excluded from
+  // scoring. Accumulate across unlocks so matches decided in an earlier unlock
+  // stay locked out.
+  let lockedOutMatchIds: string[] = Array.isArray(existing.lockedOutMatchIds)
+    ? (existing.lockedOutMatchIds as string[])
+    : [];
   if (stage.type === "KNOCKOUT") {
     const decidedMatches = await prisma.stageMatch.findMany({
       where: { stageId, winnerId: { not: null } },
       select: { id: true },
     });
-    lockedOutMatchIds = decidedMatches.map((m) => m.id);
+    lockedOutMatchIds = Array.from(new Set([...lockedOutMatchIds, ...decidedMatches.map((m) => m.id)]));
   }
 
   const prediction = await prisma.stagePrediction.update({
@@ -254,6 +259,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
     data: {
       submittedAt: null,
       unlockedAt: new Date(),
+      unlockCount: { increment: 1 },
       lockedOutMatchIds: lockedOutMatchIds.length > 0 ? lockedOutMatchIds : undefined,
     },
   });

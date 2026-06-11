@@ -67,22 +67,31 @@ function Countdown({ closesAt }: { closesAt: string }) {
     function update() {
       const diff = new Date(closesAt).getTime() - Date.now();
       if (diff <= 0) { setRemaining(t("closed")); return; }
-      const h = Math.floor(diff / 3_600_000);
+      const d = Math.floor(diff / 86_400_000);
+      const h = Math.floor((diff % 86_400_000) / 3_600_000);
       const m = Math.floor((diff % 3_600_000) / 60_000);
-      const s = Math.floor((diff % 60_000) / 1_000);
-      setRemaining(h > 0 ? `${h}h ${m}m ${s}s` : `${m}m ${s}s`);
+      const parts = [];
+      if (d > 0) parts.push(`${d}d`);
+      if (d > 0 || h > 0) parts.push(`${h}h`);
+      parts.push(`${m}m`);
+      setRemaining(parts.join(" "));
     }
     update();
-    const id = setInterval(update, 1000);
+    const id = setInterval(update, 30_000);
     return () => clearInterval(id);
   }, [closesAt, t]);
 
   return (
-    <span className="inline-flex items-center gap-1 text-sm font-medium" style={{ color: "var(--gold)" }}>
-      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-      </svg>
-      {t("closesIn", { remaining })}
+    <span className="inline-flex flex-col gap-0.5 text-sm font-medium" style={{ color: "var(--gold)" }}>
+      <span className="inline-flex items-center gap-1">
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        {t("closesIn", { remaining })}
+      </span>
+      <span className="text-xs font-normal" style={{ color: "var(--text-muted)" }}>
+        {t("closesOn", { date: formatDate(closesAt) })}
+      </span>
     </span>
   );
 }
