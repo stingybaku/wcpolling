@@ -30,6 +30,7 @@ export async function GET(_request: NextRequest, context: RouteContext) {
     prisma.tieBreakerQuestion.findMany({
       where: { tournamentId },
       orderBy: { sortOrder: "asc" },
+      select: { id: true, prompt: true, type: true, sortOrder: true },
     }),
     prisma.stageTieBreakerAnswer.findMany({
       where: { userId: user.id, groupId, tournamentId },

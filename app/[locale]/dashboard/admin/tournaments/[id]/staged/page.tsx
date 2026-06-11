@@ -738,7 +738,8 @@ function FinalizeButton({ tournamentId, onFinalized }: { tournamentId: string; o
 
 // ─── Tie Breaker Admin ────────────────────────────────────────────────────────
 
-type TBQuestion = { id: string; prompt: Record<string, string>; type: string };
+type TBQuestion = { id: string; prompt: Record<string, string>; type: string; correctAnswer?: string | null; acceptedAnswers?: string[] | null };
+type TBSubmission = { key: string; label: string; count: number };
 
 function TieBreakerAdmin({
   tournamentId,
@@ -756,12 +757,20 @@ function TieBreakerAdmin({
   const [adding, setAdding] = useState(false);
   const [addError, setAddError] = useState("");
   const [closingError, setClosingError] = useState("");
+  const [answerDrafts, setAnswerDrafts] = useState<Record<string, string>>({});
+  const [savingAnswer, setSavingAnswer] = useState<string | null>(null);
+  const [submissions, setSubmissions] = useState<Record<string, TBSubmission[]>>({});
+  const [acceptedDrafts, setAcceptedDrafts] = useState<Record<string, Set<string>>>({});
 
   const loadQuestions = useCallback(async () => {
     try {
       const res = await fetch(`/api/admin/tournaments/${tournamentId}/tiebreakers`);
       const data = await res.json();
-      setQuestions(data.questions ?? []);
+      const loaded: TBQuestion[] = data.questions ?? [];
+      setQuestions(loaded);
+      setSubmissions(data.submissions ?? {});
+      setAnswerDrafts(Object.fromEntries(loaded.map((q) => [q.id, q.correctAnswer ?? ""])));
+      setAcceptedDrafts(Object.fromEntries(loaded.map((q) => [q.id, new Set(q.acceptedAnswers ?? [])])));
     } catch { /* silent */ } finally {
       setLoading(false);
     }
@@ -800,6 +809,28 @@ function TieBreakerAdmin({
     loadQuestions();
   }
 
+  async function saveAnswer(questionId: string, payload: { correctAnswer?: string } | { acceptedAnswers: string[] }) {
+    setSavingAnswer(questionId);
+    try {
+      await fetch(`/api/admin/tournaments/${tournamentId}/tiebreakers`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ questionId, ...payload }),
+      });
+      await loadQuestions();
+    } finally {
+      setSavingAnswer(null);
+    }
+  }
+
+  function toggleAccepted(questionId: string, key: string) {
+    setAcceptedDrafts((cur) => {
+      const next = new Set(cur[questionId] ?? []);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return { ...cur, [questionId]: next };
+    });
+  }
+
   async function toggleClose() {
     setClosingError("");
     if (closedAt == null) {
@@ -830,31 +861,105 @@ function TieBreakerAdmin({
           {questions.length === 0 && (
             <p className="text-sm muted">No questions yet.</p>
           )}
-          {questions.map((q) => (
-            <div
-              key={q.id}
-              className="flex items-center justify-between gap-3 rounded-xl px-4 py-3"
-              style={{ background: "var(--bg-strong)", border: "1px solid var(--border)" }}
-            >
-              <div>
-                <p className="text-sm font-medium" style={{ color: "var(--ink)" }}>{q.prompt["en"] ?? ""}</p>
-                {q.prompt["es"] && <p className="text-xs muted">{q.prompt["es"]}</p>}
-                <span
-                  className="inline-block mt-1 text-[10px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded"
-                  style={{ background: "var(--muted-2)", color: "var(--ink)" }}
-                >
-                  {q.type}
-                </span>
-              </div>
-              <button
-                onClick={() => deleteQuestion(q.id)}
-                className="text-xs font-semibold transition"
-                style={{ color: "var(--live)" }}
+          {questions.map((q) => {
+            const draft = answerDrafts[q.id] ?? "";
+            const numberDirty = draft.trim() !== (q.correctAnswer ?? "").trim();
+            const subs = submissions[q.id] ?? [];
+            const accepted = acceptedDrafts[q.id] ?? new Set<string>();
+            const savedAccepted = new Set(q.acceptedAnswers ?? []);
+            const textDirty =
+              accepted.size !== savedAccepted.size ||
+              [...accepted].some((k) => !savedAccepted.has(k));
+            return (
+              <div
+                key={q.id}
+                className="rounded-xl px-4 py-3 space-y-2"
+                style={{ background: "var(--bg-strong)", border: "1px solid var(--border)" }}
               >
-                Delete
-              </button>
-            </div>
-          ))}
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium" style={{ color: "var(--ink)" }}>{q.prompt["en"] ?? ""}</p>
+                    {q.prompt["es"] && <p className="text-xs muted">{q.prompt["es"]}</p>}
+                    <span
+                      className="inline-block mt-1 text-[10px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded"
+                      style={{ background: "var(--muted-2)", color: "var(--ink)" }}
+                    >
+                      {q.type}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => deleteQuestion(q.id)}
+                    className="text-xs font-semibold transition"
+                    style={{ color: "var(--live)" }}
+                  >
+                    Delete
+                  </button>
+                </div>
+
+                {q.type === "NUMBER" ? (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        placeholder="Correct answer"
+                        value={draft}
+                        onChange={(e) => setAnswerDrafts((cur) => ({ ...cur, [q.id]: e.target.value }))}
+                        className="field"
+                        style={{ flex: 1 }}
+                      />
+                      <button
+                        disabled={!numberDirty || savingAnswer === q.id}
+                        onClick={() => saveAnswer(q.id, { correctAnswer: draft })}
+                        className="rounded-xl bg-indigo-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-indigo-500 disabled:opacity-40 transition whitespace-nowrap"
+                      >
+                        {savingAnswer === q.id ? "Saving…" : "Save Answer"}
+                      </button>
+                    </div>
+                    {q.correctAnswer != null && q.correctAnswer.trim() !== "" && !numberDirty && (
+                      <p className="text-xs" style={{ color: "var(--accent, #16a34a)" }}>
+                        Answer set: {q.correctAnswer} (closest guess wins)
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-xs muted">Tick the submitted answers that should count as correct.</p>
+                    {subs.length === 0 ? (
+                      <p className="text-xs muted">No answers submitted yet.</p>
+                    ) : (
+                      <div className="space-y-1">
+                        {subs.map((s) => (
+                          <label key={s.key} className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: "var(--ink)" }}>
+                            <input
+                              type="checkbox"
+                              checked={accepted.has(s.key)}
+                              onChange={() => toggleAccepted(q.id, s.key)}
+                            />
+                            <span className="flex-1">{s.label}</span>
+                            <span className="text-xs muted">×{s.count}</span>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                    {subs.length > 0 && (
+                      <button
+                        disabled={!textDirty || savingAnswer === q.id}
+                        onClick={() => saveAnswer(q.id, { acceptedAnswers: [...accepted] })}
+                        className="rounded-xl bg-indigo-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-indigo-500 disabled:opacity-40 transition whitespace-nowrap"
+                      >
+                        {savingAnswer === q.id ? "Saving…" : "Save Grading"}
+                      </button>
+                    )}
+                    {savedAccepted.size > 0 && !textDirty && (
+                      <p className="text-xs" style={{ color: "var(--accent, #16a34a)" }}>
+                        {savedAccepted.size} answer{savedAccepted.size === 1 ? "" : "s"} marked correct
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
 

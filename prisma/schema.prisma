@@ -322,6 +322,7 @@ model TieBreakerQuestion {
   prompt       Json
   type         TieBreakerType  @default(NUMBER)
   correctAnswer String?
+  acceptedAnswers Json?
   sortOrder    Int             @default(0)
   createdAt    DateTime        @default(now())
   updatedAt    DateTime        @updatedAt
