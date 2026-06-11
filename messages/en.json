@@ -331,7 +331,8 @@
       "deactivateButton": "Deactivate",
       "promoteButton": "Promote",
       "demoteButton": "Demote",
-      "unlockButton": "Unlock picks"
+      "unlockButton": "Unlock picks",
+      "unlocksRemaining": "{count} unlocks left"
     }
   },
   "stagedPredictions": {

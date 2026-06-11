@@ -331,7 +331,8 @@
       "deactivateButton": "Desactivar",
       "promoteButton": "Promover",
       "demoteButton": "Degradar",
-      "unlockButton": "Desbloquear picks"
+      "unlockButton": "Desbloquear picks",
+      "unlocksRemaining": "{count} desbloqueos restantes"
     }
   },
   "stagedPredictions": {

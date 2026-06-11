@@ -431,7 +431,7 @@ export default function GroupDetailPage() {
   const [openStageId, setOpenStageId] = useState<string | null>(null);
   const [stagedLeaderboard, setStagedLeaderboard] = useState<StagedLeaderboardEntry[]>([]);
   const [stagedStages, setStagedStages] = useState<StagedStage[]>([]);
-  const [memberSubmissions, setMemberSubmissions] = useState<Record<string, { submittedAt: string | null; unlockedAt: string | null }>>({});
+  const [memberSubmissions, setMemberSubmissions] = useState<Record<string, { submittedAt: string | null; unlockedAt: string | null; unlocksRemaining: number }>>({});
   const [membersOpen, setMembersOpen] = useState(false);
 
   const currentUserEmail = session?.user?.email;
@@ -500,9 +500,9 @@ export default function GroupDetailPage() {
         const subRes = await fetch(`/api/staged/groups/${params.groupId}/stages/${openStage.id}/submissions`);
         if (subRes.ok) {
           const subData = await subRes.json();
-          const map: Record<string, { submittedAt: string | null; unlockedAt: string | null }> = {};
-          for (const s of (subData.submissions ?? []) as { userId: string; submittedAt: string | null; unlockedAt: string | null }[]) {
-            map[s.userId] = { submittedAt: s.submittedAt, unlockedAt: s.unlockedAt };
+          const map: Record<string, { submittedAt: string | null; unlockedAt: string | null; unlocksRemaining: number }> = {};
+          for (const s of (subData.submissions ?? []) as { userId: string; submittedAt: string | null; unlockedAt: string | null; unlocksRemaining: number }[]) {
+            map[s.userId] = { submittedAt: s.submittedAt, unlockedAt: s.unlockedAt, unlocksRemaining: s.unlocksRemaining ?? 0 };
           }
           setMemberSubmissions(map);
         }
@@ -1158,12 +1158,15 @@ export default function GroupDetailPage() {
               </div>
               {membersOpen && (
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                {(group?.memberships ?? []).map(m => {
+                {(group?.memberships ?? []).map((m, mi) => {
                   const isOwner = m.userId === group?.ownerId;
                   const isAdmin = isOwner || m.role === "GROUP_ADMIN";
                   const isMe = m.userId === currentUserId;
                   const canManage = isGroupAdmin && !isMe && !isOwner;
                   const isCurrentUserOwner = group?.ownerId === currentUserId;
+                  const sub = memberSubmissions[m.userId];
+                  const hasLockedSubmission = !!(openStageId && sub?.submittedAt);
+                  const remaining = sub?.unlocksRemaining ?? 0;
 
                   async function updateMember(body: { role?: string; isActive?: boolean }) {
                     await fetch(`/api/groups/${params.groupId}/members/${m.userId}`, {
@@ -1175,7 +1178,15 @@ export default function GroupDetailPage() {
                   }
 
                   return (
-                    <div key={m.user.id} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <div
+                      key={m.user.id}
+                      title={displayName(m.user)}
+                      style={{
+                        display: "flex", alignItems: "center", gap: 8,
+                        padding: "4px 6px", borderRadius: 6,
+                        background: mi % 2 === 1 ? "var(--bg-strong)" : "transparent",
+                      }}
+                    >
                       <Avatar userId={m.user.id} name={displayName(m.user)} size={28} />
                       <span style={{ flex: 1, fontSize: 12, fontWeight: 600, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: m.isActive || isOwner ? "var(--ink)" : "var(--muted)" }}>
                         {displayName(m.user)}{isMe && <span style={{ color: "var(--muted)", fontWeight: 400 }}> {t("youLabel")}</span>}
@@ -1221,7 +1232,15 @@ export default function GroupDetailPage() {
                             {t("demoteButton")}
                           </button>
                         )}
-                        {isGroupAdmin && !isMe && openStageId && memberSubmissions[m.userId]?.submittedAt && !memberSubmissions[m.userId]?.unlockedAt && (
+                        {isGroupAdmin && hasLockedSubmission && (
+                          <span
+                            title={t("unlocksRemaining", { count: remaining })}
+                            style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: remaining > 0 ? "var(--muted)" : "var(--muted-2)", whiteSpace: "nowrap" }}
+                          >
+                            {t("unlocksRemaining", { count: remaining })}
+                          </span>
+                        )}
+                        {isGroupAdmin && !isMe && hasLockedSubmission && remaining > 0 && openStageId && (
                           <button
                             onClick={() => void unlockPrediction(m.userId, openStageId)}
                             style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--accent-strong)", background: "transparent", border: "1px solid var(--accent)", borderRadius: 4, padding: "2px 5px", cursor: "pointer" }}

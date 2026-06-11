@@ -601,6 +601,7 @@ model StagePrediction {
 
   submittedAt       DateTime?
   unlockedAt        DateTime?
+  unlockCount       Int       @default(0)
   lockedOutMatchIds Json?
 
   createdAt  DateTime  @default(now())
