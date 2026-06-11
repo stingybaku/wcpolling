@@ -301,8 +301,6 @@
       "confirmSwap": "Confirm swap",
       "updatingSwap": "Updating…",
       "newPrediction": "+ New prediction",
-      "justHappened": "Just happened",
-      "noActivity": "Activity will appear here during live scoring.",
       "membersCount": "Members · {count}",
       "inviteButton": "Invite +",
       "predictionSubmitted": "Prediction submitted.",

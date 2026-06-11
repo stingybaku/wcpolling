@@ -31,7 +31,7 @@ export function GroupNews({ tournamentId }: { tournamentId?: string | null }) {
   if (!articles || articles.length === 0) return null;
 
   return (
-    <div style={{ borderTop: "1px solid var(--border)", padding: "16px 24px" }}>
+    <div style={{ borderBottom: "1px solid var(--border)", padding: "20px" }}>
       <button
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}

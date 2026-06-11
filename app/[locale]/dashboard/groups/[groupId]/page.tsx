@@ -432,6 +432,7 @@ export default function GroupDetailPage() {
   const [stagedLeaderboard, setStagedLeaderboard] = useState<StagedLeaderboardEntry[]>([]);
   const [stagedStages, setStagedStages] = useState<StagedStage[]>([]);
   const [memberSubmissions, setMemberSubmissions] = useState<Record<string, { submittedAt: string | null; unlockedAt: string | null }>>({});
+  const [membersOpen, setMembersOpen] = useState(false);
 
   const currentUserEmail = session?.user?.email;
   const currentUserId = (session?.user as { id?: string } | undefined)?.id;
@@ -1124,40 +1125,26 @@ export default function GroupDetailPage() {
             </div>
             )}
 
-            {/* Just happened */}
-            <div style={{ padding: "20px", borderBottom: "1px solid var(--border)" }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-                <p className="eyebrow">{t("justHappened")}</p>
-                <span className="live-dot" />
-              </div>
-              {leaderboard.length === 0 ? (
-                <p style={{ fontSize: 12, color: "var(--muted)" }}>{t("noActivity")}</p>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
-                  {leaderboard.slice(0, 5).map((row, i) => (
-                    <div key={row.userId} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 0", borderBottom: i < 4 ? "1px dashed var(--border)" : "none" }}>
-                      <Avatar userId={row.userId} name={row.userName} size={18} />
-                      <span style={{ flex: 1, fontSize: 12 }}>
-                        <strong>{row.userName.split(" ")[0]}</strong>
-                        <span className="muted"> · {row.points} pts</span>
-                      </span>
-                      <span className="mono muted" style={{ fontSize: 11 }}>#{i + 1}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+            {/* Tournament news */}
+            <GroupNews tournamentId={group?.tournament?.id} />
 
-            {/* Members */}
+            {/* Members — group-admin only, collapsible */}
+            {isGroupAdmin && (
             <div style={{ padding: "20px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
-                <p className="eyebrow">{t("membersCount", { count: memberCount })}</p>
-                {isGroupAdmin && (
-                  <button className="btn btn-sm btn-ghost" style={{ fontSize: 11 }} onClick={copyInviteLink}>
-                    {t("inviteButton")}
-                  </button>
-                )}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: membersOpen ? 10 : 0 }}>
+                <button
+                  onClick={() => setMembersOpen(v => !v)}
+                  aria-expanded={membersOpen}
+                  style={{ display: "flex", alignItems: "center", gap: 8, background: "transparent", border: "none", padding: 0, cursor: "pointer", color: "var(--ink)" }}
+                >
+                  <span className="eyebrow">{t("membersCount", { count: memberCount })}</span>
+                  <span aria-hidden style={{ color: "var(--muted)", transform: membersOpen ? "rotate(180deg)" : undefined, transition: "transform 0.15s" }}>▾</span>
+                </button>
+                <button className="btn btn-sm btn-ghost" style={{ fontSize: 11 }} onClick={copyInviteLink}>
+                  {t("inviteButton")}
+                </button>
               </div>
+              {membersOpen && (
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 {(group?.memberships ?? []).map(m => {
                   const isOwner = m.userId === group?.ownerId;
@@ -1235,12 +1222,11 @@ export default function GroupDetailPage() {
                   );
                 })}
               </div>
+              )}
             </div>
+            )}
           </div>
         </div>
-
-        {/* ── Tournament news (collapsible, subtle) ──────────────────── */}
-        <GroupNews tournamentId={group?.tournament?.id} />
 
         {/* ── Mobile bottom spacing (offsets bottom nav) ─────────────── */}
         <div className="h-28 lg:h-0" />
