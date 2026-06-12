@@ -11,7 +11,6 @@ export async function GET(request: NextRequest, context: { params: Promise<{ gro
   const membership = await prisma.groupMembership.findUnique({
     where: { userId_groupId: { userId: user.id, groupId } },
   });
-  if (!membership) return forbidden("Not a member of this group");
 
   const group = await prisma.groupRoom.findUnique({
     where: { id: groupId },
@@ -37,6 +36,12 @@ export async function GET(request: NextRequest, context: { params: Promise<{ gro
     },
   });
   if (!group) return badRequest("Group not found");
+
+  // Members see their own group; portal admins may also open any APPROVED group
+  // (granting them group-admin access there without being a member).
+  if (!membership && !(user.role === "ADMIN" && group.status === "APPROVED")) {
+    return forbidden("Not a member of this group");
+  }
 
   const activeMemberIds = new Set(group.memberships.filter((m) => m.isActive).map((m) => m.userId));
   const filteredGroup = {

@@ -402,7 +402,8 @@
     "won": "won",
     "excludedPick": "Not counted (unlocked after result)",
     "recapTitle": "Your tournament so far",
-    "recapSummary": "{points} pts · {correct} correct · {live} live"
+    "recapSummary": "{points} pts · {correct} correct · {live} live",
+    "groupStagePending": "Your picks are locked in — they'll be marked correct or incorrect once the group stage is scored."
   },
   "predictions": {
     "tagline": "Predictions",

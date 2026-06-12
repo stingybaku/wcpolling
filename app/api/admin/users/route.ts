@@ -22,6 +22,14 @@ export async function GET() {
           submissions: true,
         },
       },
+      memberships: {
+        select: {
+          role: true,
+          isActive: true,
+          group: { select: { id: true, name: true } },
+        },
+        orderBy: { createdAt: "asc" },
+      },
     },
     orderBy: [{ role: "desc" }, { createdAt: "desc" }],
   });

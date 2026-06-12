@@ -2,6 +2,7 @@ import { forbidden, getCurrentUser, unauthorized } from "@/app/api/helpers";
 import { prisma } from "@/lib/prisma";
 import { sendEmail } from "@/lib/email";
 import { tournamentFinalizedEmail } from "@/lib/emails/tournamentFinalized";
+import { toLocale } from "@/lib/locale";
 
 async function requireAdmin() {
   const user = await getCurrentUser();
@@ -42,7 +43,7 @@ export async function POST(_req: Request, context: { params: Promise<{ id: strin
     include: {
       memberships: {
         where: { isActive: true },
-        include: { user: { select: { id: true, email: true } } },
+        include: { user: { select: { id: true, email: true, locale: true } } },
       },
     },
   });
@@ -67,6 +68,7 @@ export async function POST(_req: Request, context: { params: Promise<{ id: strin
         rankMap[m.userId] ?? group.memberships.length,
         pointsMap[m.userId] ?? 0,
         `${baseUrl}/dashboard/groups/${group.id}`,
+        toLocale(m.user.locale),
       );
       sendEmail({ to: m.user.email, subject, html }).catch(() => null);
     }

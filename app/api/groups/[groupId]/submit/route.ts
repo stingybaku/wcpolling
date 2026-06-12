@@ -4,6 +4,7 @@ import { getCurrentUser, unauthorized, badRequest, forbidden } from "@/app/api/h
 import { recalculateTournamentScores } from "@/lib/scoring";
 import { sendEmail } from "@/lib/email";
 import { submissionConfirmEmail } from "@/lib/emails/submissionConfirm";
+import { toLocale } from "@/lib/locale";
 
 async function resolveGroupAndCheckDeadline(groupId: string): Promise<{ error: string; tournamentId?: never } | { tournamentId: string; error?: never }> {
   const group = await prisma.groupRoom.findUnique({
@@ -84,6 +85,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ gr
         tournament.submissionDeadline ?? new Date(),
         [predictionName],
         `${baseUrl}/dashboard/groups/${groupId}`,
+        toLocale(user.locale),
       );
       sendEmail({ to: user.email, subject, html }).catch(() => null);
     }

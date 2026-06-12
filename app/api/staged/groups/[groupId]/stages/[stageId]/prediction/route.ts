@@ -4,6 +4,7 @@ import { getCurrentUser, unauthorized, forbidden, badRequest } from "@/app/api/h
 import { sendEmail } from "@/lib/email";
 import { predictionUnlockedEmail } from "@/lib/emails/predictionUnlocked";
 import { groupQualificationConfirmEmail, knockoutConfirmEmail } from "@/lib/emails/stagePredictionConfirm";
+import { toLocale } from "@/lib/locale";
 import { scoreStage } from "@/lib/stage-scoring";
 import { UNLOCKS_PER_STAGE } from "@/lib/staged-unlocks";
 
@@ -115,6 +116,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
         stage.closesAt,
         groupPickData,
         predictionUrl,
+        toLocale(user.locale),
       );
       sendEmail({ to: user.email, subject, html }).catch(() => null);
     }
@@ -178,6 +180,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
         stage.closesAt,
         emailMatches,
         predictionUrl,
+        toLocale(user.locale),
       );
       sendEmail({ to: user.email, subject, html }).catch(() => null);
     }
@@ -264,7 +267,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
     },
   });
 
-  const targetUser = await prisma.user.findUnique({ where: { id: targetUserId }, select: { email: true } });
+  const targetUser = await prisma.user.findUnique({ where: { id: targetUserId }, select: { email: true, locale: true } });
   if (targetUser?.email) {
     const baseUrl = process.env.NEXTAUTH_URL ?? '';
     const predictionUrl = `${baseUrl}/dashboard/groups/${groupId}`;
@@ -274,6 +277,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
       groupData?.name ?? groupId,
       stage.closesAt,
       predictionUrl,
+      toLocale(targetUser.locale),
     );
     sendEmail({ to: targetUser.email, subject, html }).catch(() => null);
   }

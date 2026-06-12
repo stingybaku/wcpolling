@@ -496,20 +496,24 @@ function ReadOnlyPicks({
     const qualifierSet = Array.isArray(stage.qualificationResult?.qualifiers)
       ? new Set(stage.qualificationResult.qualifiers as string[])
       : null;
-    const hasResults = qualifierSet !== null;
+    // Qualifiers are computed live against the current standings (so points keep
+    // updating in the background), but we only reveal correct/incorrect once the
+    // stage is officially SCORED. Until then every pick shows as pending to avoid
+    // implying a final result while the group stage is still in progress.
+    const revealResults = isFinal && qualifierSet !== null;
 
     const rows = prediction.qualificationPicks.map((id) => ({
       id,
       team: teamMap[id],
-      state: (!hasResults ? "pending" : qualifierSet!.has(id) ? "correct" : "missed") as PickState,
+      state: (!revealResults ? "pending" : qualifierSet!.has(id) ? "correct" : "missed") as PickState,
     }));
     const stats = summarize(rows.map((r) => r.state));
 
     return (
       <div className="space-y-4">
-        {hasResults
+        {revealResults
           ? <StageResultSummary stats={stats} score={score} isFinal={isFinal} />
-          : <p className="text-sm muted">{t("resultsNotStarted")}</p>}
+          : <p className="text-sm muted">{t("groupStagePending")}</p>}
         <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
           {rows.map(({ id, team, state }) => {
             if (!team) return null;

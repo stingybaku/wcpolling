@@ -5,6 +5,7 @@ import { MAX_GROUP_MEMBERS } from "@/lib/group-limits";
 import { sendEmail } from "@/lib/email";
 import { groupJoinedEmail } from "@/lib/emails/groupJoined";
 import { newMemberAlertEmail } from "@/lib/emails/newMemberAlert";
+import { toLocale } from "@/lib/locale";
 
 export async function POST(request: NextRequest) {
   const user = await getCurrentUser();
@@ -15,10 +16,10 @@ export async function POST(request: NextRequest) {
   const group = await prisma.groupRoom.findUnique({
     where: { inviteCode },
     include: {
-      owner: { select: { email: true } },
+      owner: { select: { email: true, locale: true } },
       memberships: {
         where: { isActive: true, role: "GROUP_ADMIN" },
-        include: { user: { select: { email: true } } },
+        include: { user: { select: { email: true, locale: true } } },
       },
     },
   });
@@ -56,18 +57,19 @@ export async function POST(request: NextRequest) {
   const joiningUserName = membership.user.name ?? membership.user.email ?? "Someone";
 
   if (membership.user.email) {
-    const { subject, html } = groupJoinedEmail(group.name, groupUrl);
+    const { subject, html } = groupJoinedEmail(group.name, groupUrl, toLocale(membership.user.locale));
     sendEmail({ to: membership.user.email, subject, html }).catch(() => null);
   }
 
-  const adminEmails = new Set<string>();
-  if (group.owner.email) adminEmails.add(group.owner.email);
+  // One alert per unique admin, each in their own language.
+  const adminRecipients = new Map<string, string>(); // email -> locale
+  if (group.owner.email) adminRecipients.set(group.owner.email, toLocale(group.owner.locale));
   for (const m of group.memberships) {
-    if (m.user.email) adminEmails.add(m.user.email);
+    if (m.user.email) adminRecipients.set(m.user.email, toLocale(m.user.locale));
   }
-  adminEmails.delete(membership.user.email ?? "");
-  for (const adminEmail of adminEmails) {
-    const { subject, html } = newMemberAlertEmail(joiningUserName, group.name, memberCount, groupUrl);
+  adminRecipients.delete(membership.user.email ?? "");
+  for (const [adminEmail, adminLocale] of adminRecipients) {
+    const { subject, html } = newMemberAlertEmail(joiningUserName, group.name, memberCount, groupUrl, toLocale(adminLocale));
     sendEmail({ to: adminEmail, subject, html }).catch(() => null);
   }
 

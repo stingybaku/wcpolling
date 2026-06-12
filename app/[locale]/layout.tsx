@@ -7,6 +7,7 @@ import { routing } from "@/i18n/routing";
 import { ThemeInitializer } from "@/components/theme-toggle";
 import { FontSizeInitializer } from "@/components/font-size-control";
 import { SessionProvider } from "@/components/session-provider";
+import { LocalePersister } from "@/components/locale-persister";
 import "../globals.css";
 
 // Manrope — display / headlines / KPI numbers
@@ -60,6 +61,7 @@ export default async function LocaleLayout({
           <SessionProvider>
             <ThemeInitializer />
             <FontSizeInitializer />
+            <LocalePersister />
             {children}
           </SessionProvider>
         </NextIntlClientProvider>

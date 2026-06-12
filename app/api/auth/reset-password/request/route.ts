@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { sendEmail } from "@/lib/email";
 import { resetPasswordEmail } from "@/lib/emails/resetPassword";
+import { toLocale } from "@/lib/locale";
 import crypto from "crypto";
 
 export async function POST(request: Request) {
@@ -11,7 +12,7 @@ export async function POST(request: Request) {
     return new Response(JSON.stringify({ error: "Email is required" }), { status: 400 });
   }
 
-  const user = await prisma.user.findUnique({ where: { email }, select: { id: true } });
+  const user = await prisma.user.findUnique({ where: { email }, select: { id: true, locale: true } });
 
   // Always return success to avoid email enumeration
   if (user) {
@@ -25,7 +26,7 @@ export async function POST(request: Request) {
     const baseUrl = process.env.NEXTAUTH_URL ?? "http://localhost:3000";
     const resetUrl = `${baseUrl}/auth/reset-password?token=${token}`;
 
-    const { subject, html } = resetPasswordEmail(resetUrl);
+    const { subject, html } = resetPasswordEmail(resetUrl, toLocale(user.locale));
     await sendEmail({ to: email, subject, html });
   }
 

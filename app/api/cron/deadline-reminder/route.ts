@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendEmail } from "@/lib/email";
 import { deadlineReminderEmail } from "@/lib/emails/deadlineReminder";
+import { toLocale } from "@/lib/locale";
 
 const HOUR_MS = 60 * 60 * 1000;
 
@@ -66,13 +67,13 @@ export async function GET(request: NextRequest) {
 
       const user = await prisma.user.findUnique({
         where: { id: userId },
-        select: { email: true },
+        select: { email: true, locale: true },
       });
       if (!user?.email) continue;
 
       const baseUrl = process.env.NEXTAUTH_URL ?? '';
       const predictionUrl = `${baseUrl}/staged/${stage.tournamentId}/${stage.id}`;
-      const { subject, html } = deadlineReminderEmail(stage.name, stage.closesAt, hoursLeft, predictionUrl);
+      const { subject, html } = deadlineReminderEmail(stage.name, stage.closesAt, hoursLeft, predictionUrl, toLocale(user.locale));
 
       try {
         await sendEmail({ to: user.email, subject, html });
