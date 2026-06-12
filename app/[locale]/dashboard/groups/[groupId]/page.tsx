@@ -29,10 +29,10 @@ type GroupDetail = {
   ownerId: string;
   tournament?: { id: string; name: string; type: string; submissionDeadline?: string | null; finalizedAt?: string | null } | null;
   owner: { email?: string | null; name?: string | null };
-  memberships: Array<{ userId: string; role: string; isActive: boolean; user: { id: string; email?: string | null; name?: string | null } }>;
+  memberships: Array<{ userId: string; role: string; isActive: boolean; user: { id: string; email?: string | null; name?: string | null; image?: string | null } }>;
   submissions: Array<{
     id: string;
-    user: { id: string; email?: string | null; name?: string | null };
+    user: { id: string; email?: string | null; name?: string | null; image?: string | null };
     prediction: { id: string; name: string };
     scores: Array<{ points: number; scoreType: "MATCH" | "GROUP_STANDING" | "KNOCKOUT" | "TIEBREAKER"; label?: string | null }>;
   }>;
@@ -43,6 +43,7 @@ type UserPrediction = { id: string; name: string };
 type StagedLeaderboardEntry = {
   userId: string;
   userName: string | null;
+  userImage: string | null;
   totalPoints: number;
   totalCorrectPicks: number;
   stages: { stageId: string; stageName: string; stageStatus: string; points: number; correctPicks: number }[];
@@ -53,6 +54,7 @@ type StagedStage = { id: string; name: string; status: string };
 type LeaderboardRow = {
   userId: string;
   userName: string;
+  userImage: string | null;
   predictionId: string;
   predictionName: string;
   points: number;
@@ -109,6 +111,7 @@ function buildLeaderboard(submissions: GroupDetail["submissions"]): LeaderboardR
       return {
         userId: sub.user.id,
         userName: displayName(sub.user),
+        userImage: sub.user.image ?? null,
         predictionId: sub.prediction.id,
         predictionName: sub.prediction.name,
         points: sub.scores.reduce((sum, s) => sum + s.points, 0),
@@ -120,9 +123,25 @@ function buildLeaderboard(submissions: GroupDetail["submissions"]): LeaderboardR
 
 // ─── Atoms ────────────────────────────────────────────────────────────────────
 
-function Avatar({ userId, name, size = 24 }: { userId: string; name: string; size?: number }) {
+function Avatar({ userId, name, size = 24, image }: { userId: string; name: string; size?: number; image?: string | null }) {
   const color = memberColor(userId);
   const label = initials(name);
+  const [broken, setBroken] = useState(false);
+
+  if (image && !broken) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={image}
+        alt={name}
+        title={name}
+        referrerPolicy="no-referrer"
+        onError={() => setBroken(true)}
+        style={{ width: size, height: size, borderRadius: 999, objectFit: "cover", flexShrink: 0, display: "inline-block", background: color }}
+      />
+    );
+  }
+
   return (
     <span
       style={{
@@ -349,7 +368,7 @@ function MemberItem({ variant, zebra, m, ownerId, currentUserId, sub, openStageI
         opacity: m.isActive || isOwner ? 1 : 0.72,
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <Avatar userId={m.user.id} name={name} size={36} />
+          <Avatar userId={m.user.id} name={name} image={m.user.image} size={36} />
           <div style={{ minWidth: 0, flex: 1 }}>
             <div style={{ fontSize: 13, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: m.isActive || isOwner ? "var(--ink)" : "var(--muted)" }}>
               {name}{isMe && <span style={{ color: "var(--muted)", fontWeight: 400 }}> · {t("youLabel")}</span>}
@@ -373,7 +392,7 @@ function MemberItem({ variant, zebra, m, ownerId, currentUserId, sub, openStageI
   // Mobile: compact row, actions collapsed under a ⋯ dropdown.
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px", borderRadius: 6, background: zebra ? "var(--bg-strong)" : "transparent" }}>
-      <Avatar userId={m.user.id} name={name} size={28} />
+      <Avatar userId={m.user.id} name={name} image={m.user.image} size={28} />
       <span style={{ flex: 1, fontSize: 13, fontWeight: 600, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: m.isActive || isOwner ? "var(--ink)" : "var(--muted)" }}>
         {name}{isMe && <span style={{ color: "var(--muted)", fontWeight: 400 }}> {t("youLabel")}</span>}
       </span>
@@ -855,12 +874,13 @@ export default function GroupDetailPage() {
     ...stagedLeaderboard.map((e) => ({
       userId: e.userId,
       userName: membershipById[e.userId] ? displayName(membershipById[e.userId].user) : (e.userName ?? ""),
+      userImage: membershipById[e.userId]?.user.image ?? e.userImage ?? null,
       totalPoints: e.totalPoints,
       stages: e.stages,
     })),
     ...(group?.memberships ?? [])
       .filter((m) => !scoredUserIds.has(m.user.id))
-      .map((m) => ({ userId: m.user.id, userName: displayName(m.user), totalPoints: 0, stages: [] as StagedLeaderboardEntry["stages"] })),
+      .map((m) => ({ userId: m.user.id, userName: displayName(m.user), userImage: m.user.image ?? null, totalPoints: 0, stages: [] as StagedLeaderboardEntry["stages"] })),
   ];
 
   // ── Pagination (20/page) for each leaderboard rendering ──────────────────────
@@ -1146,7 +1166,7 @@ export default function GroupDetailPage() {
                     const isMe = entry.userId === currentUserId;
                     return (
                       <div key={pos} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
-                        <Avatar userId={entry.userId} name={entry.userName ?? ""} size={isFirst ? 52 : 40} />
+                        <Avatar userId={entry.userId} name={entry.userName ?? ""} image={entry.userImage} size={isFirst ? 52 : 40} />
                         <span style={{ fontSize: isFirst ? 13 : 12, fontWeight: 700, textAlign: "center", color: "var(--ink)" }}>
                           {entry.userName}{isMe && ` ${t("youLabel")}`}
                         </span>
@@ -1178,7 +1198,7 @@ export default function GroupDetailPage() {
                         <span style={{ width: 28, textAlign: "center", fontSize: 12, fontWeight: 700, color: "var(--muted)", flexShrink: 0 }}>
                           {idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : idx + 1}
                         </span>
-                        <Avatar userId={entry.userId} name={entry.userName ?? ""} size={28} />
+                        <Avatar userId={entry.userId} name={entry.userName ?? ""} image={entry.userImage} size={28} />
                         <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "var(--ink)" }}>
                           {entry.userName}
                           {isMe && <span className="chip chip-accent" style={{ marginLeft: 6, fontSize: 10, padding: "2px 6px" }}>{t("youLabel")}</span>}
@@ -1238,7 +1258,7 @@ export default function GroupDetailPage() {
                           <td><MedalBadge rank={stagedPag.start + idx + 1} /></td>
                           <td>
                             <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                              <Avatar userId={entry.userId} name={entry.userName} size={24} />
+                              <Avatar userId={entry.userId} name={entry.userName} image={entry.userImage} size={24} />
                               <span style={{ fontWeight: 600, fontSize: 13 }}>
                                 {entry.userName}
                                 {isMe && <span className="chip chip-accent" style={{ marginLeft: 6, fontSize: 10, padding: "2px 6px" }}>{t("youLabel")}</span>}
@@ -1326,7 +1346,7 @@ export default function GroupDetailPage() {
                         </td>
                         <td>
                           <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                            <Avatar userId={row.userId} name={row.userName} size={24} />
+                            <Avatar userId={row.userId} name={row.userName} image={row.userImage} size={24} />
                             <span style={{ fontWeight: 600, fontSize: 13 }}>
                               {row.userName}
                               {isMe && <span className="chip chip-accent" style={{ marginLeft: 6, fontSize: 10, padding: "2px 6px" }}>{t("youLabel")}</span>}
