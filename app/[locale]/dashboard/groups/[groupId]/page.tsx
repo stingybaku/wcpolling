@@ -462,7 +462,7 @@ function MemberManager({ groupId, memberships, ownerId, currentUserId, memberSub
                 sub={memberSubmissions[m.userId]} openStageId={openStageId} groupId={groupId} onChanged={onChanged} onUnlock={onUnlock} />
             ))}
           </div>
-          <div className="md:hidden" style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <div className="flex flex-col md:hidden" style={{ gap: 4 }}>
             {memberships.map((m, mi) => (
               <MemberItem key={m.user.id} variant="row" zebra={mi % 2 === 1} m={m} ownerId={ownerId} currentUserId={currentUserId}
                 sub={memberSubmissions[m.userId]} openStageId={openStageId} groupId={groupId} onChanged={onChanged} onUnlock={onUnlock} />
