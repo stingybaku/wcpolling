@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentTournament, getCurrentUser, unauthorized, badRequest } from "@/app/api/helpers";
+import { MAX_GROUPS_PER_USER } from "@/lib/group-limits";
 
 export async function GET() {
   const user = await getCurrentUser();
@@ -33,6 +34,22 @@ export async function POST(request: NextRequest) {
   const description = String(body.description || "").trim();
   if (!name) return badRequest("Group name is required");
   if (!tournament) return badRequest("Select a tournament before creating a group");
+
+  const isPortalAdmin = user.role === "ADMIN";
+
+  // Non-admins may only own one live group. A REJECTED group frees the slot so
+  // they can try again; PENDING and APPROVED both count against the limit.
+  if (!isPortalAdmin) {
+    const ownedCount = await prisma.groupRoom.count({
+      where: { ownerId: user.id, status: { not: "REJECTED" } },
+    });
+    if (ownedCount >= MAX_GROUPS_PER_USER) {
+      return badRequest("You can only create one group. Ask the portal admin if you need another.");
+    }
+  }
+
+  // Admin-created groups are live immediately; everyone else's await approval.
+  const status = isPortalAdmin ? "APPROVED" : "PENDING";
   const inviteCode = Math.random().toString(36).slice(2, 8).toUpperCase();
 
   const group = await prisma.groupRoom.create({
@@ -42,6 +59,7 @@ export async function POST(request: NextRequest) {
       description,
       ownerId: user.id,
       inviteCode,
+      status,
       memberships: {
         create: {
           userId: user.id,

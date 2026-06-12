@@ -61,6 +61,33 @@ type AdminUser = {
     submissions: number;
   };
 };
+type AdminGroupRoom = {
+  id: string;
+  name: string;
+  description?: string | null;
+  inviteCode: string;
+  status: "PENDING" | "APPROVED" | "REJECTED";
+  createdAt: string;
+  owner: { id: string; name?: string | null; email?: string | null };
+  tournament?: { id: string; name: string; slug: string } | null;
+  _count: {
+    memberships: number;
+    submissions: number;
+  };
+};
+type UsageStats = {
+  totals: {
+    users: number;
+    approvedGroups: number;
+    pendingGroups: number;
+    rejectedGroups: number;
+    activeMemberships: number;
+    predictionsSubmitted: number;
+    activePredictors: number;
+  };
+  stageParticipation: Array<{ stageId: string; name: string; tournament: string; predicted: number; eligible: number; pct: number }>;
+  daily: Array<{ date: string; count: number }>;
+};
 type SponsoredPlacement = {
   id: string;
   title: string;
@@ -200,6 +227,8 @@ export default function DashboardAdminPage() {
   const [teams, setTeams] = useState<Team[]>([]);
   const [matches, setMatches] = useState<Match[]>([]);
   const [users, setUsers] = useState<AdminUser[]>([]);
+  const [groupRooms, setGroupRooms] = useState<AdminGroupRoom[]>([]);
+  const [usage, setUsage] = useState<UsageStats | null>(null);
   const [sponsoredPlacements, setSponsoredPlacements] = useState<SponsoredPlacement[]>([]);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -508,6 +537,36 @@ export default function DashboardAdminPage() {
     setUsers(data.users || []);
   }
 
+  async function loadGroupRooms() {
+    const res = await fetch("/api/admin/groups");
+    if (!res.ok) return;
+    const data = await res.json();
+    setGroupRooms(data.groups || []);
+  }
+
+  async function loadUsage() {
+    const res = await fetch("/api/admin/stats");
+    if (!res.ok) return;
+    const data = await res.json();
+    setUsage(data);
+  }
+
+  async function setGroupStatus(groupId: string, status: "APPROVED" | "REJECTED") {
+    setMessage("");
+    setError("");
+    const res = await fetch("/api/admin/groups", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ groupId, status }),
+    });
+    if (!res.ok) {
+      setError("Could not update the group.");
+      return;
+    }
+    setMessage(status === "APPROVED" ? "Group approved." : "Group rejected.");
+    await Promise.all([loadGroupRooms(), loadUsage()]);
+  }
+
   async function loadSponsoredPlacements(tournamentId?: string) {
     const query = tournamentId ? `?tournamentId=${encodeURIComponent(tournamentId)}` : "";
     const res = await fetch(`/api/admin/sponsored${query}`);
@@ -521,7 +580,7 @@ export default function DashboardAdminPage() {
 
   useEffect(() => {
     async function loadAll() {
-      await Promise.all([loadTournament(), loadTournamentList(), loadTeams(), loadMatches(), loadUsers(), loadSponsoredPlacements()]);
+      await Promise.all([loadTournament(), loadTournamentList(), loadTeams(), loadMatches(), loadUsers(), loadGroupRooms(), loadUsage(), loadSponsoredPlacements()]);
     }
 
     void loadAll();
@@ -1802,40 +1861,211 @@ export default function DashboardAdminPage() {
         </div>
       ) : null}
 
-      <section className="surface rounded-[2rem] p-6 md:p-8">
-        <div className="flex items-center justify-between gap-3">
+      <details className="surface rounded-[2rem] p-6 md:p-8" open>
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.3em] muted">Users</p>
             <h3 className="mt-2 text-3xl font-extrabold">Directory</h3>
           </div>
-          <button className="rounded-[1.1rem] border px-4 py-3 text-xs font-extrabold uppercase tracking-[0.18em]" onClick={openCreateUserModal} style={{ borderColor: "var(--border)", background: "var(--bg)" }} type="button">
-            Create user
-          </button>
+          <span className="rounded-full px-3 py-2 text-[11px] font-bold uppercase tracking-[0.16em]" style={{ background: "var(--bg-strong)", color: "var(--muted)" }}>
+            {users.length} total
+          </span>
+        </summary>
+        <div className="mt-5">
+          <div className="flex justify-end">
+            <button className="rounded-[1.1rem] border px-4 py-3 text-xs font-extrabold uppercase tracking-[0.18em]" onClick={openCreateUserModal} style={{ borderColor: "var(--border)", background: "var(--bg)" }} type="button">
+              Create user
+            </button>
+          </div>
+          {users.length === 0 ? (
+            <p className="mt-4 text-sm muted">No users yet.</p>
+          ) : (
+            <div className="mt-4 overflow-x-auto">
+              <table className="w-full border-collapse text-sm">
+                <thead>
+                  <tr className="text-left text-[11px] font-bold uppercase tracking-[0.14em] muted" style={{ borderBottom: "1px solid var(--border)" }}>
+                    <th className="py-2 pr-3 font-bold">Name</th>
+                    <th className="py-2 pr-3 font-bold">Email</th>
+                    <th className="py-2 pr-3 font-bold">Role</th>
+                    <th className="py-2 pr-3 text-right font-bold">Preds</th>
+                    <th className="py-2 pr-3 text-right font-bold">Groups</th>
+                    <th className="py-2 pr-3 text-right font-bold">Subs</th>
+                    <th className="py-2 text-right font-bold">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {users.map((user) => (
+                    <tr key={user.id} style={{ borderBottom: "1px solid var(--border)" }}>
+                      <td className="py-2 pr-3 font-semibold">{user.name || "Unnamed user"}</td>
+                      <td className="py-2 pr-3 muted">{user.email || "No email"}</td>
+                      <td className="py-2 pr-3">
+                        <span className="rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em]" style={{ background: user.role === "ADMIN" ? "var(--accent-soft)" : "var(--bg-strong)", color: user.role === "ADMIN" ? "var(--accent-strong)" : "var(--muted)" }}>
+                          {user.role}
+                        </span>
+                      </td>
+                      <td className="py-2 pr-3 text-right tabular-nums">{user._count.predictions}</td>
+                      <td className="py-2 pr-3 text-right tabular-nums">{user._count.memberships}</td>
+                      <td className="py-2 pr-3 text-right tabular-nums">{user._count.submissions}</td>
+                      <td className="py-2">
+                        <div className="flex justify-end gap-2">
+                          <button className="rounded-[0.7rem] border px-3 py-1.5 text-xs font-bold uppercase tracking-[0.14em]" onClick={() => startEditingUser(user)} style={{ borderColor: "var(--border)", background: "var(--bg)" }} type="button">
+                            Edit
+                          </button>
+                          <button className="rounded-[0.7rem] border px-3 py-1.5 text-xs font-bold uppercase tracking-[0.14em]" onClick={() => setModal({ type: "deleteUser", user })} style={{ borderColor: "var(--border)", background: "var(--bg)" }} type="button">
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
-        <div className="mt-5 grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
-          {users.map((user) => (
-            <article key={user.id} className="rounded-[1.3rem] border p-4" style={{ borderColor: "var(--border)" }}>
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="font-extrabold">{user.name || "Unnamed user"}</p>
-                  <p className="mt-1 text-sm muted">{user.email || "No email"}</p>
+      </details>
+
+      {usage ? (
+        <section className="surface rounded-[2rem] p-6 md:p-8">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] muted">Usage</p>
+            <h3 className="mt-2 text-3xl font-extrabold">Engagement</h3>
+            <p className="mt-2 text-sm muted">Live activity across the portal — useful for demos and testimonials.</p>
+          </div>
+
+          <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {[
+              { label: "Users", value: usage.totals.users },
+              { label: "Active predictors", value: usage.totals.activePredictors },
+              { label: "Predictions submitted", value: usage.totals.predictionsSubmitted },
+              { label: "Active memberships", value: usage.totals.activeMemberships },
+            ].map((card) => (
+              <div key={card.label} className="rounded-[1.3rem] border p-4" style={{ borderColor: "var(--border)" }}>
+                <p className="text-3xl font-extrabold">{card.value.toLocaleString()}</p>
+                <p className="mt-1 text-xs font-semibold uppercase tracking-[0.16em] muted">{card.label}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-3 flex flex-wrap gap-2 text-xs muted">
+            <span className="rounded-full px-3 py-2" style={{ background: "var(--accent-soft)", color: "var(--accent-strong)" }}>{usage.totals.approvedGroups} approved groups</span>
+            {usage.totals.pendingGroups > 0 ? <span className="rounded-full px-3 py-2" style={{ background: "#fef3c7", color: "#92400e" }}>{usage.totals.pendingGroups} pending</span> : null}
+            {usage.totals.rejectedGroups > 0 ? <span className="rounded-full px-3 py-2" style={{ background: "#fee2e2", color: "#991b1b" }}>{usage.totals.rejectedGroups} rejected</span> : null}
+          </div>
+
+          {usage.stageParticipation.length > 0 ? (
+            <div className="mt-6">
+              <p className="text-sm font-extrabold">Participation by stage</p>
+              <p className="text-xs muted">Distinct members who submitted a prediction, vs. eligible members.</p>
+              <div className="mt-3 space-y-2">
+                {usage.stageParticipation.map((s) => (
+                  <div key={s.stageId}>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-semibold">{s.name}</span>
+                      <span className="muted">{s.predicted}/{s.eligible} • {s.pct}%</span>
+                    </div>
+                    <div className="mt-1 h-2 w-full overflow-hidden rounded-full" style={{ background: "var(--bg-strong)" }}>
+                      <div className="h-full rounded-full" style={{ width: `${s.pct}%`, background: "linear-gradient(90deg, var(--accent), var(--accent-strong))" }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          {usage.daily.some((d) => d.count > 0) ? (
+            <div className="mt-6">
+              <p className="text-sm font-extrabold">Predictions per day (last 14 days)</p>
+              <div className="mt-3 flex items-end gap-1" style={{ height: 80 }}>
+                {(() => {
+                  const max = Math.max(...usage.daily.map((d) => d.count), 1);
+                  return usage.daily.map((d) => (
+                    <div key={d.date} className="flex-1" title={`${d.date}: ${d.count}`}>
+                      <div
+                        className="w-full rounded-t"
+                        style={{ height: `${Math.max(2, Math.round((d.count / max) * 72))}px`, background: d.count > 0 ? "var(--accent)" : "var(--bg-strong)" }}
+                      />
+                    </div>
+                  ));
+                })()}
+              </div>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
+
+      <section className="surface rounded-[2rem] p-6 md:p-8">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] muted">Groups</p>
+            <h3 className="mt-2 text-3xl font-extrabold">Portal rooms</h3>
+            <p className="mt-2 text-sm muted">Every group created in the portal, across all tournaments.</p>
+          </div>
+          <div className="flex items-center gap-2">
+            {groupRooms.some((g) => g.status === "PENDING") ? (
+              <span className="rounded-full px-3 py-2 text-[11px] font-bold uppercase tracking-[0.16em]" style={{ background: "#fef3c7", color: "#92400e" }}>
+                {groupRooms.filter((g) => g.status === "PENDING").length} pending
+              </span>
+            ) : null}
+            <span className="rounded-full px-3 py-2 text-[11px] font-bold uppercase tracking-[0.16em]" style={{ background: "var(--bg-strong)", color: "var(--muted)" }}>
+              {groupRooms.length} total
+            </span>
+          </div>
+        </div>
+        {groupRooms.length === 0 ? (
+          <p className="mt-5 text-sm muted">No groups have been created yet.</p>
+        ) : (
+          <div className="mt-5 grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
+            {[...groupRooms]
+              .sort((a, b) => (a.status === "PENDING" ? 0 : 1) - (b.status === "PENDING" ? 0 : 1))
+              .map((group) => {
+              const statusStyle =
+                group.status === "PENDING"
+                  ? { background: "#fef3c7", color: "#92400e", label: "Pending" }
+                  : group.status === "REJECTED"
+                  ? { background: "#fee2e2", color: "#991b1b", label: "Rejected" }
+                  : { background: "var(--accent-soft)", color: "var(--accent-strong)", label: "Approved" };
+              return (
+              <article key={group.id} className="rounded-[1.3rem] border p-4" style={{ borderColor: group.status === "PENDING" ? "#f59e0b" : "var(--border)" }}>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-extrabold">{group.name}</p>
+                    <p className="mt-1 text-sm muted">{group.owner.name || group.owner.email || "Unknown owner"}</p>
+                  </div>
+                  <span className="rounded-full px-3 py-2 text-[11px] font-bold uppercase tracking-[0.16em]" style={{ background: statusStyle.background, color: statusStyle.color }}>
+                    {statusStyle.label}
+                  </span>
                 </div>
-                <span className="rounded-full px-3 py-2 text-[11px] font-bold uppercase tracking-[0.16em]" style={{ background: user.role === "ADMIN" ? "var(--accent-soft)" : "var(--bg-strong)", color: user.role === "ADMIN" ? "var(--accent-strong)" : "var(--muted)" }}>
-                  {user.role}
-                </span>
-              </div>
-              <p className="mt-3 text-xs muted">{user._count.predictions} predictions • {user._count.memberships} memberships • {user._count.submissions} submissions</p>
-              <div className="mt-4 flex flex-wrap gap-2">
-                <button className="rounded-[0.9rem] border px-3 py-2 text-xs font-bold uppercase tracking-[0.14em]" onClick={() => startEditingUser(user)} style={{ borderColor: "var(--border)", background: "var(--bg)" }} type="button">
-                  Edit
-                </button>
-                <button className="rounded-[0.9rem] border px-3 py-2 text-xs font-bold uppercase tracking-[0.14em]" onClick={() => setModal({ type: "deleteUser", user })} style={{ borderColor: "var(--border)", background: "var(--bg)" }} type="button">
-                  Delete
-                </button>
-              </div>
-            </article>
-          ))}
-        </div>
+                {group.description ? <p className="mt-3 text-sm muted">{group.description}</p> : null}
+                <p className="mt-3 text-xs muted">{group.tournament ? group.tournament.name : "No tournament"} • {group._count.memberships} members • {group._count.submissions} submissions • code {group.inviteCode}</p>
+                <p className="mt-1 text-xs muted">Created {new Date(group.createdAt).toLocaleDateString()}</p>
+                {group.status !== "APPROVED" ? (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void setGroupStatus(group.id, "APPROVED")}
+                      className="rounded-[1rem] px-4 py-2 text-xs font-extrabold uppercase tracking-[0.16em] text-white"
+                      style={{ background: "linear-gradient(135deg, var(--accent), var(--accent-strong))" }}
+                    >
+                      Approve
+                    </button>
+                    {group.status === "PENDING" ? (
+                      <button
+                        type="button"
+                        onClick={() => void setGroupStatus(group.id, "REJECTED")}
+                        className="rounded-[1rem] border px-4 py-2 text-xs font-extrabold uppercase tracking-[0.16em]"
+                        style={{ borderColor: "var(--border)", background: "var(--bg)" }}
+                      >
+                        Reject
+                      </button>
+                    ) : null}
+                  </div>
+                ) : null}
+              </article>
+              );
+            })}
+          </div>
+        )}
       </section>
 
       {modal?.type === "user" ? (

@@ -63,6 +63,12 @@ enum GroupMemberRole {
   GROUP_ADMIN
 }
 
+enum GroupStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 model User {
   id              String                 @id @default(cuid())
   name            String?
@@ -339,6 +345,7 @@ model GroupRoom {
   description String?
   ownerId     String
   inviteCode  String                 @unique
+  status      GroupStatus            @default(APPROVED)
   createdAt   DateTime               @default(now())
   updatedAt   DateTime               @updatedAt
   tournament  Tournament?            @relation(fields: [tournamentId], references: [id], onDelete: SetNull)

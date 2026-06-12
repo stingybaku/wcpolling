@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "@/lib/navigation";
 import { flagEmoji } from "@/lib/fifa-flags";
+import { TeamFlag } from "@/components/team-flag";
 import {
   lookupThirdPlaceScenario,
   THIRD_PLACE_MATCH_SLOTS,
@@ -289,7 +290,7 @@ export default function TournamentManager({ tournamentId }: { tournamentId: stri
                         }}
                       >
                         <span className="text-xs mono muted" style={{ width: 16 }}>{idx + 1}.</span>
-                        <span>{flagEmoji(team.fifaCode)}</span>
+                        <TeamFlag code={team.fifaCode} size={16} />
                         <span className="text-sm bold" style={{ flex: 1 }}>{team.name}</span>
                         <span className="row gap-1">
                           <button className="btn btn-ghost btn-sm" disabled={idx === 0} style={{ padding: "2px 6px" }} onClick={() => moveGroupTeam(group.id, idx, idx - 1)}>↑</button>
@@ -360,7 +361,7 @@ export default function TournamentManager({ tournamentId }: { tournamentId: stri
                   }}
                 >
                   <span className="text-xs mono muted" style={{ width: 20 }}>{idx + 1}.</span>
-                  <span>{flagEmoji(team.fifaCode)}</span>
+                  <TeamFlag code={team.fifaCode} size={16} />
                   <span className="text-sm bold" style={{ flex: 1 }}>{team.name}</span>
                   {qualifies
                     ? <span className="text-xs mono" style={{ color: "var(--accent-strong)" }}>→ slot {slot ?? "?"}</span>
@@ -417,7 +418,7 @@ export default function TournamentManager({ tournamentId }: { tournamentId: stri
                 {/* Teams + score inputs */}
                 <div className="row gap-3" style={{ alignItems: "center" }}>
                   <div className="row gap-2" style={{ alignItems: "center", flex: 1 }}>
-                    <span>{home ? flagEmoji(home.fifaCode) : "🏳"}</span>
+                    {home ? <TeamFlag code={home.fifaCode} size={16} /> : <span>🏳</span>}
                     <span className="bold text-sm">{home?.name ?? groupLabel(match).split(" vs ")[0]}</span>
                   </div>
                   <div className="row gap-2" style={{ alignItems: "center" }}>
@@ -443,7 +444,7 @@ export default function TournamentManager({ tournamentId }: { tournamentId: stri
                   </div>
                   <div className="row gap-2" style={{ alignItems: "center", flex: 1, justifyContent: "flex-end" }}>
                     <span className="bold text-sm">{away?.name ?? groupLabel(match).split(" vs ")[1]}</span>
-                    <span>{away ? flagEmoji(away.fifaCode) : "🏳"}</span>
+                    {away ? <TeamFlag code={away.fifaCode} size={16} /> : <span>🏳</span>}
                   </div>
                 </div>
 

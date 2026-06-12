@@ -332,8 +332,25 @@
       "promoteButton": "Promover",
       "demoteButton": "Degradar",
       "unlockButton": "Desbloquear picks",
-      "unlocksRemaining": "{count} desbloqueos restantes"
-    }
+      "unlocksRemaining": "{count} desbloqueos restantes",
+      "membersWord": "miembros",
+      "prevPage": "Anterior",
+      "nextPage": "Siguiente",
+      "jumpToYou": "Ir a tu página →",
+      "memberActions": "Acciones",
+      "filterStatus": "Estado",
+      "filterPicks": "Pronósticos",
+      "filterAll": "Todos",
+      "filterActive": "Activos",
+      "filterInactive": "Inactivos",
+      "filterSubmitted": "Enviados",
+      "filterNotSubmitted": "Sin enviar",
+      "searchPlaceholder": "Buscar miembros…",
+      "noMembersMatch": "Ningún miembro coincide con los filtros.",
+      "showingCount": "Mostrando {shown} de {total}"
+    },
+    "pendingBadge": "En revisión",
+    "rejectedBadge": "Rechazado"
   },
   "stagedPredictions": {
     "backToGroup": "Volver al grupo",

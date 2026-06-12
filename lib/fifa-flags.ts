@@ -68,3 +68,22 @@ export function flagEmoji(fifaCode: string): string {
   const iso2 = FIFA_TO_ISO2[fifaCode] ?? fifaCode.slice(0, 2);
   return iso2ToEmoji(iso2);
 }
+
+// Maps FIFA codes to the export keys used by `country-flag-icons/react/3x2`
+// (ISO 3166-1 alpha-2, with underscore-joined subdivision codes). Used by the
+// <TeamFlag> SVG component so flags render identically on every OS — Windows
+// ships no flag-emoji glyphs, so the emoji path breaks there.
+const SUBDIVISION_FLAG_KEYS: Record<string, string> = {
+  ENG: "GB_ENG", // England
+  SCO: "GB_SCT", // Scotland
+  WAL: "GB_WLS", // Wales
+  NIR: "GB_NIR", // Northern Ireland
+};
+
+export function fifaToFlagKey(fifaCode: string): string {
+  const subdivision = SUBDIVISION_FLAG_KEYS[fifaCode];
+  if (subdivision) return subdivision;
+
+  const iso2 = FIFA_TO_ISO2[fifaCode] ?? fifaCode.slice(0, 2);
+  return iso2.toUpperCase();
+}

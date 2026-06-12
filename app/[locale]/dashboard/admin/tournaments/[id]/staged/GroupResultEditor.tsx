@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { flagEmoji } from "@/lib/fifa-flags";
+import { TeamFlag } from "@/components/team-flag";
 
 type TeamGroup = { id: string; name: string; sortOrder: number };
 type Team = { id: string; name: string; fifaCode: string; groupMemberships: Array<{ groupId: string; seed?: number | null; group: TeamGroup }> };
@@ -240,7 +240,7 @@ export default function GroupResultEditor({
                         <span className={`flex h-5 w-8 items-center justify-center rounded-full text-[9px] font-bold shrink-0 ${POSITION_COLORS[idx] ?? "bg-gray-700 text-gray-300"}`}>
                           {POSITION_LABELS[idx] ?? idx + 1}
                         </span>
-                        <span className="text-base leading-none">{flagEmoji(team.fifaCode)}</span>
+                        <TeamFlag code={team.fifaCode} size={16} />
                         <span className="text-xs font-medium truncate" style={{ color: "var(--ink)" }}>{team.name}</span>
                       </div>
                     );
@@ -281,7 +281,7 @@ export default function GroupResultEditor({
                 <span className="text-xs font-bold w-5 text-right shrink-0" style={{ color: advances ? "var(--accent-strong)" : "var(--muted)" }}>
                   {idx + 1}
                 </span>
-                <span className="text-base leading-none">{flagEmoji(team.fifaCode)}</span>
+                <TeamFlag code={team.fifaCode} size={16} />
                 <span className="text-xs font-medium flex-1" style={{ color: advances ? "var(--ink)" : "var(--muted)" }}>{team.name}</span>
                 {advances && (
                   <span className="text-[10px] rounded-full px-1.5 py-0.5 font-bold shrink-0" style={{ background: "var(--accent)", color: "var(--accent-soft)" }}>ADV</span>
