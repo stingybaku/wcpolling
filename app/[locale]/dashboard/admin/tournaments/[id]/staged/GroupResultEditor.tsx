@@ -243,7 +243,7 @@ export default function GroupResultEditor({
       {/* Groups grid */}
       <div>
         <p className="text-xs font-semibold uppercase tracking-widest muted mb-3">Group Standings</p>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
           {groups.map(group => {
             const teamIds = standings[group.id] ?? [];
             return (
