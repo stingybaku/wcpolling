@@ -338,7 +338,9 @@
       "nextPage": "Next",
       "jumpToYou": "Jump to your page →",
       "memberActions": "Actions"
-    }
+    },
+    "pendingBadge": "Pending review",
+    "rejectedBadge": "Rejected"
   },
   "stagedPredictions": {
     "backToGroup": "Back to group",

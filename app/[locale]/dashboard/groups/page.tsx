@@ -11,6 +11,7 @@ type Group = {
   name: string;
   inviteCode: string;
   description?: string;
+  status?: "PENDING" | "APPROVED" | "REJECTED";
   tournament?: { id: string; name: string; type?: string } | null;
   owner: { name?: string | null; email?: string | null };
   memberships: Array<{ user: { name?: string | null; email?: string | null } }>;
@@ -160,7 +161,11 @@ function GroupsPageInner() {
       body: JSON.stringify({ name, description, tournamentId }),
     });
     setLoading(false);
-    if (!res.ok) { setError(t("createError")); return; }
+    if (!res.ok) {
+      const data = await res.json().catch(() => null);
+      setError(data?.error ?? t("createError"));
+      return;
+    }
     setName("");
     setDescription("");
     setShowCreate(false);
@@ -178,7 +183,8 @@ function GroupsPageInner() {
     });
     setLoading(false);
     if (!res.ok) {
-      setError(t("joinError"));
+      const data = await res.json().catch(() => null);
+      setError(data?.error ?? t("joinError"));
       return;
     }
     setInviteCode("");
@@ -279,6 +285,18 @@ function GroupsPageInner() {
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-xl font-extrabold">{group.name}</p>
+                    {group.status === "PENDING" || group.status === "REJECTED" ? (
+                      <span
+                        className="mt-1 inline-block rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em]"
+                        style={
+                          group.status === "PENDING"
+                            ? { background: "#fef3c7", color: "#92400e" }
+                            : { background: "#fee2e2", color: "#991b1b" }
+                        }
+                      >
+                        {group.status === "PENDING" ? t("pendingBadge") : t("rejectedBadge")}
+                      </span>
+                    ) : null}
                     <p className="mt-1 text-sm muted">
                       {t("owner", { name: group.owner?.name ?? group.owner?.email ?? tCommon("unknown") })}
                     </p>

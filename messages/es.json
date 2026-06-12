@@ -338,7 +338,9 @@
       "nextPage": "Siguiente",
       "jumpToYou": "Ir a tu página →",
       "memberActions": "Acciones"
-    }
+    },
+    "pendingBadge": "En revisión",
+    "rejectedBadge": "Rechazado"
   },
   "stagedPredictions": {
     "backToGroup": "Volver al grupo",

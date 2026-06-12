@@ -66,6 +66,7 @@ type AdminGroupRoom = {
   name: string;
   description?: string | null;
   inviteCode: string;
+  status: "PENDING" | "APPROVED" | "REJECTED";
   createdAt: string;
   owner: { id: string; name?: string | null; email?: string | null };
   tournament?: { id: string; name: string; slug: string } | null;
@@ -527,6 +528,22 @@ export default function DashboardAdminPage() {
     if (!res.ok) return;
     const data = await res.json();
     setGroupRooms(data.groups || []);
+  }
+
+  async function setGroupStatus(groupId: string, status: "APPROVED" | "REJECTED") {
+    setMessage("");
+    setError("");
+    const res = await fetch("/api/admin/groups", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ groupId, status }),
+    });
+    if (!res.ok) {
+      setError("Could not update the group.");
+      return;
+    }
+    setMessage(status === "APPROVED" ? "Group approved." : "Group rejected.");
+    await loadGroupRooms();
   }
 
   async function loadSponsoredPlacements(tournamentId?: string) {
@@ -1866,30 +1883,69 @@ export default function DashboardAdminPage() {
             <h3 className="mt-2 text-3xl font-extrabold">Portal rooms</h3>
             <p className="mt-2 text-sm muted">Every group created in the portal, across all tournaments.</p>
           </div>
-          <span className="rounded-full px-3 py-2 text-[11px] font-bold uppercase tracking-[0.16em]" style={{ background: "var(--bg-strong)", color: "var(--muted)" }}>
-            {groupRooms.length} total
-          </span>
+          <div className="flex items-center gap-2">
+            {groupRooms.some((g) => g.status === "PENDING") ? (
+              <span className="rounded-full px-3 py-2 text-[11px] font-bold uppercase tracking-[0.16em]" style={{ background: "#fef3c7", color: "#92400e" }}>
+                {groupRooms.filter((g) => g.status === "PENDING").length} pending
+              </span>
+            ) : null}
+            <span className="rounded-full px-3 py-2 text-[11px] font-bold uppercase tracking-[0.16em]" style={{ background: "var(--bg-strong)", color: "var(--muted)" }}>
+              {groupRooms.length} total
+            </span>
+          </div>
         </div>
         {groupRooms.length === 0 ? (
           <p className="mt-5 text-sm muted">No groups have been created yet.</p>
         ) : (
           <div className="mt-5 grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
-            {groupRooms.map((group) => (
-              <article key={group.id} className="rounded-[1.3rem] border p-4" style={{ borderColor: "var(--border)" }}>
+            {[...groupRooms]
+              .sort((a, b) => (a.status === "PENDING" ? 0 : 1) - (b.status === "PENDING" ? 0 : 1))
+              .map((group) => {
+              const statusStyle =
+                group.status === "PENDING"
+                  ? { background: "#fef3c7", color: "#92400e", label: "Pending" }
+                  : group.status === "REJECTED"
+                  ? { background: "#fee2e2", color: "#991b1b", label: "Rejected" }
+                  : { background: "var(--accent-soft)", color: "var(--accent-strong)", label: "Approved" };
+              return (
+              <article key={group.id} className="rounded-[1.3rem] border p-4" style={{ borderColor: group.status === "PENDING" ? "#f59e0b" : "var(--border)" }}>
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="font-extrabold">{group.name}</p>
                     <p className="mt-1 text-sm muted">{group.owner.name || group.owner.email || "Unknown owner"}</p>
                   </div>
-                  <span className="rounded-full px-3 py-2 text-[11px] font-bold uppercase tracking-[0.16em]" style={{ background: group.tournament ? "var(--accent-soft)" : "var(--bg-strong)", color: group.tournament ? "var(--accent-strong)" : "var(--muted)" }}>
-                    {group.tournament ? group.tournament.name : "No tournament"}
+                  <span className="rounded-full px-3 py-2 text-[11px] font-bold uppercase tracking-[0.16em]" style={{ background: statusStyle.background, color: statusStyle.color }}>
+                    {statusStyle.label}
                   </span>
                 </div>
                 {group.description ? <p className="mt-3 text-sm muted">{group.description}</p> : null}
-                <p className="mt-3 text-xs muted">{group._count.memberships} members • {group._count.submissions} submissions • code {group.inviteCode}</p>
+                <p className="mt-3 text-xs muted">{group.tournament ? group.tournament.name : "No tournament"} • {group._count.memberships} members • {group._count.submissions} submissions • code {group.inviteCode}</p>
                 <p className="mt-1 text-xs muted">Created {new Date(group.createdAt).toLocaleDateString()}</p>
+                {group.status !== "APPROVED" ? (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void setGroupStatus(group.id, "APPROVED")}
+                      className="rounded-[1rem] px-4 py-2 text-xs font-extrabold uppercase tracking-[0.16em] text-white"
+                      style={{ background: "linear-gradient(135deg, var(--accent), var(--accent-strong))" }}
+                    >
+                      Approve
+                    </button>
+                    {group.status === "PENDING" ? (
+                      <button
+                        type="button"
+                        onClick={() => void setGroupStatus(group.id, "REJECTED")}
+                        className="rounded-[1rem] border px-4 py-2 text-xs font-extrabold uppercase tracking-[0.16em]"
+                        style={{ borderColor: "var(--border)", background: "var(--bg)" }}
+                      >
+                        Reject
+                      </button>
+                    ) : null}
+                  </div>
+                ) : null}
               </article>
-            ))}
+              );
+            })}
           </div>
         )}
       </section>

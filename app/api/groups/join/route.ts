@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser, unauthorized, badRequest } from "@/app/api/helpers";
+import { MAX_GROUP_MEMBERS } from "@/lib/group-limits";
 import { sendEmail } from "@/lib/email";
 import { groupJoinedEmail } from "@/lib/emails/groupJoined";
 import { newMemberAlertEmail } from "@/lib/emails/newMemberAlert";
@@ -22,6 +23,7 @@ export async function POST(request: NextRequest) {
     },
   });
   if (!group) return badRequest("Invalid invite code");
+  if (group.status !== "APPROVED") return badRequest("This group is not open to join yet");
 
   const existing = await prisma.groupMembership.findUnique({
     where: {
@@ -32,6 +34,11 @@ export async function POST(request: NextRequest) {
     },
   });
   if (existing) return badRequest("You are already a member of this group");
+
+  const currentMembers = await prisma.groupMembership.count({ where: { groupId: group.id } });
+  if (currentMembers >= MAX_GROUP_MEMBERS) {
+    return badRequest(`This group is full (${MAX_GROUP_MEMBERS} members max)`);
+  }
 
   const membership = await prisma.groupMembership.create({
     data: {
