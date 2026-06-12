@@ -929,7 +929,11 @@ export default function GroupDetailPage() {
   const otherPredictions = myPredictions.filter(p => p.id !== mySubmission?.prediction.id);
 
   const isStagedTournament = group?.tournament?.type === "STAGED";
+  // Portal admins get group-admin controls in any group they open, even when
+  // they aren't a member (the API allows this only for APPROVED groups).
+  const isPortalAdmin = (session?.user as { role?: string } | undefined)?.role === "ADMIN";
   const isGroupAdmin = !!group && (
+    isPortalAdmin ||
     group.ownerId === currentUserId ||
     group.memberships.some(m => m.userId === currentUserId && m.role === "GROUP_ADMIN")
   );

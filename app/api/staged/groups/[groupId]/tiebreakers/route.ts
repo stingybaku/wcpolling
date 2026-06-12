@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getCurrentUser, unauthorized, forbidden, badRequest } from "@/app/api/helpers";
+import { getCurrentUser, unauthorized, forbidden, badRequest, canViewGroupAsAdmin } from "@/app/api/helpers";
 
 type RouteContext = { params: Promise<{ groupId: string }> };
 
@@ -13,8 +13,8 @@ export async function GET(_request: NextRequest, context: RouteContext) {
   const membership = await prisma.groupMembership.findUnique({
     where: { userId_groupId: { userId: user.id, groupId } },
   });
-  if (!membership) return forbidden("Not a member of this group");
-  if (!membership.isActive) return forbidden("Your access to this group is paused");
+  if (!(await canViewGroupAsAdmin(user, groupId, membership))) return forbidden("Not a member of this group");
+  if (membership && !membership.isActive) return forbidden("Your access to this group is paused");
 
   const group = await prisma.groupRoom.findUnique({
     where: { id: groupId },

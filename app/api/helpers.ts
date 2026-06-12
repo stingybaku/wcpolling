@@ -5,6 +5,23 @@ import { prisma } from "@/lib/prisma";
 
 export const TOURNAMENT_COOKIE = "selectedTournamentId";
 
+/**
+ * Whether a user may view a group as a group-admin. Members always can; portal
+ * admins (role ADMIN) may view any APPROVED group without being a member, which
+ * grants them group-admin controls there. Pending/rejected groups stay limited
+ * to their members (and the admin Groups panel).
+ */
+export async function canViewGroupAsAdmin(
+  user: { id: string; role?: string | null },
+  groupId: string,
+  membership: { id: string } | null
+): Promise<boolean> {
+  if (membership) return true;
+  if (user.role !== "ADMIN") return false;
+  const group = await prisma.groupRoom.findUnique({ where: { id: groupId }, select: { status: true } });
+  return group?.status === "APPROVED";
+}
+
 export async function getCurrentUser() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) {
