@@ -2015,55 +2015,79 @@ export default function DashboardAdminPage() {
         {groupRooms.length === 0 ? (
           <p className="mt-5 text-sm muted">No groups have been created yet.</p>
         ) : (
-          <div className="mt-5 grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
-            {[...groupRooms]
-              .sort((a, b) => (a.status === "PENDING" ? 0 : 1) - (b.status === "PENDING" ? 0 : 1))
-              .map((group) => {
-              const statusStyle =
-                group.status === "PENDING"
-                  ? { background: "#fef3c7", color: "#92400e", label: "Pending" }
-                  : group.status === "REJECTED"
-                  ? { background: "#fee2e2", color: "#991b1b", label: "Rejected" }
-                  : { background: "var(--accent-soft)", color: "var(--accent-strong)", label: "Approved" };
-              return (
-              <article key={group.id} className="rounded-[1.3rem] border p-4" style={{ borderColor: group.status === "PENDING" ? "#f59e0b" : "var(--border)" }}>
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="font-extrabold">{group.name}</p>
-                    <p className="mt-1 text-sm muted">{group.owner.name || group.owner.email || "Unknown owner"}</p>
-                  </div>
-                  <span className="rounded-full px-3 py-2 text-[11px] font-bold uppercase tracking-[0.16em]" style={{ background: statusStyle.background, color: statusStyle.color }}>
-                    {statusStyle.label}
-                  </span>
-                </div>
-                {group.description ? <p className="mt-3 text-sm muted">{group.description}</p> : null}
-                <p className="mt-3 text-xs muted">{group.tournament ? group.tournament.name : "No tournament"} • {group._count.memberships} members • {group._count.submissions} submissions • code {group.inviteCode}</p>
-                <p className="mt-1 text-xs muted">Created {new Date(group.createdAt).toLocaleDateString()}</p>
-                {group.status !== "APPROVED" ? (
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      onClick={() => void setGroupStatus(group.id, "APPROVED")}
-                      className="rounded-[1rem] px-4 py-2 text-xs font-extrabold uppercase tracking-[0.16em] text-white"
-                      style={{ background: "linear-gradient(135deg, var(--accent), var(--accent-strong))" }}
-                    >
-                      Approve
-                    </button>
-                    {group.status === "PENDING" ? (
-                      <button
-                        type="button"
-                        onClick={() => void setGroupStatus(group.id, "REJECTED")}
-                        className="rounded-[1rem] border px-4 py-2 text-xs font-extrabold uppercase tracking-[0.16em]"
-                        style={{ borderColor: "var(--border)", background: "var(--bg)" }}
-                      >
-                        Reject
-                      </button>
-                    ) : null}
-                  </div>
-                ) : null}
-              </article>
-              );
-            })}
+          <div className="mt-5 overflow-x-auto">
+            <table className="w-full border-collapse text-sm">
+              <thead>
+                <tr className="text-left text-[11px] font-bold uppercase tracking-[0.14em] muted" style={{ borderBottom: "1px solid var(--border)" }}>
+                  <th className="py-2 pr-3 font-bold">Group</th>
+                  <th className="py-2 pr-3 font-bold">Owner</th>
+                  <th className="py-2 pr-3 font-bold">Tournament</th>
+                  <th className="py-2 pr-3 text-right font-bold">Members</th>
+                  <th className="py-2 pr-3 text-right font-bold">Subs</th>
+                  <th className="py-2 pr-3 font-bold">Status</th>
+                  <th className="py-2 text-right font-bold">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[...groupRooms]
+                  .sort((a, b) => (a.status === "PENDING" ? 0 : 1) - (b.status === "PENDING" ? 0 : 1))
+                  .map((group) => {
+                  const statusStyle =
+                    group.status === "PENDING"
+                      ? { background: "#fef3c7", color: "#92400e", label: "Pending" }
+                      : group.status === "REJECTED"
+                      ? { background: "#fee2e2", color: "#991b1b", label: "Rejected" }
+                      : { background: "var(--accent-soft)", color: "var(--accent-strong)", label: "Approved" };
+                  return (
+                    <tr key={group.id} style={{ borderBottom: "1px solid var(--border)" }}>
+                      <td className="py-2 pr-3">
+                        <div className="font-semibold">{group.name}</div>
+                        <div className="text-xs muted">code {group.inviteCode}</div>
+                      </td>
+                      <td className="py-2 pr-3 muted whitespace-nowrap">{group.owner.name || group.owner.email || "Unknown"}</td>
+                      <td className="py-2 pr-3 muted whitespace-nowrap">{group.tournament ? group.tournament.name : "—"}</td>
+                      <td className="py-2 pr-3 text-right tabular-nums">{group._count.memberships}</td>
+                      <td className="py-2 pr-3 text-right tabular-nums">{group._count.submissions}</td>
+                      <td className="py-2 pr-3">
+                        <span className="rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] whitespace-nowrap" style={{ background: statusStyle.background, color: statusStyle.color }}>
+                          {statusStyle.label}
+                        </span>
+                      </td>
+                      <td className="py-2">
+                        <div className="flex justify-end gap-2 whitespace-nowrap">
+                          {group.status === "APPROVED" ? (
+                            <Link href={`/dashboard/groups/${group.id}`} className="rounded-[0.7rem] px-3 py-1.5 text-xs font-bold uppercase tracking-[0.14em] text-white" style={{ background: "linear-gradient(135deg, var(--accent), var(--accent-strong))" }}>
+                              Open
+                            </Link>
+                          ) : (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => void setGroupStatus(group.id, "APPROVED")}
+                                className="rounded-[0.7rem] px-3 py-1.5 text-xs font-bold uppercase tracking-[0.14em] text-white"
+                                style={{ background: "linear-gradient(135deg, var(--accent), var(--accent-strong))" }}
+                              >
+                                Approve
+                              </button>
+                              {group.status === "PENDING" ? (
+                                <button
+                                  type="button"
+                                  onClick={() => void setGroupStatus(group.id, "REJECTED")}
+                                  className="rounded-[0.7rem] border px-3 py-1.5 text-xs font-bold uppercase tracking-[0.14em]"
+                                  style={{ borderColor: "var(--border)", background: "var(--bg)" }}
+                                >
+                                  Reject
+                                </button>
+                              ) : null}
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         )}
       </section>
