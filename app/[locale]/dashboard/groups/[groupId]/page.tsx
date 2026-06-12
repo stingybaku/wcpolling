@@ -368,7 +368,7 @@ function MemberItem({ variant, zebra, m, ownerId, currentUserId, sub, openStageI
         opacity: m.isActive || isOwner ? 1 : 0.72,
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <Avatar userId={m.user.id} name={name} image={m.user.image} size={36} />
+          <Avatar userId={m.user.id} name={name} image={m.user.image} size={44} />
           <div style={{ minWidth: 0, flex: 1 }}>
             <div style={{ fontSize: 13, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: m.isActive || isOwner ? "var(--ink)" : "var(--muted)" }}>
               {name}{isMe && <span style={{ color: "var(--muted)", fontWeight: 400 }}> · {t("youLabel")}</span>}
@@ -392,7 +392,7 @@ function MemberItem({ variant, zebra, m, ownerId, currentUserId, sub, openStageI
   // Mobile: compact row, actions collapsed under a ⋯ dropdown.
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px", borderRadius: 6, background: zebra ? "var(--bg-strong)" : "transparent" }}>
-      <Avatar userId={m.user.id} name={name} image={m.user.image} size={28} />
+      <Avatar userId={m.user.id} name={name} image={m.user.image} size={34} />
       <span style={{ flex: 1, fontSize: 13, fontWeight: 600, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: m.isActive || isOwner ? "var(--ink)" : "var(--muted)" }}>
         {name}{isMe && <span style={{ color: "var(--muted)", fontWeight: 400 }}> {t("youLabel")}</span>}
       </span>
@@ -1166,7 +1166,7 @@ export default function GroupDetailPage() {
                     const isMe = entry.userId === currentUserId;
                     return (
                       <div key={pos} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
-                        <Avatar userId={entry.userId} name={entry.userName ?? ""} image={entry.userImage} size={isFirst ? 52 : 40} />
+                        <Avatar userId={entry.userId} name={entry.userName ?? ""} image={entry.userImage} size={isFirst ? 64 : 48} />
                         <span style={{ fontSize: isFirst ? 13 : 12, fontWeight: 700, textAlign: "center", color: "var(--ink)" }}>
                           {entry.userName}{isMe && ` ${t("youLabel")}`}
                         </span>
@@ -1198,7 +1198,7 @@ export default function GroupDetailPage() {
                         <span style={{ width: 28, textAlign: "center", fontSize: 12, fontWeight: 700, color: "var(--muted)", flexShrink: 0 }}>
                           {idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : idx + 1}
                         </span>
-                        <Avatar userId={entry.userId} name={entry.userName ?? ""} image={entry.userImage} size={28} />
+                        <Avatar userId={entry.userId} name={entry.userName ?? ""} image={entry.userImage} size={34} />
                         <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "var(--ink)" }}>
                           {entry.userName}
                           {isMe && <span className="chip chip-accent" style={{ marginLeft: 6, fontSize: 10, padding: "2px 6px" }}>{t("youLabel")}</span>}
@@ -1258,7 +1258,7 @@ export default function GroupDetailPage() {
                           <td><MedalBadge rank={stagedPag.start + idx + 1} /></td>
                           <td>
                             <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                              <Avatar userId={entry.userId} name={entry.userName} image={entry.userImage} size={24} />
+                              <Avatar userId={entry.userId} name={entry.userName} image={entry.userImage} size={30} />
                               <span style={{ fontWeight: 600, fontSize: 13 }}>
                                 {entry.userName}
                                 {isMe && <span className="chip chip-accent" style={{ marginLeft: 6, fontSize: 10, padding: "2px 6px" }}>{t("youLabel")}</span>}
@@ -1346,7 +1346,7 @@ export default function GroupDetailPage() {
                         </td>
                         <td>
                           <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                            <Avatar userId={row.userId} name={row.userName} image={row.userImage} size={24} />
+                            <Avatar userId={row.userId} name={row.userName} image={row.userImage} size={30} />
                             <span style={{ fontWeight: 600, fontSize: 13 }}>
                               {row.userName}
                               {isMe && <span className="chip chip-accent" style={{ marginLeft: 6, fontSize: 10, padding: "2px 6px" }}>{t("youLabel")}</span>}
