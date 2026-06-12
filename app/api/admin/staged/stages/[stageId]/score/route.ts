@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { scoreStage } from "@/lib/stage-scoring";
 import { sendEmail } from "@/lib/email";
 import { stageScoredEmail } from "@/lib/emails/stageScored";
+import { toLocale } from "@/lib/locale";
 
 async function requireAdmin() {
   const user = await getCurrentUser();
@@ -101,7 +102,7 @@ export async function POST(_request: Request, context: { params: Promise<{ stage
     include: {
       memberships: {
         where: { isActive: true },
-        include: { user: { select: { id: true, email: true } } },
+        include: { user: { select: { id: true, email: true, locale: true } } },
       },
     },
   });
@@ -137,6 +138,7 @@ export async function POST(_request: Request, context: { params: Promise<{ stage
         cumulativeMap[m.userId] ?? 0,
         rankMap[m.userId] ?? group.memberships.length,
         `${baseUrl}/dashboard/groups/${group.id}`,
+        toLocale(m.user.locale),
       );
       sendEmail({ to: m.user.email, subject, html }).catch(() => null);
     }

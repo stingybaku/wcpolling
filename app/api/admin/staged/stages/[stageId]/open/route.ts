@@ -2,6 +2,7 @@ import { forbidden, getCurrentUser, unauthorized } from "@/app/api/helpers";
 import { prisma } from "@/lib/prisma";
 import { sendEmail } from "@/lib/email";
 import { stageOpenEmail } from "@/lib/emails/stageOpen";
+import { toLocale } from "@/lib/locale";
 
 async function requireAdmin() {
   const user = await getCurrentUser();
@@ -77,7 +78,7 @@ export async function POST(_request: Request, context: { params: Promise<{ stage
     include: {
       memberships: {
         where: { isActive: true },
-        include: { user: { select: { id: true, email: true } } },
+        include: { user: { select: { id: true, email: true, locale: true } } },
       },
     },
   });
@@ -89,7 +90,7 @@ export async function POST(_request: Request, context: { params: Promise<{ stage
       if (!m.user.email || seenEmails.has(m.user.email)) continue;
       seenEmails.add(m.user.email);
       const predictionUrl = `${baseUrl}/dashboard/groups/${group.id}/predictions/${stage.tournamentId}`;
-      const { subject, html } = stageOpenEmail(stage.name, tournament!.name, stage.closesAt, predictionUrl, isShortWindow);
+      const { subject, html } = stageOpenEmail(stage.name, tournament!.name, stage.closesAt, predictionUrl, isShortWindow, toLocale(m.user.locale));
       sendEmail({ to: m.user.email, subject, html }).catch(() => null);
     }
   }
