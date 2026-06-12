@@ -60,6 +60,11 @@ type AdminUser = {
     predictions: number;
     submissions: number;
   };
+  memberships?: Array<{
+    role: "MEMBER" | "GROUP_ADMIN";
+    isActive: boolean;
+    group: { id: string; name: string };
+  }>;
 };
 type AdminGroupRoom = {
   id: string;
@@ -229,6 +234,10 @@ export default function DashboardAdminPage() {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [groupRooms, setGroupRooms] = useState<AdminGroupRoom[]>([]);
   const [usage, setUsage] = useState<UsageStats | null>(null);
+  const [userSearch, setUserSearch] = useState("");
+  const [userRoleFilter, setUserRoleFilter] = useState<"all" | "USER" | "ADMIN">("all");
+  const [userGroupFilter, setUserGroupFilter] = useState("");
+  const [userPage, setUserPage] = useState(1);
   const [sponsoredPlacements, setSponsoredPlacements] = useState<SponsoredPlacement[]>([]);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -1069,6 +1078,23 @@ export default function DashboardAdminPage() {
     await loadMatches();
   }
 
+  // ── Users directory: filtering + pagination ──────────────────────────────
+  const USERS_PER_PAGE = 20;
+  const userQuery = userSearch.trim().toLowerCase();
+  const groupQuery = userGroupFilter.trim().toLowerCase();
+  const filteredUsers = users.filter((u) => {
+    if (userRoleFilter !== "all" && u.role !== userRoleFilter) return false;
+    if (userQuery && !(`${u.name ?? ""} ${u.email ?? ""}`.toLowerCase().includes(userQuery))) return false;
+    if (groupQuery && !(u.memberships ?? []).some((m) => m.group.name.toLowerCase().includes(groupQuery))) return false;
+    return true;
+  });
+  const userPageCount = Math.max(1, Math.ceil(filteredUsers.length / USERS_PER_PAGE));
+  const userPageSafe = Math.min(userPage, userPageCount);
+  const pagedUsers = filteredUsers.slice((userPageSafe - 1) * USERS_PER_PAGE, userPageSafe * USERS_PER_PAGE);
+  function resetUserPage<T>(setter: (v: T) => void) {
+    return (v: T) => { setter(v); setUserPage(1); };
+  }
+
   return (
     <div className="-mx-4 -mt-5 md:-mx-6 lg:-mx-8">
       {/* Operator chrome header */}
@@ -1872,55 +1898,138 @@ export default function DashboardAdminPage() {
           </span>
         </summary>
         <div className="mt-5">
-          <div className="flex justify-end">
-            <button className="rounded-[1.1rem] border px-4 py-3 text-xs font-extrabold uppercase tracking-[0.18em]" onClick={openCreateUserModal} style={{ borderColor: "var(--border)", background: "var(--bg)" }} type="button">
+          <div className="flex flex-wrap items-center gap-3">
+            <input
+              value={userSearch}
+              onChange={(e) => resetUserPage(setUserSearch)(e.target.value)}
+              placeholder="Search name or email…"
+              className="field"
+              style={{ fontSize: 12, padding: "6px 12px", maxWidth: 220, height: "auto" }}
+            />
+            <input
+              value={userGroupFilter}
+              onChange={(e) => resetUserPage(setUserGroupFilter)(e.target.value)}
+              placeholder="Filter by group name…"
+              className="field"
+              style={{ fontSize: 12, padding: "6px 12px", maxWidth: 200, height: "auto" }}
+            />
+            <div className="flex items-center gap-1.5">
+              {(["all", "USER", "ADMIN"] as const).map((r) => {
+                const active = userRoleFilter === r;
+                return (
+                  <button
+                    key={r} type="button" onClick={() => resetUserPage(setUserRoleFilter)(r)}
+                    className="rounded-full px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.08em]"
+                    style={{
+                      border: `1px solid ${active ? "var(--accent)" : "var(--border)"}`,
+                      background: active ? "var(--accent-soft)" : "transparent",
+                      color: active ? "var(--accent-strong)" : "var(--muted)",
+                    }}
+                  >
+                    {r === "all" ? "All" : r === "USER" ? "Users" : "Admins"}
+                  </button>
+                );
+              })}
+            </div>
+            <button className="ml-auto rounded-[1.1rem] border px-4 py-3 text-xs font-extrabold uppercase tracking-[0.18em]" onClick={openCreateUserModal} style={{ borderColor: "var(--border)", background: "var(--bg)" }} type="button">
               Create user
             </button>
           </div>
-          {users.length === 0 ? (
-            <p className="mt-4 text-sm muted">No users yet.</p>
+          {filteredUsers.length === 0 ? (
+            <p className="mt-4 text-sm muted">{users.length === 0 ? "No users yet." : "No users match these filters."}</p>
           ) : (
-            <div className="mt-4 overflow-x-auto">
-              <table className="w-full border-collapse text-sm">
-                <thead>
-                  <tr className="text-left text-[11px] font-bold uppercase tracking-[0.14em] muted" style={{ borderBottom: "1px solid var(--border)" }}>
-                    <th className="py-2 pr-3 font-bold">Name</th>
-                    <th className="py-2 pr-3 font-bold">Email</th>
-                    <th className="py-2 pr-3 font-bold">Role</th>
-                    <th className="py-2 pr-3 text-right font-bold">Preds</th>
-                    <th className="py-2 pr-3 text-right font-bold">Groups</th>
-                    <th className="py-2 pr-3 text-right font-bold">Subs</th>
-                    <th className="py-2 text-right font-bold">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {users.map((user) => (
-                    <tr key={user.id} style={{ borderBottom: "1px solid var(--border)" }}>
-                      <td className="py-2 pr-3 font-semibold">{user.name || "Unnamed user"}</td>
-                      <td className="py-2 pr-3 muted">{user.email || "No email"}</td>
-                      <td className="py-2 pr-3">
-                        <span className="rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em]" style={{ background: user.role === "ADMIN" ? "var(--accent-soft)" : "var(--bg-strong)", color: user.role === "ADMIN" ? "var(--accent-strong)" : "var(--muted)" }}>
-                          {user.role}
-                        </span>
-                      </td>
-                      <td className="py-2 pr-3 text-right tabular-nums">{user._count.predictions}</td>
-                      <td className="py-2 pr-3 text-right tabular-nums">{user._count.memberships}</td>
-                      <td className="py-2 pr-3 text-right tabular-nums">{user._count.submissions}</td>
-                      <td className="py-2">
-                        <div className="flex justify-end gap-2">
-                          <button className="rounded-[0.7rem] border px-3 py-1.5 text-xs font-bold uppercase tracking-[0.14em]" onClick={() => startEditingUser(user)} style={{ borderColor: "var(--border)", background: "var(--bg)" }} type="button">
-                            Edit
-                          </button>
-                          <button className="rounded-[0.7rem] border px-3 py-1.5 text-xs font-bold uppercase tracking-[0.14em]" onClick={() => setModal({ type: "deleteUser", user })} style={{ borderColor: "var(--border)", background: "var(--bg)" }} type="button">
-                            Delete
-                          </button>
-                        </div>
-                      </td>
+            <>
+              <div className="mt-4 overflow-x-auto">
+                <table className="w-full border-collapse text-sm">
+                  <thead>
+                    <tr className="text-left text-[11px] font-bold uppercase tracking-[0.14em] muted" style={{ borderBottom: "1px solid var(--border)" }}>
+                      <th className="py-2 pr-3 font-bold">Name</th>
+                      <th className="py-2 pr-3 font-bold">Email</th>
+                      <th className="py-2 pr-3 font-bold">Role</th>
+                      <th className="py-2 pr-3 font-bold">Groups</th>
+                      <th className="py-2 pr-3 text-right font-bold">Preds</th>
+                      <th className="py-2 pr-3 text-right font-bold">Subs</th>
+                      <th className="py-2 text-right font-bold">Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {pagedUsers.map((user) => {
+                      const groups = user.memberships ?? [];
+                      return (
+                      <tr key={user.id} style={{ borderBottom: "1px solid var(--border)" }}>
+                        <td className="py-2 pr-3 font-semibold">{user.name || "Unnamed user"}</td>
+                        <td className="py-2 pr-3 muted">{user.email || "No email"}</td>
+                        <td className="py-2 pr-3">
+                          <span className="rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em]" style={{ background: user.role === "ADMIN" ? "var(--accent-soft)" : "var(--bg-strong)", color: user.role === "ADMIN" ? "var(--accent-strong)" : "var(--muted)" }}>
+                            {user.role}
+                          </span>
+                        </td>
+                        <td className="py-2 pr-3">
+                          {groups.length === 0 ? (
+                            <span className="muted">—</span>
+                          ) : (
+                            <div className="flex flex-wrap gap-1" style={{ maxWidth: 260 }}>
+                              {groups.map((m) => (
+                                <span
+                                  key={m.group.id}
+                                  title={m.role === "GROUP_ADMIN" ? `${m.group.name} (admin)` : m.group.name}
+                                  className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                                  style={
+                                    m.role === "GROUP_ADMIN"
+                                      ? { background: "var(--accent-soft)", color: "var(--accent-strong)" }
+                                      : { background: "var(--bg-strong)", color: "var(--muted)" }
+                                  }
+                                >
+                                  {m.group.name}{m.role === "GROUP_ADMIN" ? " ★" : ""}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </td>
+                        <td className="py-2 pr-3 text-right tabular-nums">{user._count.predictions}</td>
+                        <td className="py-2 pr-3 text-right tabular-nums">{user._count.submissions}</td>
+                        <td className="py-2">
+                          <div className="flex justify-end gap-2">
+                            <button className="rounded-[0.7rem] border px-3 py-1.5 text-xs font-bold uppercase tracking-[0.14em]" onClick={() => startEditingUser(user)} style={{ borderColor: "var(--border)", background: "var(--bg)" }} type="button">
+                              Edit
+                            </button>
+                            <button className="rounded-[0.7rem] border px-3 py-1.5 text-xs font-bold uppercase tracking-[0.14em]" onClick={() => setModal({ type: "deleteUser", user })} style={{ borderColor: "var(--border)", background: "var(--bg)" }} type="button">
+                              Delete
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                <span className="text-xs muted">
+                  Showing {(userPageSafe - 1) * USERS_PER_PAGE + 1}–{Math.min(userPageSafe * USERS_PER_PAGE, filteredUsers.length)} of {filteredUsers.length}
+                  {filteredUsers.length !== users.length ? ` (filtered from ${users.length})` : ""}
+                </span>
+                {userPageCount > 1 ? (
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button" disabled={userPageSafe <= 1} onClick={() => setUserPage(userPageSafe - 1)}
+                      className="rounded-[0.7rem] border px-3 py-1.5 text-xs font-bold uppercase tracking-[0.14em] disabled:opacity-40"
+                      style={{ borderColor: "var(--border)", background: "var(--bg)" }}
+                    >
+                      Prev
+                    </button>
+                    <span className="text-xs font-semibold tabular-nums">{userPageSafe} / {userPageCount}</span>
+                    <button
+                      type="button" disabled={userPageSafe >= userPageCount} onClick={() => setUserPage(userPageSafe + 1)}
+                      className="rounded-[0.7rem] border px-3 py-1.5 text-xs font-bold uppercase tracking-[0.14em] disabled:opacity-40"
+                      style={{ borderColor: "var(--border)", background: "var(--bg)" }}
+                    >
+                      Next
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            </>
           )}
         </div>
       </details>
