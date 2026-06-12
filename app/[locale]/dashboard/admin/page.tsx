@@ -61,6 +61,19 @@ type AdminUser = {
     submissions: number;
   };
 };
+type AdminGroupRoom = {
+  id: string;
+  name: string;
+  description?: string | null;
+  inviteCode: string;
+  createdAt: string;
+  owner: { id: string; name?: string | null; email?: string | null };
+  tournament?: { id: string; name: string; slug: string } | null;
+  _count: {
+    memberships: number;
+    submissions: number;
+  };
+};
 type SponsoredPlacement = {
   id: string;
   title: string;
@@ -200,6 +213,7 @@ export default function DashboardAdminPage() {
   const [teams, setTeams] = useState<Team[]>([]);
   const [matches, setMatches] = useState<Match[]>([]);
   const [users, setUsers] = useState<AdminUser[]>([]);
+  const [groupRooms, setGroupRooms] = useState<AdminGroupRoom[]>([]);
   const [sponsoredPlacements, setSponsoredPlacements] = useState<SponsoredPlacement[]>([]);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -508,6 +522,13 @@ export default function DashboardAdminPage() {
     setUsers(data.users || []);
   }
 
+  async function loadGroupRooms() {
+    const res = await fetch("/api/admin/groups");
+    if (!res.ok) return;
+    const data = await res.json();
+    setGroupRooms(data.groups || []);
+  }
+
   async function loadSponsoredPlacements(tournamentId?: string) {
     const query = tournamentId ? `?tournamentId=${encodeURIComponent(tournamentId)}` : "";
     const res = await fetch(`/api/admin/sponsored${query}`);
@@ -521,7 +542,7 @@ export default function DashboardAdminPage() {
 
   useEffect(() => {
     async function loadAll() {
-      await Promise.all([loadTournament(), loadTournamentList(), loadTeams(), loadMatches(), loadUsers(), loadSponsoredPlacements()]);
+      await Promise.all([loadTournament(), loadTournamentList(), loadTeams(), loadMatches(), loadUsers(), loadGroupRooms(), loadSponsoredPlacements()]);
     }
 
     void loadAll();
@@ -1836,6 +1857,41 @@ export default function DashboardAdminPage() {
             </article>
           ))}
         </div>
+      </section>
+
+      <section className="surface rounded-[2rem] p-6 md:p-8">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] muted">Groups</p>
+            <h3 className="mt-2 text-3xl font-extrabold">Portal rooms</h3>
+            <p className="mt-2 text-sm muted">Every group created in the portal, across all tournaments.</p>
+          </div>
+          <span className="rounded-full px-3 py-2 text-[11px] font-bold uppercase tracking-[0.16em]" style={{ background: "var(--bg-strong)", color: "var(--muted)" }}>
+            {groupRooms.length} total
+          </span>
+        </div>
+        {groupRooms.length === 0 ? (
+          <p className="mt-5 text-sm muted">No groups have been created yet.</p>
+        ) : (
+          <div className="mt-5 grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
+            {groupRooms.map((group) => (
+              <article key={group.id} className="rounded-[1.3rem] border p-4" style={{ borderColor: "var(--border)" }}>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-extrabold">{group.name}</p>
+                    <p className="mt-1 text-sm muted">{group.owner.name || group.owner.email || "Unknown owner"}</p>
+                  </div>
+                  <span className="rounded-full px-3 py-2 text-[11px] font-bold uppercase tracking-[0.16em]" style={{ background: group.tournament ? "var(--accent-soft)" : "var(--bg-strong)", color: group.tournament ? "var(--accent-strong)" : "var(--muted)" }}>
+                    {group.tournament ? group.tournament.name : "No tournament"}
+                  </span>
+                </div>
+                {group.description ? <p className="mt-3 text-sm muted">{group.description}</p> : null}
+                <p className="mt-3 text-xs muted">{group._count.memberships} members • {group._count.submissions} submissions • code {group.inviteCode}</p>
+                <p className="mt-1 text-xs muted">Created {new Date(group.createdAt).toLocaleDateString()}</p>
+              </article>
+            ))}
+          </div>
+        )}
       </section>
 
       {modal?.type === "user" ? (
