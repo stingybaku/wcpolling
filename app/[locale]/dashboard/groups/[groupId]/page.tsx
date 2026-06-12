@@ -438,9 +438,50 @@ type MemberManagerProps = {
   onInvite: () => void;
 };
 
+type StatusFilter = "all" | "active" | "inactive";
+type PicksFilter = "all" | "submitted" | "pending";
+
+function filterChipStyle(active: boolean): CSSProperties {
+  return {
+    fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em",
+    padding: "5px 10px", borderRadius: 999, cursor: "pointer", whiteSpace: "nowrap",
+    border: `1px solid ${active ? "var(--accent)" : "var(--border)"}`,
+    background: active ? "var(--accent-soft)" : "transparent",
+    color: active ? "var(--accent-strong)" : "var(--muted)",
+  };
+}
+
 function MemberManager({ groupId, memberships, ownerId, currentUserId, memberSubmissions, openStageId, memberCount, onChanged, onUnlock, onInvite }: MemberManagerProps) {
   const t = useTranslations("groups.groupRoom");
   const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [picksFilter, setPicksFilter] = useState<PicksFilter>("all");
+
+  const q = query.trim().toLowerCase();
+  const filtered = memberships.filter((m) => {
+    const activeEff = m.isActive || m.userId === ownerId;
+    if (statusFilter === "active" && !activeEff) return false;
+    if (statusFilter === "inactive" && activeEff) return false;
+    if (openStageId && picksFilter !== "all") {
+      const submitted = !!memberSubmissions[m.userId]?.submittedAt;
+      if (picksFilter === "submitted" && !submitted) return false;
+      if (picksFilter === "pending" && submitted) return false;
+    }
+    if (q && !displayName(m.user).toLowerCase().includes(q)) return false;
+    return true;
+  });
+
+  const statusOptions: Array<{ value: StatusFilter; label: string }> = [
+    { value: "all", label: t("filterAll") },
+    { value: "active", label: t("filterActive") },
+    { value: "inactive", label: t("filterInactive") },
+  ];
+  const picksOptions: Array<{ value: PicksFilter; label: string }> = [
+    { value: "all", label: t("filterAll") },
+    { value: "submitted", label: t("filterSubmitted") },
+    { value: "pending", label: t("filterNotSubmitted") },
+  ];
 
   return (
     <div style={{ borderTop: "1px solid var(--border)", background: "var(--paper-strong)", padding: "20px 24px" }}>
@@ -456,18 +497,50 @@ function MemberManager({ groupId, memberships, ownerId, currentUserId, memberSub
       </div>
       {open && (
         <>
-          <div className="hidden md:grid" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
-            {memberships.map((m) => (
-              <MemberItem key={m.user.id} variant="card" m={m} ownerId={ownerId} currentUserId={currentUserId}
-                sub={memberSubmissions[m.userId]} openStageId={openStageId} groupId={groupId} onChanged={onChanged} onUnlock={onUnlock} />
-            ))}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 14, alignItems: "center", marginBottom: 14 }}>
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={t("searchPlaceholder")}
+              className="field"
+              style={{ fontSize: 12, padding: "6px 12px", maxWidth: 220, height: "auto" }}
+            />
+            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+              <span className="eyebrow" style={{ fontSize: 9 }}>{t("filterStatus")}</span>
+              {statusOptions.map((o) => (
+                <button key={o.value} type="button" onClick={() => setStatusFilter(o.value)} style={filterChipStyle(statusFilter === o.value)}>{o.label}</button>
+              ))}
+            </div>
+            {openStageId && (
+              <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                <span className="eyebrow" style={{ fontSize: 9 }}>{t("filterPicks")}</span>
+                {picksOptions.map((o) => (
+                  <button key={o.value} type="button" onClick={() => setPicksFilter(o.value)} style={filterChipStyle(picksFilter === o.value)}>{o.label}</button>
+                ))}
+              </div>
+            )}
+            {filtered.length !== memberships.length && (
+              <span style={{ fontSize: 11, color: "var(--muted)" }}>{t("showingCount", { shown: filtered.length, total: memberships.length })}</span>
+            )}
           </div>
-          <div className="flex flex-col md:hidden" style={{ gap: 4 }}>
-            {memberships.map((m, mi) => (
-              <MemberItem key={m.user.id} variant="row" zebra={mi % 2 === 1} m={m} ownerId={ownerId} currentUserId={currentUserId}
-                sub={memberSubmissions[m.userId]} openStageId={openStageId} groupId={groupId} onChanged={onChanged} onUnlock={onUnlock} />
-            ))}
-          </div>
+          {filtered.length === 0 ? (
+            <p style={{ fontSize: 13, color: "var(--muted)", padding: "8px 0" }}>{t("noMembersMatch")}</p>
+          ) : (
+            <>
+              <div className="hidden md:grid" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
+                {filtered.map((m) => (
+                  <MemberItem key={m.user.id} variant="card" m={m} ownerId={ownerId} currentUserId={currentUserId}
+                    sub={memberSubmissions[m.userId]} openStageId={openStageId} groupId={groupId} onChanged={onChanged} onUnlock={onUnlock} />
+                ))}
+              </div>
+              <div className="flex flex-col md:hidden" style={{ gap: 4 }}>
+                {filtered.map((m, mi) => (
+                  <MemberItem key={m.user.id} variant="row" zebra={mi % 2 === 1} m={m} ownerId={ownerId} currentUserId={currentUserId}
+                    sub={memberSubmissions[m.userId]} openStageId={openStageId} groupId={groupId} onChanged={onChanged} onUnlock={onUnlock} />
+                ))}
+              </div>
+            </>
+          )}
         </>
       )}
     </div>

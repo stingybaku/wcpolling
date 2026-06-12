@@ -337,7 +337,17 @@
       "prevPage": "Prev",
       "nextPage": "Next",
       "jumpToYou": "Jump to your page →",
-      "memberActions": "Actions"
+      "memberActions": "Actions",
+      "filterStatus": "Status",
+      "filterPicks": "Picks",
+      "filterAll": "All",
+      "filterActive": "Active",
+      "filterInactive": "Inactive",
+      "filterSubmitted": "Submitted",
+      "filterNotSubmitted": "Not submitted",
+      "searchPlaceholder": "Search members…",
+      "noMembersMatch": "No members match these filters.",
+      "showingCount": "Showing {shown} of {total}"
     },
     "pendingBadge": "Pending review",
     "rejectedBadge": "Rejected"
