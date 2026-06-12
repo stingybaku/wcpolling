@@ -332,7 +332,12 @@
       "promoteButton": "Promover",
       "demoteButton": "Degradar",
       "unlockButton": "Desbloquear picks",
-      "unlocksRemaining": "{count} desbloqueos restantes"
+      "unlocksRemaining": "{count} desbloqueos restantes",
+      "membersWord": "miembros",
+      "prevPage": "Anterior",
+      "nextPage": "Siguiente",
+      "jumpToYou": "Ir a tu página →",
+      "memberActions": "Acciones"
     }
   },
   "stagedPredictions": {

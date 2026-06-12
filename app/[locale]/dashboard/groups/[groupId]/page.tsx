@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { useParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useLocale, useTranslations } from "next-intl";
 import { Link } from "@/lib/navigation";
-import { flagEmoji } from "@/lib/fifa-flags";
+import { TeamFlag } from "@/components/team-flag";
 import { GroupNews } from "@/components/group-news";
 import {
   buildGroupStandingsMap,
@@ -202,6 +203,258 @@ function BreakdownBar({ breakdown }: { breakdown: LeaderboardRow["breakdown"] })
   );
 }
 
+// ─── Pagination ───────────────────────────────────────────────────────────────
+
+const PAGE_SIZE = 20;
+
+function paginate<T>(rows: T[], page: number) {
+  const pageCount = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  const clamped = Math.min(Math.max(1, page), pageCount);
+  const start = (clamped - 1) * PAGE_SIZE;
+  return { pageCount, page: clamped, start, pageRows: rows.slice(start, start + PAGE_SIZE) };
+}
+
+function Paginator({ page, pageCount, total, totalLabel, prevLabel, nextLabel, onPage }: {
+  page: number; pageCount: number; total: number; totalLabel: string;
+  prevLabel: string; nextLabel: string; onPage: (p: number) => void;
+}) {
+  if (pageCount <= 1) return null;
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "10px 24px", borderTop: "1px solid var(--border)" }}>
+      <span className="muted" style={{ fontSize: 12 }}>{total} {totalLabel}</span>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <button className="btn btn-sm btn-ghost" style={{ fontSize: 12 }} disabled={page <= 1} onClick={() => onPage(page - 1)}>‹ {prevLabel}</button>
+        <span className="mono" style={{ fontSize: 12, minWidth: 56, textAlign: "center" }}>{page} / {pageCount}</span>
+        <button className="btn btn-sm btn-ghost" style={{ fontSize: 12 }} disabled={page >= pageCount} onClick={() => onPage(page + 1)}>{nextLabel} ›</button>
+      </div>
+    </div>
+  );
+}
+
+function MyRankStrip({ rank, name, points, youLabel, jumpLabel, onJump }: {
+  rank: number; name: string; points: number; youLabel: string; jumpLabel: string; onJump: () => void;
+}) {
+  return (
+    <button
+      onClick={onJump}
+      style={{
+        width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "10px 24px",
+        background: "var(--accent-soft)", border: "none", borderTop: "1px dashed var(--accent)",
+        cursor: "pointer", textAlign: "left",
+      }}
+    >
+      <span className="mono" style={{ fontWeight: 800, color: "var(--accent-strong)", fontSize: 13, minWidth: 28 }}>#{rank}</span>
+      <span style={{ flex: 1, fontSize: 13, fontWeight: 700, color: "var(--ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        {name} <span className="chip chip-accent" style={{ fontSize: 10, padding: "2px 6px" }}>{youLabel}</span>
+      </span>
+      <span className="mono" style={{ fontWeight: 800, fontSize: 14 }}>{points}</span>
+      <span className="muted" style={{ fontSize: 11, whiteSpace: "nowrap" }}>{jumpLabel}</span>
+    </button>
+  );
+}
+
+// ─── Member management ───────────────────────────────────────────────────────
+
+type Member = GroupDetail["memberships"][number];
+type MemberSubInfo = { submittedAt: string | null; unlockedAt: string | null; unlocksRemaining: number };
+
+function memberBadgeStyle(color: string, bg: string): CSSProperties {
+  return {
+    fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em",
+    color, background: bg, borderRadius: 4, padding: "2px 6px", whiteSpace: "nowrap",
+  };
+}
+
+function memberActionStyle(color: string, border: string): CSSProperties {
+  return {
+    fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em",
+    color, background: "transparent", border: `1px solid ${border}`, borderRadius: 5,
+    padding: "4px 8px", cursor: "pointer", whiteSpace: "nowrap",
+  };
+}
+
+type MemberItemProps = {
+  variant: "card" | "row";
+  zebra?: boolean;
+  m: Member;
+  ownerId: string | undefined;
+  currentUserId: string | undefined;
+  sub: MemberSubInfo | undefined;
+  openStageId: string | null;
+  groupId: string;
+  onChanged: () => void;
+  onUnlock: (userId: string, stageId: string) => void;
+};
+
+function MemberItem({ variant, zebra, m, ownerId, currentUserId, sub, openStageId, groupId, onChanged, onUnlock }: MemberItemProps) {
+  const t = useTranslations("groups.groupRoom");
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    function onDoc(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+    }
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [menuOpen]);
+
+  const name = displayName(m.user);
+  const isOwner = m.userId === ownerId;
+  const isAdmin = isOwner || m.role === "GROUP_ADMIN";
+  const isMe = m.userId === currentUserId;
+  const isCurrentUserOwner = ownerId === currentUserId;
+  const canManage = !isMe && !isOwner; // section is rendered for group admins only
+  const hasLockedSubmission = !!(openStageId && sub?.submittedAt);
+  const remaining = sub?.unlocksRemaining ?? 0;
+
+  async function updateMember(body: { role?: string; isActive?: boolean }) {
+    await fetch(`/api/groups/${groupId}/members/${m.userId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    onChanged();
+  }
+
+  type Act = { key: string; label: string; color: string; border: string; onClick: () => void };
+  const actions: Act[] = [];
+  if (canManage && !m.isActive) actions.push({ key: "activate", label: t("activateButton"), color: "#16a34a", border: "#86efac", onClick: () => void updateMember({ isActive: true }) });
+  if (canManage && m.isActive && !isAdmin) actions.push({ key: "deactivate", label: t("deactivateButton"), color: "var(--live)", border: "var(--live)", onClick: () => void updateMember({ isActive: false }) });
+  if (canManage && m.isActive && !isAdmin) actions.push({ key: "promote", label: t("promoteButton"), color: "var(--muted-2)", border: "var(--border)", onClick: () => void updateMember({ role: "GROUP_ADMIN" }) });
+  if (isCurrentUserOwner && isAdmin && !isOwner && !isMe) actions.push({ key: "demote", label: t("demoteButton"), color: "var(--muted)", border: "var(--border)", onClick: () => void updateMember({ role: "MEMBER" }) });
+  if (!isMe && hasLockedSubmission && remaining > 0 && openStageId) actions.push({ key: "unlock", label: t("unlockButton"), color: "var(--accent-strong)", border: "var(--accent)", onClick: () => onUnlock(m.userId, openStageId) });
+
+  const roleBadge = isOwner
+    ? <span style={memberBadgeStyle("var(--accent-strong)", "var(--accent-soft)")}>{t("ownerBadge")}</span>
+    : isAdmin
+      ? <span style={memberBadgeStyle("var(--muted)", "var(--bg-strong)")}>{t("adminBadge")}</span>
+      : null;
+  const inactiveBadge = !m.isActive && !isOwner
+    ? <span style={memberBadgeStyle("var(--muted-2)", "var(--bg-strong)")}>{t("inactiveBadge")}</span>
+    : null;
+  const unlocksLabel = hasLockedSubmission ? (
+    <span style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: remaining > 0 ? "var(--muted)" : "var(--muted-2)", whiteSpace: "nowrap" }}>
+      {t("unlocksRemaining", { count: remaining })}
+    </span>
+  ) : null;
+
+  // Desktop: full card with inline action buttons.
+  if (variant === "card") {
+    return (
+      <div style={{
+        border: "1px solid var(--border)", borderRadius: "var(--r-md)", background: "var(--paper)",
+        padding: 12, display: "flex", flexDirection: "column", gap: 10,
+        opacity: m.isActive || isOwner ? 1 : 0.72,
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <Avatar userId={m.user.id} name={name} size={36} />
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: m.isActive || isOwner ? "var(--ink)" : "var(--muted)" }}>
+              {name}{isMe && <span style={{ color: "var(--muted)", fontWeight: 400 }}> · {t("youLabel")}</span>}
+            </div>
+            <div style={{ display: "flex", gap: 4, marginTop: 4, flexWrap: "wrap", alignItems: "center" }}>
+              {roleBadge}{inactiveBadge}{unlocksLabel}
+            </div>
+          </div>
+        </div>
+        {actions.length > 0 && (
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {actions.map((a) => (
+              <button key={a.key} onClick={a.onClick} style={memberActionStyle(a.color, a.border)}>{a.label}</button>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Mobile: compact row, actions collapsed under a ⋯ dropdown.
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px", borderRadius: 6, background: zebra ? "var(--bg-strong)" : "transparent" }}>
+      <Avatar userId={m.user.id} name={name} size={28} />
+      <span style={{ flex: 1, fontSize: 13, fontWeight: 600, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: m.isActive || isOwner ? "var(--ink)" : "var(--muted)" }}>
+        {name}{isMe && <span style={{ color: "var(--muted)", fontWeight: 400 }}> {t("youLabel")}</span>}
+      </span>
+      {inactiveBadge}{roleBadge}{unlocksLabel}
+      {actions.length > 0 && (
+        <div ref={menuRef} style={{ position: "relative", flexShrink: 0 }}>
+          <button
+            aria-label={t("memberActions")} aria-haspopup="menu" aria-expanded={menuOpen}
+            onClick={() => setMenuOpen((v) => !v)}
+            style={{ background: "transparent", border: "1px solid var(--border)", borderRadius: 6, cursor: "pointer", color: "var(--muted)", padding: "2px 8px", fontSize: 16, lineHeight: 1 }}
+          >
+            ⋯
+          </button>
+          {menuOpen && (
+            <div role="menu" style={{ position: "absolute", right: 0, top: "calc(100% + 4px)", zIndex: 30, background: "var(--paper)", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", boxShadow: "0 8px 24px rgba(0,0,0,0.18)", padding: 4, minWidth: 170, display: "flex", flexDirection: "column", gap: 2 }}>
+              {actions.map((a) => (
+                <button
+                  key={a.key} role="menuitem"
+                  onClick={() => { setMenuOpen(false); a.onClick(); }}
+                  style={{ textAlign: "left", background: "transparent", border: "none", borderRadius: 5, cursor: "pointer", padding: "8px 10px", fontSize: 12, fontWeight: 600, color: a.color }}
+                >
+                  {a.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+type MemberManagerProps = {
+  groupId: string;
+  memberships: Member[];
+  ownerId: string | undefined;
+  currentUserId: string | undefined;
+  memberSubmissions: Record<string, MemberSubInfo>;
+  openStageId: string | null;
+  memberCount: number;
+  onChanged: () => void;
+  onUnlock: (userId: string, stageId: string) => void;
+  onInvite: () => void;
+};
+
+function MemberManager({ groupId, memberships, ownerId, currentUserId, memberSubmissions, openStageId, memberCount, onChanged, onUnlock, onInvite }: MemberManagerProps) {
+  const t = useTranslations("groups.groupRoom");
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div style={{ borderTop: "1px solid var(--border)", background: "var(--paper-strong)", padding: "20px 24px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: open ? 16 : 0 }}>
+        <button
+          onClick={() => setOpen((v) => !v)} aria-expanded={open}
+          style={{ display: "flex", alignItems: "center", gap: 8, background: "transparent", border: "none", padding: 0, cursor: "pointer", color: "var(--ink)" }}
+        >
+          <span className="eyebrow">{t("membersCount", { count: memberCount })}</span>
+          <span aria-hidden style={{ color: "var(--muted)", transform: open ? "rotate(180deg)" : undefined, transition: "transform 0.15s" }}>▾</span>
+        </button>
+        <button className="btn btn-sm btn-ghost" style={{ fontSize: 11 }} onClick={onInvite}>{t("inviteButton")}</button>
+      </div>
+      {open && (
+        <>
+          <div className="hidden md:grid" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
+            {memberships.map((m) => (
+              <MemberItem key={m.user.id} variant="card" m={m} ownerId={ownerId} currentUserId={currentUserId}
+                sub={memberSubmissions[m.userId]} openStageId={openStageId} groupId={groupId} onChanged={onChanged} onUnlock={onUnlock} />
+            ))}
+          </div>
+          <div className="md:hidden" style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            {memberships.map((m, mi) => (
+              <MemberItem key={m.user.id} variant="row" zebra={mi % 2 === 1} m={m} ownerId={ownerId} currentUserId={currentUserId}
+                sub={memberSubmissions[m.userId]} openStageId={openStageId} groupId={groupId} onChanged={onChanged} onUnlock={onUnlock} />
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ─── Bracket (kept for prediction preview) ───────────────────────────────────
 
 const SLOT_H = 50, MATCH_H = 44, MATCH_W = 150, R_GAP = 20, HEADER_H = 24;
@@ -225,7 +478,7 @@ function BracketMatchCard({ homeTeam, awayTeam, winner, top, left }: {
         color: isWinner ? "white" : isLoser ? "var(--muted)" : undefined,
         opacity: isLoser ? 0.55 : 1,
       }}>
-        {team ? (<><span className="text-sm leading-none shrink-0">{flagEmoji(team.fifaCode)}</span><span className="text-xs font-semibold truncate">{team.name}</span></>) : <span className="text-xs muted">TBD</span>}
+        {team ? (<><TeamFlag code={team.fifaCode} size={16} /><span className="text-xs font-semibold truncate">{team.name}</span></>) : <span className="text-xs muted">TBD</span>}
       </div>
     );
   }
@@ -324,7 +577,7 @@ function PredictionPreviewModal({ predictionId, onClose }: { predictionId: strin
                           return (
                             <li key={teamId} className="flex items-center gap-1.5" style={{ fontSize: 12 }}>
                               <span className="muted w-3">{i + 1}.</span>
-                              <span>{t ? flagEmoji(t.fifaCode) : ""}</span>
+                              {t ? <TeamFlag code={t.fifaCode} size={16} /> : null}
                               <span className="truncate font-semibold">{t?.name ?? "?"}</span>
                             </li>
                           );
@@ -343,7 +596,7 @@ function PredictionPreviewModal({ predictionId, onClose }: { predictionId: strin
                     const t = allTeams.get(teamId);
                     return (
                       <span key={teamId} className={`chip ${i < 8 ? "chip-accent" : ""}`}>
-                        {i + 1}. {t ? `${flagEmoji(t.fifaCode)} ${t.name}` : "?"}
+                        {i + 1}. {t ? <><TeamFlag code={t.fifaCode} size={14} /> {t.name}</> : "?"}
                       </span>
                     );
                   })}
@@ -432,7 +685,9 @@ export default function GroupDetailPage() {
   const [stagedLeaderboard, setStagedLeaderboard] = useState<StagedLeaderboardEntry[]>([]);
   const [stagedStages, setStagedStages] = useState<StagedStage[]>([]);
   const [memberSubmissions, setMemberSubmissions] = useState<Record<string, { submittedAt: string | null; unlockedAt: string | null; unlocksRemaining: number }>>({});
-  const [membersOpen, setMembersOpen] = useState(false);
+  const [classicPage, setClassicPage] = useState(1);
+  const [stagedPage, setStagedPage] = useState(1);
+  const [finalPage, setFinalPage] = useState(1);
 
   const currentUserEmail = session?.user?.email;
   const currentUserId = (session?.user as { id?: string } | undefined)?.id;
@@ -607,6 +862,15 @@ export default function GroupDetailPage() {
       .filter((m) => !scoredUserIds.has(m.user.id))
       .map((m) => ({ userId: m.user.id, userName: displayName(m.user), totalPoints: 0, stages: [] as StagedLeaderboardEntry["stages"] })),
   ];
+
+  // ── Pagination (20/page) for each leaderboard rendering ──────────────────────
+  const classicPag = paginate(leaderboard, classicPage);
+  const stagedPag = paginate(stagedRows, stagedPage);
+  const finalPag = paginate(sortedLeaderboard, finalPage);
+  const myClassicIdx = currentUserId ? leaderboard.findIndex((r) => r.userId === currentUserId) : -1;
+  const myStagedIdx = currentUserId ? stagedRows.findIndex((r) => r.userId === currentUserId) : -1;
+  const myFinalIdx = currentUserId ? sortedLeaderboard.findIndex((e) => e.userId === currentUserId) : -1;
+  const pageOf = (idx: number) => Math.floor(idx / PAGE_SIZE) + 1;
 
   return (
     <>
@@ -902,7 +1166,8 @@ export default function GroupDetailPage() {
                 </div>
                 {/* Full ranking table */}
                 <div style={{ borderTop: "1px solid var(--border)" }}>
-                  {sortedLeaderboard.map((entry, idx) => {
+                  {finalPag.pageRows.map((entry, localIdx) => {
+                    const idx = finalPag.start + localIdx;
                     const isMe = entry.userId === currentUserId;
                     return (
                       <div key={entry.userId} style={{
@@ -924,9 +1189,29 @@ export default function GroupDetailPage() {
                     );
                   })}
                 </div>
+                {myFinalIdx >= 0 && pageOf(myFinalIdx) !== finalPag.page && (
+                  <MyRankStrip
+                    rank={myFinalIdx + 1}
+                    name={sortedLeaderboard[myFinalIdx].userName ?? ""}
+                    points={sortedLeaderboard[myFinalIdx].totalPoints}
+                    youLabel={t("youLabel")}
+                    jumpLabel={t("jumpToYou")}
+                    onJump={() => setFinalPage(pageOf(myFinalIdx))}
+                  />
+                )}
+                <Paginator
+                  page={finalPag.page}
+                  pageCount={finalPag.pageCount}
+                  total={sortedLeaderboard.length}
+                  totalLabel={t("membersWord")}
+                  prevLabel={t("prevPage")}
+                  nextLabel={t("nextPage")}
+                  onPage={setFinalPage}
+                />
               </div>
             )}
             {isStagedTournament ? (
+              <>
               <table className="tabular" style={{ width: "100%" }}>
                 <thead>
                   <tr>
@@ -944,13 +1229,13 @@ export default function GroupDetailPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {stagedRows
+                  {stagedPag.pageRows
                     .map((entry, idx) => {
                       const isMe = entry.userId === currentUserId;
                       const stageMap = Object.fromEntries(entry.stages.map((s) => [s.stageId, s]));
                       return (
                         <tr key={entry.userId} style={{ background: isMe ? "var(--accent-soft)" : "transparent" }}>
-                          <td><MedalBadge rank={idx + 1} /></td>
+                          <td><MedalBadge rank={stagedPag.start + idx + 1} /></td>
                           <td>
                             <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
                               <Avatar userId={entry.userId} name={entry.userName} size={24} />
@@ -985,11 +1270,32 @@ export default function GroupDetailPage() {
                     })}
                 </tbody>
               </table>
+              {myStagedIdx >= 0 && pageOf(myStagedIdx) !== stagedPag.page && (
+                <MyRankStrip
+                  rank={myStagedIdx + 1}
+                  name={stagedRows[myStagedIdx].userName}
+                  points={stagedRows[myStagedIdx].totalPoints}
+                  youLabel={t("youLabel")}
+                  jumpLabel={t("jumpToYou")}
+                  onJump={() => setStagedPage(pageOf(myStagedIdx))}
+                />
+              )}
+              <Paginator
+                page={stagedPag.page}
+                pageCount={stagedPag.pageCount}
+                total={stagedRows.length}
+                totalLabel={t("membersWord")}
+                prevLabel={t("prevPage")}
+                nextLabel={t("nextPage")}
+                onPage={setStagedPage}
+              />
+              </>
             ) : leaderboard.length === 0 ? (
               <div style={{ padding: "48px 24px", textAlign: "center" }}>
                 <p style={{ fontSize: 13, color: "var(--muted)" }}>{t("noSubmissionsYet")}</p>
               </div>
             ) : (
+              <>
               <table className="tabular" style={{ width: "100%" }}>
                 <thead style={{ position: "sticky", top: 104, zIndex: 10 }}>
                   <tr>
@@ -1001,9 +1307,9 @@ export default function GroupDetailPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {leaderboard.map((row, idx) => {
+                  {classicPag.pageRows.map((row, idx) => {
                     const isMe = row.userId === currentUserId;
-                    const rank = idx + 1;
+                    const rank = classicPag.start + idx + 1;
                     return (
                       <tr
                         key={row.userId}
@@ -1046,6 +1352,26 @@ export default function GroupDetailPage() {
                   })}
                 </tbody>
               </table>
+              {myClassicIdx >= 0 && pageOf(myClassicIdx) !== classicPag.page && (
+                <MyRankStrip
+                  rank={myClassicIdx + 1}
+                  name={leaderboard[myClassicIdx].userName}
+                  points={leaderboard[myClassicIdx].points}
+                  youLabel={t("youLabel")}
+                  jumpLabel={t("jumpToYou")}
+                  onJump={() => setClassicPage(pageOf(myClassicIdx))}
+                />
+              )}
+              <Paginator
+                page={classicPag.page}
+                pageCount={classicPag.pageCount}
+                total={leaderboard.length}
+                totalLabel={t("membersWord")}
+                prevLabel={t("prevPage")}
+                nextLabel={t("nextPage")}
+                onPage={setClassicPage}
+              />
+              </>
             )}
           </div>
 
@@ -1139,125 +1465,24 @@ export default function GroupDetailPage() {
 
             {/* Tournament news */}
             <GroupNews tournamentId={group?.tournament?.id} />
-
-            {/* Members — group-admin only, collapsible */}
-            {isGroupAdmin && (
-            <div style={{ padding: "20px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: membersOpen ? 10 : 0 }}>
-                <button
-                  onClick={() => setMembersOpen(v => !v)}
-                  aria-expanded={membersOpen}
-                  style={{ display: "flex", alignItems: "center", gap: 8, background: "transparent", border: "none", padding: 0, cursor: "pointer", color: "var(--ink)" }}
-                >
-                  <span className="eyebrow">{t("membersCount", { count: memberCount })}</span>
-                  <span aria-hidden style={{ color: "var(--muted)", transform: membersOpen ? "rotate(180deg)" : undefined, transition: "transform 0.15s" }}>▾</span>
-                </button>
-                <button className="btn btn-sm btn-ghost" style={{ fontSize: 11 }} onClick={copyInviteLink}>
-                  {t("inviteButton")}
-                </button>
-              </div>
-              {membersOpen && (
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                {(group?.memberships ?? []).map((m, mi) => {
-                  const isOwner = m.userId === group?.ownerId;
-                  const isAdmin = isOwner || m.role === "GROUP_ADMIN";
-                  const isMe = m.userId === currentUserId;
-                  const canManage = isGroupAdmin && !isMe && !isOwner;
-                  const isCurrentUserOwner = group?.ownerId === currentUserId;
-                  const sub = memberSubmissions[m.userId];
-                  const hasLockedSubmission = !!(openStageId && sub?.submittedAt);
-                  const remaining = sub?.unlocksRemaining ?? 0;
-
-                  async function updateMember(body: { role?: string; isActive?: boolean }) {
-                    await fetch(`/api/groups/${params.groupId}/members/${m.userId}`, {
-                      method: "PUT",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify(body),
-                    });
-                    void loadGroup();
-                  }
-
-                  return (
-                    <div
-                      key={m.user.id}
-                      title={displayName(m.user)}
-                      style={{
-                        display: "flex", alignItems: "center", gap: 8,
-                        padding: "4px 6px", borderRadius: 6,
-                        background: mi % 2 === 1 ? "var(--bg-strong)" : "transparent",
-                      }}
-                    >
-                      <Avatar userId={m.user.id} name={displayName(m.user)} size={28} />
-                      <span style={{ flex: 1, fontSize: 12, fontWeight: 600, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: m.isActive || isOwner ? "var(--ink)" : "var(--muted)" }}>
-                        {displayName(m.user)}{isMe && <span style={{ color: "var(--muted)", fontWeight: 400 }}> {t("youLabel")}</span>}
-                      </span>
-                      <div style={{ display: "flex", gap: 4, flexShrink: 0, alignItems: "center" }}>
-                        {!m.isActive && !isOwner && (
-                          <span style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--muted-2)", background: "var(--bg-strong)", borderRadius: 4, padding: "2px 5px" }}>{t("inactiveBadge")}</span>
-                        )}
-                        {isOwner ? (
-                          <span style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--accent-strong)", background: "var(--accent-soft)", borderRadius: 4, padding: "2px 5px" }}>{t("ownerBadge")}</span>
-                        ) : isAdmin ? (
-                          <span style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--muted)", background: "var(--bg-strong)", borderRadius: 4, padding: "2px 5px" }}>{t("adminBadge")}</span>
-                        ) : null}
-                        {canManage && !m.isActive && (
-                          <button
-                            onClick={() => void updateMember({ isActive: true })}
-                            style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "#16a34a", background: "transparent", border: "1px solid #86efac", borderRadius: 4, padding: "2px 5px", cursor: "pointer" }}
-                          >
-                            {t("activateButton")}
-                          </button>
-                        )}
-                        {canManage && m.isActive && !isAdmin && (
-                          <button
-                            onClick={() => void updateMember({ isActive: false })}
-                            style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--live)", background: "transparent", border: "1px solid var(--live)", borderRadius: 4, padding: "2px 5px", cursor: "pointer" }}
-                          >
-                            {t("deactivateButton")}
-                          </button>
-                        )}
-                        {canManage && m.isActive && !isAdmin && (
-                          <button
-                            onClick={() => void updateMember({ role: "GROUP_ADMIN" })}
-                            style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--muted-2)", background: "transparent", border: "1px solid var(--border)", borderRadius: 4, padding: "2px 5px", cursor: "pointer" }}
-                          >
-                            {t("promoteButton")}
-                          </button>
-                        )}
-                        {isCurrentUserOwner && isAdmin && !isOwner && !isMe && (
-                          <button
-                            onClick={() => void updateMember({ role: "MEMBER" })}
-                            style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--muted)", background: "transparent", border: "1px solid var(--border)", borderRadius: 4, padding: "2px 5px", cursor: "pointer" }}
-                          >
-                            {t("demoteButton")}
-                          </button>
-                        )}
-                        {isGroupAdmin && hasLockedSubmission && (
-                          <span
-                            title={t("unlocksRemaining", { count: remaining })}
-                            style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: remaining > 0 ? "var(--muted)" : "var(--muted-2)", whiteSpace: "nowrap" }}
-                          >
-                            {t("unlocksRemaining", { count: remaining })}
-                          </span>
-                        )}
-                        {isGroupAdmin && !isMe && hasLockedSubmission && remaining > 0 && openStageId && (
-                          <button
-                            onClick={() => void unlockPrediction(m.userId, openStageId)}
-                            style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--accent-strong)", background: "transparent", border: "1px solid var(--accent)", borderRadius: 4, padding: "2px 5px", cursor: "pointer" }}
-                          >
-                            {t("unlockButton")}
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-              )}
-            </div>
-            )}
           </div>
         </div>
+
+        {/* ── Members — group-admin only, full-width below ─────────── */}
+        {isGroupAdmin && group && (
+          <MemberManager
+            groupId={params.groupId}
+            memberships={group.memberships}
+            ownerId={group.ownerId}
+            currentUserId={currentUserId}
+            memberSubmissions={memberSubmissions}
+            openStageId={openStageId}
+            memberCount={memberCount}
+            onChanged={() => void loadGroup()}
+            onUnlock={(uid, sid) => void unlockPrediction(uid, sid)}
+            onInvite={copyInviteLink}
+          />
+        )}
 
         {/* ── Mobile bottom spacing (offsets bottom nav) ─────────────── */}
         <div className="h-28 lg:h-0" />

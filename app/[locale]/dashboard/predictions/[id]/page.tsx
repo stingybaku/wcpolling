@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { Link } from "@/lib/navigation";
-import { flagEmoji } from "@/lib/fifa-flags";
+import { TeamFlag } from "@/components/team-flag";
 import {
   buildGroupStandingsMap,
   buildKnockoutPicksMap,
@@ -109,7 +109,7 @@ function BracketCard({
       >
         {team ? (
           <>
-            <span className="text-sm leading-none shrink-0" aria-hidden>{flagEmoji(team.fifaCode)}</span>
+            <TeamFlag code={team.fifaCode} size={14} />
             <span className="text-xs font-semibold truncate">{team.name}</span>
           </>
         ) : (
@@ -280,7 +280,7 @@ export default function PredictionView() {
                 className="flex items-center gap-2 rounded-[1.4rem] px-4 py-3 text-sm font-extrabold text-white"
                 style={{ background: "linear-gradient(135deg, var(--accent), var(--accent-strong))" }}
               >
-                <span className="text-xl leading-none" aria-hidden>{flagEmoji(champion.fifaCode)}</span>
+                <TeamFlag code={champion.fifaCode} size={24} />
                 <span>{t("view.champion")}: {champion.name}</span>
               </div>
             )}
@@ -331,7 +331,7 @@ export default function PredictionView() {
                         >
                           {i + 1}
                         </span>
-                        {team && <span className="text-base leading-none" aria-hidden>{flagEmoji(team.fifaCode)}</span>}
+                        {team && <TeamFlag code={team.fifaCode} size={16} />}
                         <span className="font-semibold truncate">{team?.name ?? "—"}</span>
                       </div>
                     );
@@ -363,7 +363,7 @@ export default function PredictionView() {
                   >
                     <td className="py-2 pr-3 text-right font-mono text-xs muted w-8">{i + 1}</td>
                     <td className="py-2 pr-2 text-base leading-none w-8" aria-hidden>
-                      {team ? flagEmoji(team.fifaCode) : ""}
+                      {team ? <TeamFlag code={team.fifaCode} size={16} /> : null}
                     </td>
                     <td className="py-2 font-semibold">{team?.name ?? teamId}</td>
                     <td className="py-2 px-3 text-xs muted">{groupName ? `Group ${groupName}` : ""}</td>

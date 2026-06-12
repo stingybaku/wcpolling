@@ -8,7 +8,7 @@ import {
   THIRD_PLACE_MATCH_SLOTS,
   ThirdPlaceSlot,
 } from "@/lib/third-place-scenarios";
-import { flagEmoji } from "@/lib/fifa-flags";
+import { TeamFlag } from "@/components/team-flag";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -716,7 +716,7 @@ export default function PredictionsWizard() {
                         >
                           {index + 1}
                         </span>
-                        {team && <span className="text-base leading-none" aria-hidden>{flagEmoji(team.fifaCode)}</span>}
+                        {team && <TeamFlag code={team.fifaCode} size={16} />}
                         <span className="text-sm font-semibold">{team?.name ?? teamId}</span>
                       </div>
                     </DraggableItem>
@@ -773,7 +773,7 @@ export default function PredictionsWizard() {
                       >
                         {index + 1}
                       </span>
-                      {team && <span className="text-base leading-none" aria-hidden>{flagEmoji(team.fifaCode)}</span>}
+                      {team && <TeamFlag code={team.fifaCode} size={16} />}
                       <span className="text-sm font-semibold">{team?.name ?? teamId}</span>
                       <span className="text-xs muted ml-1">({t("groupStage")} {groupName})</span>
                     </div>
@@ -862,7 +862,7 @@ export default function PredictionsWizard() {
                       >
                         {team ? (
                           <span className="flex items-center gap-2">
-                            <span className="text-lg leading-none" aria-hidden>{flagEmoji(team.fifaCode)}</span>
+                            <TeamFlag code={team.fifaCode} size={20} />
                             <span>{team.name}</span>
                           </span>
                         ) : (

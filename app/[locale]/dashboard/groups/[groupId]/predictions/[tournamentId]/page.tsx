@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { useTranslations, useLocale } from "next-intl";
 import { Link } from "@/lib/navigation";
-import { flagEmoji } from "@/lib/fifa-flags";
+import { TeamFlag } from "@/components/team-flag";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -242,7 +242,7 @@ function GroupQualificationForm({
                           </svg>
                         </span>
                       )}
-                      <span className="text-lg leading-none">{flagEmoji(team.fifaCode)}</span>
+                      <TeamFlag code={team.fifaCode} size={20} />
                       <span className="leading-tight">{team.name}</span>
                     </button>
                   );
@@ -367,7 +367,7 @@ function KnockoutForm({
                           }
                     }
                   >
-                    <span className="text-lg">{flagEmoji(team.fifaCode)}</span>
+                    <TeamFlag code={team.fifaCode} size={20} />
                     <span>{team.name}</span>
                     {isWinner && (
                       <svg className="w-4 h-4 ml-auto" fill="currentColor" viewBox="0 0 20 20" style={{ color: "var(--accent)" }}>
@@ -525,7 +525,7 @@ function ReadOnlyPicks({
                     {mark.glyph}
                   </span>
                 )}
-                <span className="text-xl">{flagEmoji(team.fifaCode)}</span>
+                <TeamFlag code={team.fifaCode} size={24} />
                 <span className="text-center">{team.name}</span>
               </div>
             );
@@ -576,7 +576,7 @@ function ReadOnlyPicks({
                 <span className="w-6 text-center shrink-0 muted-2">{match.matchNumber}</span>
                 <span className="flex items-center gap-1.5 flex-1 min-w-0">
                   <span className="text-[10px] uppercase tracking-wide muted-2">{t("yourPick")}</span>
-                  <span className="text-lg">{flagEmoji(picked.fifaCode)}</span>
+                  <TeamFlag code={picked.fifaCode} size={20} />
                   <span className="font-medium truncate" style={{ color: "var(--ink)" }}>{picked.name}</span>
                 </span>
                 <span className="shrink-0 text-right">
@@ -584,7 +584,7 @@ function ReadOnlyPicks({
                     <span className="text-xs italic muted">{t("excludedPick")}</span>
                   ) : actualWinner ? (
                     <span className="inline-flex items-center gap-1">
-                      <span className="text-lg">{flagEmoji(actualWinner.fifaCode)}</span>
+                      <TeamFlag code={actualWinner.fifaCode} size={20} />
                       <span className="text-xs muted">{t("won")}</span>
                       {mark && <span className="text-xs font-semibold" style={{ color: mark.color }}>{mark.glyph}</span>}
                     </span>

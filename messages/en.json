@@ -332,7 +332,12 @@
       "promoteButton": "Promote",
       "demoteButton": "Demote",
       "unlockButton": "Unlock picks",
-      "unlocksRemaining": "{count} unlocks left"
+      "unlocksRemaining": "{count} unlocks left",
+      "membersWord": "members",
+      "prevPage": "Prev",
+      "nextPage": "Next",
+      "jumpToYou": "Jump to your page →",
+      "memberActions": "Actions"
     }
   },
   "stagedPredictions": {
