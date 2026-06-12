@@ -402,7 +402,8 @@
     "won": "ganó",
     "excludedPick": "No cuenta (desbloqueado tras el resultado)",
     "recapTitle": "Tu torneo hasta ahora",
-    "recapSummary": "{points} pts · {correct} correctos · {live} en vivo"
+    "recapSummary": "{points} pts · {correct} correctos · {live} en vivo",
+    "groupStagePending": "Tus pronósticos están guardados: se marcarán como correctos o incorrectos cuando se puntúe la fase de grupos."
   },
   "predictions": {
     "tagline": "Predicciones",
