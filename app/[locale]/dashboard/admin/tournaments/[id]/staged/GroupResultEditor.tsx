@@ -186,6 +186,32 @@ export default function GroupResultEditor({
     dragThirdRef.current = null;
   }
 
+  // Button-based reordering (drag-and-drop is awkward on touch devices).
+  function moveGroupTeam(groupId: string, idx: number, dir: -1 | 1) {
+    setStandings(prev => {
+      const arr = [...(prev[groupId] ?? [])];
+      const to = idx + dir;
+      if (to < 0 || to >= arr.length) return prev;
+      [arr[idx], arr[to]] = [arr[to], arr[idx]];
+      const updated = { ...prev, [groupId]: arr };
+      const newThirds = syncThirds(updated, thirdRanking, groups);
+      setThirdRanking(newThirds);
+      scheduleSave(updated, newThirds);
+      return updated;
+    });
+  }
+
+  function moveThird(idx: number, dir: -1 | 1) {
+    setThirdRanking(prev => {
+      const to = idx + dir;
+      if (to < 0 || to >= prev.length) return prev;
+      const arr = [...prev];
+      [arr[idx], arr[to]] = [arr[to], arr[idx]];
+      scheduleSave(standings, arr);
+      return arr;
+    });
+  }
+
   // Lock results
   async function lockResults() {
     setLocking(true);
@@ -241,7 +267,21 @@ export default function GroupResultEditor({
                           {POSITION_LABELS[idx] ?? idx + 1}
                         </span>
                         <TeamFlag code={team.fifaCode} size={16} />
-                        <span className="text-xs font-medium truncate" style={{ color: "var(--ink)" }}>{team.name}</span>
+                        <span className="text-xs font-medium truncate flex-1 min-w-0" style={{ color: "var(--ink)" }}>{team.name}</span>
+                        <span className="flex shrink-0 flex-col">
+                          <button
+                            type="button" aria-label="Move up" disabled={idx === 0}
+                            onClick={() => moveGroupTeam(group.id, idx, -1)}
+                            className="flex h-3.5 w-5 items-center justify-center text-[9px] leading-none disabled:opacity-30"
+                            style={{ color: "var(--muted)" }}
+                          >▲</button>
+                          <button
+                            type="button" aria-label="Move down" disabled={idx === teamIds.length - 1}
+                            onClick={() => moveGroupTeam(group.id, idx, 1)}
+                            className="flex h-3.5 w-5 items-center justify-center text-[9px] leading-none disabled:opacity-30"
+                            style={{ color: "var(--muted)" }}
+                          >▼</button>
+                        </span>
                       </div>
                     );
                   })}
@@ -282,10 +322,24 @@ export default function GroupResultEditor({
                   {idx + 1}
                 </span>
                 <TeamFlag code={team.fifaCode} size={16} />
-                <span className="text-xs font-medium flex-1" style={{ color: advances ? "var(--ink)" : "var(--muted)" }}>{team.name}</span>
+                <span className="text-xs font-medium flex-1 min-w-0 truncate" style={{ color: advances ? "var(--ink)" : "var(--muted)" }}>{team.name}</span>
                 {advances && (
                   <span className="text-[10px] rounded-full px-1.5 py-0.5 font-bold shrink-0" style={{ background: "var(--accent)", color: "var(--accent-soft)" }}>ADV</span>
                 )}
+                <span className="flex shrink-0 flex-col">
+                  <button
+                    type="button" aria-label="Move up" disabled={idx === 0}
+                    onClick={() => moveThird(idx, -1)}
+                    className="flex h-3.5 w-5 items-center justify-center text-[9px] leading-none disabled:opacity-30"
+                    style={{ color: advances ? "var(--accent-strong)" : "var(--muted)" }}
+                  >▲</button>
+                  <button
+                    type="button" aria-label="Move down" disabled={idx === thirdRanking.length - 1}
+                    onClick={() => moveThird(idx, 1)}
+                    className="flex h-3.5 w-5 items-center justify-center text-[9px] leading-none disabled:opacity-30"
+                    style={{ color: advances ? "var(--accent-strong)" : "var(--muted)" }}
+                  >▼</button>
+                </span>
               </div>
             );
           })}
