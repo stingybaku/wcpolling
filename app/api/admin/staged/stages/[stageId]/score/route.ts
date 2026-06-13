@@ -1,6 +1,7 @@
 import { forbidden, getCurrentUser, unauthorized } from "@/app/api/helpers";
 import { prisma } from "@/lib/prisma";
 import { scoreStage } from "@/lib/stage-scoring";
+import { evaluateStageBadges } from "@/lib/badges";
 import { sendEmail } from "@/lib/email";
 import { stageScoredEmail } from "@/lib/emails/stageScored";
 import { toLocale } from "@/lib/locale";
@@ -56,6 +57,13 @@ export async function POST(_request: Request, context: { params: Promise<{ stage
     where: { id: stageId },
     data: { status: "SCORED" },
   });
+
+  // Award stage badges. Never let a badge failure break scoring/notifications.
+  try {
+    await evaluateStageBadges(stageId);
+  } catch (err) {
+    console.error("Stage badge evaluation failed for", stageId, err);
+  }
 
   // Auto-generate next stage's matches from current stage winners
   let nextMatchesGenerated = false;

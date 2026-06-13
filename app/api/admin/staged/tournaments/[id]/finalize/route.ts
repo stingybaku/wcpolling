@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { sendEmail } from "@/lib/email";
 import { tournamentFinalizedEmail } from "@/lib/emails/tournamentFinalized";
 import { toLocale } from "@/lib/locale";
+import { evaluateTournamentBadges } from "@/lib/badges";
 
 async function requireAdmin() {
   const user = await getCurrentUser();
@@ -36,6 +37,13 @@ export async function POST(_req: Request, context: { params: Promise<{ id: strin
     where: { id },
     data: { finalizedAt: new Date() },
   });
+
+  // Award tournament badges. Never let a badge failure break finalization.
+  try {
+    await evaluateTournamentBadges(id);
+  } catch (err) {
+    console.error("Tournament badge evaluation failed for", id, err);
+  }
 
   // Notify each active member of each group with their final rank
   const groups = await prisma.groupRoom.findMany({

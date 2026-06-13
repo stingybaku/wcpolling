@@ -127,7 +127,33 @@ async function main() {
 
   await seedStagedTournament();
 
+  await seedBadges();
+
   console.log("Done.");
+}
+
+// ─── Badge catalog seed ───────────────────────────────────────────────────────
+// Display text lives in messages/{en,es}.json keyed by slug; only slug/category/
+// icon are stored. Mirrors the catalog INSERT in the add_badges migration.
+
+const BADGES = [
+  { slug: "clean_sweep",  category: "SKILL",       icon: "🧹" },
+  { slug: "stage_mvp",    category: "SKILL",       icon: "🏅" },
+  { slug: "hot_streak",   category: "CONSISTENCY", icon: "🔥" },
+  { slug: "ever_present", category: "CONSISTENCY", icon: "📅" },
+  { slug: "locked_in",    category: "UNLOCK",      icon: "🔒" },
+  { slug: "top_of_table", category: "SOCIAL",      icon: "👑" },
+] as const;
+
+async function seedBadges() {
+  for (const b of BADGES) {
+    await prisma.badge.upsert({
+      where: { slug: b.slug },
+      update: { category: b.category, icon: b.icon },
+      create: { slug: b.slug, category: b.category, icon: b.icon },
+    });
+  }
+  console.log(`Upserted ${BADGES.length} badges.`);
 }
 
 // ─── Bracket seed ────────────────────────────────────────────────────────────
