@@ -765,6 +765,9 @@ export default function GroupDetailPage() {
   const [leaving, setLeaving] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
+  const [editingName, setEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState("");
+  const [savingName, setSavingName] = useState(false);
   const [myPredictions, setMyPredictions] = useState<UserPrediction[]>([]);
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [changingSubmission, setChangingSubmission] = useState(false);
@@ -912,6 +915,26 @@ export default function GroupDetailPage() {
     await loadGroup();
   }
 
+  async function saveGroupName() {
+    const next = nameDraft.trim();
+    if (!next) { setError(t("nameRequired")); return; }
+    setSavingName(true); setError("");
+    const res = await fetch(`/api/groups/${params.groupId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: next }),
+    });
+    setSavingName(false);
+    if (!res.ok) {
+      const d = await res.json().catch(() => null);
+      setError(d?.error ?? t("nameUpdateError"));
+      return;
+    }
+    setEditingName(false);
+    setSuccess(t("nameUpdated"));
+    await loadGroup();
+  }
+
   async function leaveGroup() {
     setError(""); setLeaving(true);
     const res = await fetch(`/api/groups/${params.groupId}/membership`, { method: "DELETE" });
@@ -1023,9 +1046,43 @@ export default function GroupDetailPage() {
               <p className="eyebrow" style={{ marginBottom: 6 }}>
                 {group ? `GROUP · ${memberCount} ${memberCount !== 1 ? t("members") : t("member")}${isGroupAdmin ? ` · INVITE ${group.inviteCode}` : ""}` : t("groupRoom")}
               </p>
-              <h1 className="display" style={{ fontSize: 38, margin: 0, color: "var(--ink)" }}>
-                {group?.name ?? t("loading")}
-              </h1>
+              {editingName && group ? (
+                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                  <input
+                    className="field"
+                    style={{ fontSize: 24, fontWeight: 700, maxWidth: 360 }}
+                    value={nameDraft}
+                    onChange={(e) => setNameDraft(e.target.value)}
+                    maxLength={80}
+                    autoFocus
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") void saveGroupName();
+                      if (e.key === "Escape") setEditingName(false);
+                    }}
+                  />
+                  <button className="btn btn-sm btn-accent" onClick={() => void saveGroupName()} disabled={savingName}>
+                    {savingName ? "…" : t("saveName")}
+                  </button>
+                  <button className="btn btn-sm btn-ghost" onClick={() => setEditingName(false)} disabled={savingName}>
+                    {t("cancelEditName")}
+                  </button>
+                </div>
+              ) : (
+                <h1 className="display" style={{ fontSize: 38, margin: 0, color: "var(--ink)", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                  {group?.name ?? t("loading")}
+                  {isGroupAdmin && group && (
+                    <button
+                      className="btn btn-sm btn-ghost"
+                      style={{ fontSize: 12 }}
+                      onClick={() => { setNameDraft(group.name); setEditingName(true); }}
+                      title={t("editName")}
+                      aria-label={t("editName")}
+                    >
+                      ✏️ {t("editName")}
+                    </button>
+                  )}
+                </h1>
+              )}
               <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>
                 {group ? t("createdBy", { name: displayName(group.owner) }) : "—"}
                 {group?.tournament?.name && ` · ${group.tournament.name}`}
