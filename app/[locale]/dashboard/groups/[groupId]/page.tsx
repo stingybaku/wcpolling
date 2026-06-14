@@ -46,6 +46,7 @@ type StagedLeaderboardEntry = {
   userImage: string | null;
   totalPoints: number;
   totalCorrectPicks: number;
+  badges: { slug: string; icon: string | null }[];
   stages: { stageId: string; stageName: string; stageStatus: string; points: number; correctPicks: number }[];
 };
 
@@ -754,6 +755,7 @@ export default function GroupDetailPage() {
   const router = useRouter();
   const { data: session } = useSession();
   const t = useTranslations("groups.groupRoom");
+  const tb = useTranslations("badges");
 
   const [group, setGroup] = useState<GroupDetail | null>(null);
   const [error, setError] = useState("");
@@ -953,12 +955,24 @@ export default function GroupDetailPage() {
       userName: membershipById[e.userId] ? displayName(membershipById[e.userId].user) : (e.userName ?? ""),
       userImage: membershipById[e.userId]?.user.image ?? e.userImage ?? null,
       totalPoints: e.totalPoints,
+      badges: e.badges,
       stages: e.stages,
     })),
     ...(group?.memberships ?? [])
       .filter((m) => !scoredUserIds.has(m.user.id))
-      .map((m) => ({ userId: m.user.id, userName: displayName(m.user), userImage: m.user.image ?? null, totalPoints: 0, stages: [] as StagedLeaderboardEntry["stages"] })),
+      .map((m) => ({ userId: m.user.id, userName: displayName(m.user), userImage: m.user.image ?? null, totalPoints: 0, badges: [] as StagedLeaderboardEntry["badges"], stages: [] as StagedLeaderboardEntry["stages"] })),
   ];
+
+  const renderBadgeIcons = (badges: StagedLeaderboardEntry["badges"], size = 13) =>
+    badges.length > 0 ? (
+      <span style={{ display: "inline-flex", gap: 2, marginLeft: 5, verticalAlign: "middle" }}>
+        {badges.map((b) => (
+          <span key={b.slug} title={tb(`${b.slug}.name`)} aria-label={tb(`${b.slug}.name`)} style={{ fontSize: size, lineHeight: 1 }}>
+            {b.icon ?? "🏆"}
+          </span>
+        ))}
+      </span>
+    ) : null;
 
   // ── Pagination (20/page) for each leaderboard rendering ──────────────────────
   const classicPag = paginate(leaderboard, classicPage);
@@ -1245,7 +1259,7 @@ export default function GroupDetailPage() {
                       <div key={pos} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
                         <Avatar userId={entry.userId} name={entry.userName ?? ""} image={entry.userImage} size={isFirst ? 64 : 48} />
                         <span style={{ fontSize: isFirst ? 13 : 12, fontWeight: 700, textAlign: "center", color: "var(--ink)" }}>
-                          {entry.userName}{isMe && ` ${t("youLabel")}`}
+                          {entry.userName}{isMe && ` ${t("youLabel")}`}{renderBadgeIcons(entry.badges, 12)}
                         </span>
                         <span style={{ fontSize: isFirst ? 22 : 18, fontWeight: 900, color: "var(--accent-strong)" }}>{entry.totalPoints}</span>
                         <div style={{
@@ -1279,6 +1293,7 @@ export default function GroupDetailPage() {
                         <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "var(--ink)" }}>
                           {entry.userName}
                           {isMe && <span className="chip chip-accent" style={{ marginLeft: 6, fontSize: 10, padding: "2px 6px" }}>{t("youLabel")}</span>}
+                          {renderBadgeIcons(entry.badges)}
                         </span>
                         <span style={{ fontSize: 16, fontWeight: 800, color: "var(--accent-strong)" }}>{entry.totalPoints}</span>
                         <span style={{ fontSize: 11, color: "var(--muted)", minWidth: 60, textAlign: "right" }}>{entry.totalCorrectPicks} {t("correctLabel")}</span>
@@ -1339,6 +1354,7 @@ export default function GroupDetailPage() {
                               <span style={{ fontWeight: 600, fontSize: 13 }}>
                                 {entry.userName}
                                 {isMe && <span className="chip chip-accent" style={{ marginLeft: 6, fontSize: 10, padding: "2px 6px" }}>{t("youLabel")}</span>}
+                                {renderBadgeIcons(entry.badges)}
                               </span>
                             </span>
                           </td>

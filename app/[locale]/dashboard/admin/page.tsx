@@ -1099,23 +1099,21 @@ export default function DashboardAdminPage() {
     <div className="-mx-4 -mt-5 md:-mx-6 lg:-mx-8">
       {/* Operator chrome header */}
       <div
-        className="row pad-4"
+        className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 px-6 py-4"
         style={{
-          alignItems: "center",
-          justifyContent: "space-between",
           background: "var(--ink)",
           color: "#fff",
           borderBottom: "1px solid #1f2937",
         }}
       >
-        <div className="row gap-3" style={{ alignItems: "center" }}>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <span className="chip" style={{ background: "var(--gold)", color: "#0c1118", fontWeight: 800, letterSpacing: "0.12em" }}>
             ADMIN
           </span>
-          <span className="bold text-md" style={{ color: "#fff" }}>Control Room</span>
+          <span className="font-bold text-sm" style={{ color: "#fff" }}>Control Room</span>
           <span className="text-xs mono" style={{ color: "#94a3b8", letterSpacing: "0.16em" }}>· Tournament management &amp; configuration</span>
         </div>
-        <div className="row gap-3" style={{ alignItems: "center" }}>
+        <div className="flex items-center gap-3">
           <button
             className="btn btn-sm btn-accent"
             onClick={startNewTournament}

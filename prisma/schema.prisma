@@ -69,6 +69,13 @@ enum GroupStatus {
   REJECTED
 }
 
+enum BadgeCategory {
+  SKILL
+  CONSISTENCY
+  UNLOCK
+  SOCIAL
+}
+
 model User {
   id              String                 @id @default(cuid())
   name            String?
@@ -87,6 +94,7 @@ model User {
   stagePredictions StagePrediction[]
   stageScores      StageScore[]
   stageTieBreakerAnswers StageTieBreakerAnswer[]
+  userBadges       UserBadge[]
   createdAt       DateTime               @default(now())
   updatedAt       DateTime               @updatedAt
 }
@@ -152,6 +160,7 @@ model Tournament {
   officialThirdPlace     OfficialThirdPlaceRanking[]
   stages           TournamentStage[]
   stageTieBreakerAnswers StageTieBreakerAnswer[]
+  userBadges       UserBadge[]
 }
 
 model TournamentTag {
@@ -356,6 +365,7 @@ model GroupRoom {
   stagePredictions StagePrediction[]
   stageScores      StageScore[]
   stageTieBreakerAnswers StageTieBreakerAnswer[]
+  userBadges       UserBadge[]
 }
 
 model GroupMembership {
@@ -551,6 +561,7 @@ model TournamentStage {
   stageMatches            StageMatch[]
   qualificationResult     StageQualificationResult?
   groupResult             StageGroupResult?
+  userBadges              UserBadge[]
 
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
@@ -644,4 +655,44 @@ model EmailLog {
   sentAt  DateTime @default(now())
 
   @@unique([userId, type, refId])
+}
+
+model Badge {
+  id        String        @id @default(cuid())
+  slug      String        @unique // i18n key + criteria id, e.g. "clean_sweep"
+  category  BadgeCategory
+  icon      String? // icon ref / emoji, never display text
+  active    Boolean       @default(true)
+  createdAt DateTime      @default(now())
+
+  userBadges UserBadge[]
+}
+
+model UserBadge {
+  id      String @id @default(cuid())
+  userId  String
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  badgeId String
+  badge   Badge  @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+
+  // Context — badges are per-group, and either per-stage or per-tournament.
+  groupId      String
+  group        GroupRoom        @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  tournamentId String
+  tournament   Tournament       @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  stageId      String?
+  stage        TournamentStage? @relation(fields: [stageId], references: [id], onDelete: SetNull)
+
+  // Idempotency discriminator: stageId for stage badges, "tournament" for tournament-level.
+  // A plain string avoids Postgres treating NULL stageIds as distinct in the unique index.
+  contextKey String
+
+  // Only non-derivable dynamic values (e.g. streak length). Names resolve from relations.
+  params Json?
+
+  awardedAt DateTime @default(now())
+
+  @@unique([userId, badgeId, groupId, contextKey])
+  @@index([userId])
+  @@index([groupId, tournamentId])
 }

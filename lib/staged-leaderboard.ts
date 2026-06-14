@@ -7,6 +7,7 @@ export type StagedLeaderboardEntry = {
   userImage: string | null;
   totalPoints: number;
   totalCorrectPicks: number;
+  badges: { slug: string; icon: string | null }[];
   stages: { stageId: string; stageName: string; stageStatus: string; points: number; correctPicks: number }[];
 };
 
@@ -38,7 +39,7 @@ export async function computeStagedLeaderboard(
   });
   const activeMemberIds = activeMembers.map((m) => m.userId);
 
-  const [scores, tieBreakers, tbAnswers] = await Promise.all([
+  const [scores, tieBreakers, tbAnswers, badgeRows] = await Promise.all([
     prisma.stageScore.findMany({
       where: { stageId: { in: stageIds }, groupId, userId: { in: activeMemberIds } },
       include: {
@@ -53,7 +54,22 @@ export async function computeStagedLeaderboard(
       where: { tournamentId, groupId, userId: { in: activeMemberIds } },
       select: { userId: true, questionId: true, answer: true },
     }),
+    prisma.userBadge.findMany({
+      where: { groupId, userId: { in: activeMemberIds } },
+      orderBy: { awardedAt: "asc" },
+      select: { userId: true, badge: { select: { slug: true, icon: true } } },
+    }),
   ]);
+
+  // Distinct badges per user (a badge type earned in several stages shows once).
+  const badgesByUser = new Map<string, { slug: string; icon: string | null }[]>();
+  for (const row of badgeRows) {
+    const list = badgesByUser.get(row.userId) ?? [];
+    if (!list.some((b) => b.slug === row.badge.slug)) {
+      list.push({ slug: row.badge.slug, icon: row.badge.icon });
+    }
+    badgesByUser.set(row.userId, list);
+  }
 
   // Per-user tie-breaker "distance": lower is better. NUMBER questions reward
   // the closest guess; TEXT questions are graded manually by the admin (a set of
@@ -132,6 +148,7 @@ export async function computeStagedLeaderboard(
     )
     .map(({ stageMap, ...rest }) => ({
       ...rest,
+      badges: badgesByUser.get(rest.userId) ?? [],
       stages: Object.values(stageMap),
     }));
 }

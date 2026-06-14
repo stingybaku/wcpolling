@@ -1,5 +1,46 @@
 import { prisma } from "@/lib/prisma";
 
+/**
+ * Promotes unsubmitted drafts into submissions for a stage. A "draft" is a
+ * StagePrediction with picks saved but no `submittedAt`. When a stage closes
+ * (and before scoring), a member who saved picks but never hit submit should
+ * still be scored and count as having participated — so their draft becomes the
+ * submission. Members with no prediction, or an empty draft, are left untouched
+ * and therefore score nothing.
+ *
+ * Only ever called once a stage is CLOSED, so it never auto-submits picks while
+ * the stage is still open. Idempotent — re-running affects nothing new.
+ *
+ * Returns the number of drafts promoted.
+ */
+export async function promoteDraftsToSubmissions(stageId: string): Promise<number> {
+  const stage = await prisma.tournamentStage.findUnique({
+    where: { id: stageId },
+    select: { type: true },
+  });
+  if (!stage) return 0;
+
+  const drafts = await prisma.stagePrediction.findMany({
+    where: { stageId, submittedAt: null },
+    select: { id: true, qualificationPicks: true, matchPicks: true },
+  });
+
+  const toPromote = drafts
+    .filter((d) => {
+      const picks = stage.type === "GROUP_QUALIFICATION" ? d.qualificationPicks : d.matchPicks;
+      return Array.isArray(picks) && picks.length > 0;
+    })
+    .map((d) => d.id);
+
+  if (toPromote.length === 0) return 0;
+
+  await prisma.stagePrediction.updateMany({
+    where: { id: { in: toPromote } },
+    data: { submittedAt: new Date() },
+  });
+  return toPromote.length;
+}
+
 const ROUND_POINTS: Record<string, number> = {
   R32: 3,
   R16: 5,

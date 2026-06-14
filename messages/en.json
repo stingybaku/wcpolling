@@ -549,5 +549,49 @@
     "syncing": "Syncing newsroom...",
     "synced": "Synced {count} articles.",
     "syncError": "Could not sync newsroom."
+  },
+  "badges": {
+    "sectionTitle": "Badges",
+    "sectionSubtitle": "Achievements you've earned across your groups.",
+    "empty": "No badges yet — submit your predictions and climb your group to start earning.",
+    "earnedTitle": "New badge unlocked!",
+    "category": {
+      "skill": "Skill",
+      "consistency": "Consistency",
+      "unlock": "Discipline",
+      "social": "Social"
+    },
+    "rounds": {
+      "GQ": "Group Stage",
+      "R32": "Round of 32",
+      "R16": "Round of 16",
+      "QF": "Quarter-Finals",
+      "SF": "Semi-Finals",
+      "Final": "Final"
+    },
+    "clean_sweep": {
+      "name": "Clean Sweep",
+      "desc": "Every pick correct in {stageName}."
+    },
+    "stage_mvp": {
+      "name": "Stage MVP",
+      "desc": "Top scorer in {groupName} for {stageName}."
+    },
+    "hot_streak": {
+      "name": "Hot Streak",
+      "desc": "Scored in {count} stages running."
+    },
+    "ever_present": {
+      "name": "Ever-Present",
+      "desc": "Submitted predictions in every stage of {tournamentName}."
+    },
+    "locked_in": {
+      "name": "Locked In",
+      "desc": "Finished {tournamentName} without using a single unlock."
+    },
+    "top_of_table": {
+      "name": "Top of the Table",
+      "desc": "Finished #1 in {groupName}."
+    }
   }
 }

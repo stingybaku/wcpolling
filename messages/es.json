@@ -549,5 +549,49 @@
     "syncing": "Sincronizando noticias...",
     "synced": "Se sincronizaron {count} artículos.",
     "syncError": "No se pudo sincronizar la sala de noticias."
+  },
+  "badges": {
+    "sectionTitle": "Insignias",
+    "sectionSubtitle": "Logros que has conseguido en tus grupos.",
+    "empty": "Aún no tienes insignias: envía tus predicciones y sube en tu grupo para empezar a ganarlas.",
+    "earnedTitle": "¡Nueva insignia desbloqueada!",
+    "category": {
+      "skill": "Habilidad",
+      "consistency": "Constancia",
+      "unlock": "Disciplina",
+      "social": "Social"
+    },
+    "rounds": {
+      "GQ": "Fase de grupos",
+      "R32": "Dieciseisavos",
+      "R16": "Octavos",
+      "QF": "Cuartos de final",
+      "SF": "Semifinales",
+      "Final": "Final"
+    },
+    "clean_sweep": {
+      "name": "Pleno",
+      "desc": "Todas tus predicciones acertadas en {stageName}."
+    },
+    "stage_mvp": {
+      "name": "MVP de la fase",
+      "desc": "Máxima puntuación en {groupName} en {stageName}."
+    },
+    "hot_streak": {
+      "name": "Racha",
+      "desc": "Puntuaste en {count} fases seguidas."
+    },
+    "ever_present": {
+      "name": "Siempre presente",
+      "desc": "Enviaste predicciones en todas las fases de {tournamentName}."
+    },
+    "locked_in": {
+      "name": "Sin cambios",
+      "desc": "Terminaste {tournamentName} sin usar ni un solo desbloqueo."
+    },
+    "top_of_table": {
+      "name": "Líder del grupo",
+      "desc": "Terminaste en el puesto #1 de {groupName}."
+    }
   }
 }

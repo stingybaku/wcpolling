@@ -1,6 +1,7 @@
 import { forbidden, getCurrentUser, unauthorized } from "@/app/api/helpers";
 import { prisma } from "@/lib/prisma";
-import { scoreStage } from "@/lib/stage-scoring";
+import { scoreStage, promoteDraftsToSubmissions } from "@/lib/stage-scoring";
+import { evaluateStageBadges } from "@/lib/badges";
 import { sendEmail } from "@/lib/email";
 import { stageScoredEmail } from "@/lib/emails/stageScored";
 import { toLocale } from "@/lib/locale";
@@ -50,12 +51,23 @@ export async function POST(_request: Request, context: { params: Promise<{ stage
     return new Response(JSON.stringify({ error: "Unsupported stage type for scoring" }), { status: 400 });
   }
 
+  // Safety net for stages closed before this existed / re-scores: promote any
+  // remaining drafts to submissions so they're scored consistently.
+  await promoteDraftsToSubmissions(stageId);
+
   await scoreStage(stageId);
 
   await prisma.tournamentStage.update({
     where: { id: stageId },
     data: { status: "SCORED" },
   });
+
+  // Award stage badges. Never let a badge failure break scoring/notifications.
+  try {
+    await evaluateStageBadges(stageId);
+  } catch (err) {
+    console.error("Stage badge evaluation failed for", stageId, err);
+  }
 
   // Auto-generate next stage's matches from current stage winners
   let nextMatchesGenerated = false;

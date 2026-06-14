@@ -13,10 +13,26 @@ type Profile = {
   image?: string | null;
 };
 
+type Badge = {
+  slug: string;
+  icon: string | null;
+  category: string;
+  groupName: string | null;
+  tournamentName: string | null;
+  stageName: string | null;
+  stageRoundLabel: string | null;
+  params: Record<string, string | number> | null;
+  awardedAt: string;
+};
+
+const KNOWN_ROUNDS = ["GQ", "R32", "R16", "QF", "SF", "Final"];
+
 export default function DashboardProfilePage() {
   const t = useTranslations("profile");
+  const tb = useTranslations("badges");
   const router = useRouter();
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [badges, setBadges] = useState<Badge[]>([]);
   const [name, setName] = useState("");
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -39,7 +55,15 @@ export default function DashboardProfilePage() {
       setName(data.profile?.name ?? "");
     }
 
+    async function loadBadges() {
+      const res = await fetch("/api/badges");
+      if (!res.ok) return;
+      const data = await res.json();
+      setBadges(data.badges ?? []);
+    }
+
     void loadProfile();
+    void loadBadges();
   }, []);
 
   async function saveProfile(event: React.FormEvent) {
@@ -209,6 +233,51 @@ export default function DashboardProfilePage() {
             </div>
           </div>
         </div>
+      </section>
+
+      <section className="surface rounded-[2rem] p-6 md:p-8">
+        <p className="text-xs font-semibold uppercase tracking-[0.3em] muted">{tb("sectionTitle")}</p>
+        <p className="mt-2 text-sm muted">{tb("sectionSubtitle")}</p>
+        {badges.length === 0 ? (
+          <p className="mt-5 text-sm muted">{tb("empty")}</p>
+        ) : (
+          <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {badges.map((b, i) => {
+              const stageName =
+                b.stageRoundLabel && KNOWN_ROUNDS.includes(b.stageRoundLabel)
+                  ? tb(`rounds.${b.stageRoundLabel}`)
+                  : b.stageName ?? "";
+              const vars: Record<string, string | number> = {
+                stageName,
+                groupName: b.groupName ?? "",
+                tournamentName: b.tournamentName ?? "",
+                ...(b.params ?? {}),
+              };
+              return (
+                <div
+                  key={`${b.slug}-${i}`}
+                  className="flex items-start gap-3 rounded-[1.3rem] border p-4"
+                  style={{ borderColor: "var(--border)", background: "var(--bg-strong)" }}
+                >
+                  <span className="text-2xl leading-none" aria-hidden>{b.icon ?? "🏆"}</span>
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-sm font-bold">{tb(`${b.slug}.name`)}</p>
+                      <span
+                        className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+                        style={{ background: "var(--accent-soft)", color: "var(--accent-strong)" }}
+                      >
+                        {tb(`category.${b.category.toLowerCase()}`)}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-xs muted">{tb(`${b.slug}.desc`, vars)}</p>
+                    {b.groupName ? <p className="mt-1 text-[11px] muted">{b.groupName}</p> : null}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </section>
     </div>
   );
