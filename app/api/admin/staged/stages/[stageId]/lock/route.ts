@@ -1,6 +1,7 @@
 import { forbidden, getCurrentUser, unauthorized } from "@/app/api/helpers";
 import { prisma } from "@/lib/prisma";
 import { lookupThirdPlaceScenario } from "@/lib/third-place-scenarios";
+import { promoteDraftsToSubmissions } from "@/lib/stage-scoring";
 
 async function requireAdmin() {
   const user = await getCurrentUser();
@@ -82,6 +83,11 @@ export async function POST(req: Request, context: { params: Promise<{ stageId: s
     create: { stageId, standings: groupStandings, thirdPlace: selectedThirds },
     update: { standings: groupStandings, thirdPlace: selectedThirds },
   });
+
+  // Promote saved-but-unsubmitted drafts to submissions before scoring, so a
+  // member who drafted picks but never hit submit is scored and counts as a
+  // participant (e.g. for badges).
+  await promoteDraftsToSubmissions(stageId);
 
   // Score all members (same logic as /score endpoint)
   const qualifierSet = new Set(qualifiers);

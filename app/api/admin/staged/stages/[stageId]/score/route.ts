@@ -1,6 +1,6 @@
 import { forbidden, getCurrentUser, unauthorized } from "@/app/api/helpers";
 import { prisma } from "@/lib/prisma";
-import { scoreStage } from "@/lib/stage-scoring";
+import { scoreStage, promoteDraftsToSubmissions } from "@/lib/stage-scoring";
 import { evaluateStageBadges } from "@/lib/badges";
 import { sendEmail } from "@/lib/email";
 import { stageScoredEmail } from "@/lib/emails/stageScored";
@@ -50,6 +50,10 @@ export async function POST(_request: Request, context: { params: Promise<{ stage
   } else {
     return new Response(JSON.stringify({ error: "Unsupported stage type for scoring" }), { status: 400 });
   }
+
+  // Safety net for stages closed before this existed / re-scores: promote any
+  // remaining drafts to submissions so they're scored consistently.
+  await promoteDraftsToSubmissions(stageId);
 
   await scoreStage(stageId);
 

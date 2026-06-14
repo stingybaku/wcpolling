@@ -1,5 +1,6 @@
 import { forbidden, getCurrentUser, unauthorized } from "@/app/api/helpers";
 import { prisma } from "@/lib/prisma";
+import { promoteDraftsToSubmissions } from "@/lib/stage-scoring";
 
 async function requireAdmin() {
   const user = await getCurrentUser();
@@ -31,5 +32,9 @@ export async function POST(_request: Request, context: { params: Promise<{ stage
     data: { status: "CLOSED" },
   });
 
-  return new Response(JSON.stringify({ stage: updated }), { status: 200 });
+  // Closing locks predictions: turn any saved-but-unsubmitted drafts into
+  // submissions so they get scored. Members with no draft remain unscored.
+  const promoted = await promoteDraftsToSubmissions(stageId);
+
+  return new Response(JSON.stringify({ stage: updated, promotedDrafts: promoted }), { status: 200 });
 }
