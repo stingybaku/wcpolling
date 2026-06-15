@@ -133,11 +133,15 @@ export default function AdminMatchResultsPage() {
     matches: matches.filter((m) => m.round === round),
   })).filter((r) => r.matches.length > 0);
 
-  const numInput = (value: number | null, onChange: (n: number | null) => void, width = 40) => (
+  const numInput = (value: number | null, onChange: (n: number | null) => void, width = 52) => (
     <input
       type="number" min={0} value={numOrEmpty(value)}
       onChange={(e) => onChange(e.target.value === "" ? null : Math.max(0, Math.floor(Number(e.target.value))))}
-      style={{ width, textAlign: "center" }} className="field"
+      style={{
+        width, textAlign: "center", padding: "6px 6px", borderRadius: 8,
+        border: "1px solid var(--border)", background: "var(--paper-strong)",
+        color: "var(--ink)", fontSize: 14,
+      }}
     />
   );
 
@@ -206,13 +210,13 @@ export default function AdminMatchResultsPage() {
                     </span>
                   </div>
                   <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 text-[11px] muted">
-                    <span className="flex items-center gap-1">🟨 {numInput(m.homeYellow, (n) => patchLocal(m.id, { homeYellow: n ?? 0 }), 36)}/{numInput(m.awayYellow, (n) => patchLocal(m.id, { awayYellow: n ?? 0 }), 36)}</span>
-                    <span className="flex items-center gap-1">🟥 {numInput(m.homeRed, (n) => patchLocal(m.id, { homeRed: n ?? 0 }), 36)}/{numInput(m.awayRed, (n) => patchLocal(m.id, { awayRed: n ?? 0 }), 36)}</span>
+                    <span className="flex items-center gap-1">🟨 {numInput(m.homeYellow, (n) => patchLocal(m.id, { homeYellow: n ?? 0 }), 44)}/{numInput(m.awayYellow, (n) => patchLocal(m.id, { awayYellow: n ?? 0 }), 44)}</span>
+                    <span className="flex items-center gap-1">🟥 {numInput(m.homeRed, (n) => patchLocal(m.id, { homeRed: n ?? 0 }), 44)}/{numInput(m.awayRed, (n) => patchLocal(m.id, { awayRed: n ?? 0 }), 44)}</span>
                     <label className="flex items-center gap-1">
                       <input type="checkbox" checked={m.penaltyShootout} onChange={(e) => patchLocal(m.id, { penaltyShootout: e.target.checked })} /> Pens
                     </label>
                     {m.penaltyShootout && (
-                      <span className="flex items-center gap-1">{numInput(m.homePenalties, (n) => patchLocal(m.id, { homePenalties: n }), 36)}–{numInput(m.awayPenalties, (n) => patchLocal(m.id, { awayPenalties: n }), 36)}</span>
+                      <span className="flex items-center gap-1">{numInput(m.homePenalties, (n) => patchLocal(m.id, { homePenalties: n }), 44)}–{numInput(m.awayPenalties, (n) => patchLocal(m.id, { awayPenalties: n }), 44)}</span>
                     )}
                     <label className="flex items-center gap-1">
                       <input type="checkbox" checked={m.status === "FINISHED"} onChange={(e) => patchLocal(m.id, { status: e.target.checked ? "FINISHED" : "SCHEDULED" })} /> Finished
