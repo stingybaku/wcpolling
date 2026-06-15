@@ -1548,6 +1548,12 @@ export default function StagedTournamentAdminPage() {
             </p>
             <h1 className="text-3xl font-bold" style={{ color: "var(--ink)" }}>{tournament.name}</h1>
             <p className="mt-1 text-sm muted">{tournament.type}</p>
+            <a
+              href={`/dashboard/admin/tournaments/${id}/matches`}
+              className="mt-3 inline-block btn btn-sm btn-ghost"
+            >
+              Match Results →
+            </a>
           </div>
 
           {/* Status bar */}

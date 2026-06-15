@@ -115,6 +115,7 @@
     "dashboard": "Panel",
     "groups": "Grupos",
     "predictions": "Predicciones",
+    "matchCenter": "Centro de partidos",
     "tipOfTheDay": "Tip del día",
     "logoLabel": "Logo",
     "logoSubLabel": "Marca provisional",
@@ -598,6 +599,22 @@
     "top_of_table": {
       "name": "Líder del grupo",
       "desc": "Terminaste en el puesto #1 de {groupName}."
+    }
+  },
+  "matchCenter": {
+    "tagline": "Centro de partidos",
+    "title": "Resultados",
+    "subtitle": "Cada partido del Mundial: marcadores, tarjetas y lo que está por venir.",
+    "loading": "Cargando…",
+    "empty": "Aún no hay partidos para mostrar.",
+    "scheduled": "Programado",
+    "rounds": {
+      "GROUP": "Fase de grupos",
+      "R32": "Dieciseisavos",
+      "R16": "Octavos",
+      "QF": "Cuartos de final",
+      "SF": "Semifinales",
+      "FINAL": "Final"
     }
   }
 }
