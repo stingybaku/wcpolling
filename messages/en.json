@@ -608,6 +608,7 @@
     "loading": "Loading…",
     "empty": "No matches to show yet.",
     "scheduled": "Scheduled",
+    "group": "Group {name}",
     "rounds": {
       "GROUP": "Group Stage",
       "R32": "Round of 32",
