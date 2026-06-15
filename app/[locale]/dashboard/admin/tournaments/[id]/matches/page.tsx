@@ -145,6 +145,45 @@ export default function AdminMatchResultsPage() {
     />
   );
 
+  const groupNames = Array.from(
+    new Set(matches.filter((m) => m.round === "GROUP" && m.groupName).map((m) => m.groupName as string)),
+  ).sort();
+
+  const matchCard = (m: Match) => (
+    <div key={m.id} className="rounded-2xl p-3" style={{ background: "var(--bg-strong)" }}>
+      <div className="flex flex-wrap items-center gap-2">
+        {m.groupName && <span className="text-[10px] font-bold muted" style={{ width: 52 }}>Grp {m.groupName}</span>}
+        <span className="flex items-center gap-1.5" style={{ minWidth: 150, justifyContent: "flex-end", flex: 1 }}>
+          <span className="text-xs font-medium" style={{ color: "var(--ink)" }}>{m.homeTeam.name}</span>
+          <TeamFlag code={m.homeTeam.fifaCode} size={16} />
+        </span>
+        {numInput(m.homeScore, (n) => patchLocal(m.id, { homeScore: n }))}
+        <span className="muted">–</span>
+        {numInput(m.awayScore, (n) => patchLocal(m.id, { awayScore: n }))}
+        <span className="flex items-center gap-1.5" style={{ minWidth: 150, flex: 1 }}>
+          <TeamFlag code={m.awayTeam.fifaCode} size={16} />
+          <span className="text-xs font-medium" style={{ color: "var(--ink)" }}>{m.awayTeam.name}</span>
+        </span>
+      </div>
+      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 text-[11px] muted">
+        <span className="flex items-center gap-1">🟨 {numInput(m.homeYellow, (n) => patchLocal(m.id, { homeYellow: n ?? 0 }), 44)}/{numInput(m.awayYellow, (n) => patchLocal(m.id, { awayYellow: n ?? 0 }), 44)}</span>
+        <span className="flex items-center gap-1">🟥 {numInput(m.homeRed, (n) => patchLocal(m.id, { homeRed: n ?? 0 }), 44)}/{numInput(m.awayRed, (n) => patchLocal(m.id, { awayRed: n ?? 0 }), 44)}</span>
+        <label className="flex items-center gap-1">
+          <input type="checkbox" checked={m.penaltyShootout} onChange={(e) => patchLocal(m.id, { penaltyShootout: e.target.checked })} /> Pens
+        </label>
+        {m.penaltyShootout && (
+          <span className="flex items-center gap-1">{numInput(m.homePenalties, (n) => patchLocal(m.id, { homePenalties: n }), 44)}–{numInput(m.awayPenalties, (n) => patchLocal(m.id, { awayPenalties: n }), 44)}</span>
+        )}
+        <label className="flex items-center gap-1">
+          <input type="checkbox" checked={m.status === "FINISHED"} onChange={(e) => patchLocal(m.id, { status: e.target.checked ? "FINISHED" : "SCHEDULED" })} /> Finished
+        </label>
+        <button className="btn btn-sm btn-accent ml-auto" onClick={() => void save(m)} disabled={savingId === m.id}>
+          {savingId === m.id ? "…" : "Save"}
+        </button>
+      </div>
+    </div>
+  );
+
   return (
     <div className="space-y-6" style={{ padding: 24 }}>
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -189,47 +228,24 @@ export default function AdminMatchResultsPage() {
       ) : matches.length === 0 ? (
         <p className="muted text-sm">No fixtures yet — click “Generate / sync fixtures”. Group matches come from the seeded groups; knockout matches sync from the bracket as rounds resolve.</p>
       ) : (
-        byRound.map(({ round, matches: rms }) => (
-          <section key={round} className="space-y-2">
-            <p className="text-xs font-bold uppercase tracking-widest muted">{ROUND_LABEL[round]}</p>
-            <div className="space-y-2">
-              {rms.map((m) => (
-                <div key={m.id} className="rounded-2xl p-3" style={{ background: "var(--bg-strong)" }}>
-                  <div className="flex flex-wrap items-center gap-2">
-                    {m.groupName && <span className="text-[10px] font-bold muted" style={{ width: 52 }}>Grp {m.groupName}</span>}
-                    <span className="flex items-center gap-1.5" style={{ minWidth: 150, justifyContent: "flex-end", flex: 1 }}>
-                      <span className="text-xs font-medium" style={{ color: "var(--ink)" }}>{m.homeTeam.name}</span>
-                      <TeamFlag code={m.homeTeam.fifaCode} size={16} />
-                    </span>
-                    {numInput(m.homeScore, (n) => patchLocal(m.id, { homeScore: n }))}
-                    <span className="muted">–</span>
-                    {numInput(m.awayScore, (n) => patchLocal(m.id, { awayScore: n }))}
-                    <span className="flex items-center gap-1.5" style={{ minWidth: 150, flex: 1 }}>
-                      <TeamFlag code={m.awayTeam.fifaCode} size={16} />
-                      <span className="text-xs font-medium" style={{ color: "var(--ink)" }}>{m.awayTeam.name}</span>
-                    </span>
-                  </div>
-                  <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 text-[11px] muted">
-                    <span className="flex items-center gap-1">🟨 {numInput(m.homeYellow, (n) => patchLocal(m.id, { homeYellow: n ?? 0 }), 44)}/{numInput(m.awayYellow, (n) => patchLocal(m.id, { awayYellow: n ?? 0 }), 44)}</span>
-                    <span className="flex items-center gap-1">🟥 {numInput(m.homeRed, (n) => patchLocal(m.id, { homeRed: n ?? 0 }), 44)}/{numInput(m.awayRed, (n) => patchLocal(m.id, { awayRed: n ?? 0 }), 44)}</span>
-                    <label className="flex items-center gap-1">
-                      <input type="checkbox" checked={m.penaltyShootout} onChange={(e) => patchLocal(m.id, { penaltyShootout: e.target.checked })} /> Pens
-                    </label>
-                    {m.penaltyShootout && (
-                      <span className="flex items-center gap-1">{numInput(m.homePenalties, (n) => patchLocal(m.id, { homePenalties: n }), 44)}–{numInput(m.awayPenalties, (n) => patchLocal(m.id, { awayPenalties: n }), 44)}</span>
-                    )}
-                    <label className="flex items-center gap-1">
-                      <input type="checkbox" checked={m.status === "FINISHED"} onChange={(e) => patchLocal(m.id, { status: e.target.checked ? "FINISHED" : "SCHEDULED" })} /> Finished
-                    </label>
-                    <button className="btn btn-sm btn-accent ml-auto" onClick={() => void save(m)} disabled={savingId === m.id}>
-                      {savingId === m.id ? "…" : "Save"}
-                    </button>
-                  </div>
+        byRound.map(({ round, matches: rms }) =>
+          round === "GROUP" ? (
+            <section key={round} className="space-y-4">
+              <p className="text-xs font-bold uppercase tracking-widest muted">{ROUND_LABEL.GROUP}</p>
+              {groupNames.map((g) => (
+                <div key={g} className="space-y-2">
+                  <p className="text-xs font-bold uppercase tracking-widest" style={{ color: "var(--accent-strong)" }}>Group {g}</p>
+                  <div className="space-y-2">{rms.filter((m) => m.groupName === g).map(matchCard)}</div>
                 </div>
               ))}
-            </div>
-          </section>
-        ))
+            </section>
+          ) : (
+            <section key={round} className="space-y-2">
+              <p className="text-xs font-bold uppercase tracking-widest muted">{ROUND_LABEL[round]}</p>
+              <div className="space-y-2">{rms.map(matchCard)}</div>
+            </section>
+          ),
+        )
       )}
     </div>
   );
