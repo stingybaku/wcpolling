@@ -76,6 +76,27 @@ enum BadgeCategory {
   SOCIAL
 }
 
+enum MatchRound {
+  GROUP
+  R32
+  R16
+  QF
+  SF
+  FINAL
+}
+
+enum MatchResultStatus {
+  SCHEDULED
+  FINISHED
+}
+
+enum TieBreakerMetric {
+  TOTAL_GOALS
+  FINAL_GOALS
+  PENALTY_SHOOTOUTS
+  RED_CARDS
+}
+
 model User {
   id              String                 @id @default(cuid())
   name            String?
@@ -161,6 +182,7 @@ model Tournament {
   stages           TournamentStage[]
   stageTieBreakerAnswers StageTieBreakerAnswer[]
   userBadges       UserBadge[]
+  matchResults     MatchResult[]
 }
 
 model TournamentTag {
@@ -270,6 +292,8 @@ model Team {
   stageMatchesAsHome       StageMatch[]               @relation("HomeTeam")
   stageMatchesAsAway       StageMatch[]               @relation("AwayTeam")
   stageMatchesAsWinner     StageMatch[]               @relation("WinnerTeam")
+  matchResultsAsHome       MatchResult[]              @relation("MatchResultHome")
+  matchResultsAsAway       MatchResult[]              @relation("MatchResultAway")
 }
 
 model TournamentGroupTeam {
@@ -339,6 +363,7 @@ model TieBreakerQuestion {
   type         TieBreakerType  @default(NUMBER)
   correctAnswer String?
   acceptedAnswers Json?
+  metric       TieBreakerMetric?
   sortOrder    Int             @default(0)
   createdAt    DateTime        @default(now())
   updatedAt    DateTime        @updatedAt
@@ -581,6 +606,7 @@ model StageMatch {
   matchDate   DateTime?
   winnerId    String?
   winner      Team?           @relation("WinnerTeam", fields: [winnerId], references: [id])
+  matchResult MatchResult?
 
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
@@ -695,4 +721,47 @@ model UserBadge {
   @@unique([userId, badgeId, groupId, contextKey])
   @@index([userId])
   @@index([groupId, tournamentId])
+}
+
+// Admin-tracked real-world result + team-level stats for each World Cup match.
+// Independent of the prediction machinery (StageMatch winner / scoring); used for
+// record-keeping, the public match center, and auto-resolving tie-breakers.
+model MatchResult {
+  id           String            @id @default(cuid())
+  tournamentId String
+  tournament   Tournament        @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  round     MatchRound
+  groupName String? // group letter for GROUP-round matches
+  matchNumber Int   // ordering within the round (and group, for group stage)
+
+  homeTeamId String
+  homeTeam   Team   @relation("MatchResultHome", fields: [homeTeamId], references: [id], onDelete: Cascade)
+  awayTeamId String
+  awayTeam   Team   @relation("MatchResultAway", fields: [awayTeamId], references: [id], onDelete: Cascade)
+
+  // Knockout rows are synced from the bracket; this links back without coupling scoring.
+  stageMatchId String?     @unique
+  stageMatch   StageMatch? @relation(fields: [stageMatchId], references: [id], onDelete: SetNull)
+
+  kickoffAt DateTime?
+  venue     String?
+  status    MatchResultStatus @default(SCHEDULED)
+
+  homeScore Int?
+  awayScore Int?
+  homeYellow Int @default(0)
+  awayYellow Int @default(0)
+  homeRed    Int @default(0)
+  awayRed    Int @default(0)
+
+  penaltyShootout Boolean @default(false)
+  homePenalties   Int?
+  awayPenalties   Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tournamentId, round, groupName, matchNumber])
+  @@index([tournamentId])
 }

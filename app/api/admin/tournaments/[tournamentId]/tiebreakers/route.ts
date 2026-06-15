@@ -102,15 +102,28 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   const { tournamentId } = await context.params;
 
   const body = await request.json();
-  const { questionId, correctAnswer, acceptedAnswers } = body as {
+  const { questionId, correctAnswer, acceptedAnswers, metric } = body as {
     questionId: string;
     correctAnswer?: string | null;
     acceptedAnswers?: string[];
+    metric?: string | null;
   };
 
   if (!questionId) return badRequest("questionId is required");
 
-  const data: { correctAnswer?: string | null; acceptedAnswers?: string[] } = {};
+  const VALID_METRICS = ["TOTAL_GOALS", "FINAL_GOALS", "PENALTY_SHOOTOUTS", "RED_CARDS"];
+  const data: {
+    correctAnswer?: string | null;
+    acceptedAnswers?: string[];
+    metric?: "TOTAL_GOALS" | "FINAL_GOALS" | "PENALTY_SHOOTOUTS" | "RED_CARDS" | null;
+  } = {};
+
+  // Map a question to a match-stat so its answer auto-resolves from match data.
+  if (metric !== undefined) {
+    data.metric = metric && VALID_METRICS.includes(metric)
+      ? (metric as "TOTAL_GOALS" | "FINAL_GOALS" | "PENALTY_SHOOTOUTS" | "RED_CARDS")
+      : null;
+  }
 
   // NUMBER questions are graded by closeness to a single correct value.
   if (correctAnswer !== undefined) {

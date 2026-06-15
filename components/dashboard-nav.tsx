@@ -38,6 +38,7 @@ export function DashboardNav({
     { href: "/dashboard" as const, label: t("dashboard") },
     { href: "/dashboard/groups" as const, label: t("groups") },
     ...(currentTournamentType !== "STAGED" ? [{ href: "/dashboard/predictions" as const, label: t("predictions") }] : []),
+    ...(currentTournamentType === "STAGED" ? [{ href: "/dashboard/matches" as const, label: t("matchCenter") }] : []),
     ...(role === "ADMIN" ? [{ href: "/dashboard/admin" as const, label: "Admin" }] : []),
   ];
 

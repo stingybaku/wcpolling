@@ -115,6 +115,7 @@
     "dashboard": "Dashboard",
     "groups": "Groups",
     "predictions": "Predictions",
+    "matchCenter": "Match Center",
     "tipOfTheDay": "Tip of the Day",
     "logoLabel": "Logo",
     "logoSubLabel": "Placeholder mark",
@@ -598,6 +599,22 @@
     "top_of_table": {
       "name": "Top of the Table",
       "desc": "Finished #1 in {groupName}."
+    }
+  },
+  "matchCenter": {
+    "tagline": "Match Center",
+    "title": "Results",
+    "subtitle": "Every World Cup match — scores, cards, and what's still to come.",
+    "loading": "Loading…",
+    "empty": "No matches to show yet.",
+    "scheduled": "Scheduled",
+    "rounds": {
+      "GROUP": "Group Stage",
+      "R32": "Round of 32",
+      "R16": "Round of 16",
+      "QF": "Quarter-Finals",
+      "SF": "Semi-Finals",
+      "FINAL": "Final"
     }
   }
 }
