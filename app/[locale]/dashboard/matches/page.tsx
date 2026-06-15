@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { TeamFlag } from "@/components/team-flag";
 
@@ -64,27 +64,24 @@ export default function MatchCenterPage() {
     new Set(matches.filter((m) => m.round === "GROUP" && m.groupName).map((m) => m.groupName as string)),
   ).sort();
 
+  const teamLine = (team: Team, cardsEl: ReactNode, played: boolean, score: number | null) => (
+    <div className="flex items-center gap-2">
+      <span className="shrink-0"><TeamFlag code={team.fifaCode} size={18} /></span>
+      <span className="truncate min-w-0 flex-1 text-sm font-medium" style={{ color: "var(--ink)" }}>{team.name}</span>
+      {cardsEl}
+      <span className="shrink-0 text-right text-sm font-extrabold" style={{ minWidth: 18, color: "var(--ink)" }}>
+        {played ? score ?? 0 : "–"}
+      </span>
+    </div>
+  );
+
   const matchRow = (m: Match) => {
     const played = m.status === "FINISHED";
     return (
-      <div key={m.id} className="flex items-center gap-2 rounded-xl px-3 py-2" style={{ background: "var(--bg-strong)" }}>
-        <span className="flex flex-1 items-center justify-end gap-1.5 min-w-0">
-          {cards(m.homeYellow, m.homeRed)}
-          <span className="truncate min-w-0 text-sm font-medium" style={{ color: "var(--ink)" }}>{m.homeTeam.name}</span>
-          <span className="shrink-0"><TeamFlag code={m.homeTeam.fifaCode} size={18} /></span>
-        </span>
-        <span className="shrink-0 text-center" style={{ minWidth: 50 }}>
-          {played ? (
-            <span className="text-sm font-extrabold" style={{ color: "var(--ink)" }}>{m.homeScore ?? 0}–{m.awayScore ?? 0}</span>
-          ) : (
-            <span className="text-[10px] uppercase tracking-wide muted">{t("scheduled")}</span>
-          )}
-        </span>
-        <span className="flex flex-1 items-center gap-1.5 min-w-0">
-          <span className="shrink-0"><TeamFlag code={m.awayTeam.fifaCode} size={18} /></span>
-          <span className="truncate min-w-0 text-sm font-medium" style={{ color: "var(--ink)" }}>{m.awayTeam.name}</span>
-          {cards(m.awayYellow, m.awayRed)}
-        </span>
+      <div key={m.id} className="rounded-xl px-3 py-2 space-y-1" style={{ background: "var(--bg-strong)" }}>
+        {teamLine(m.homeTeam, cards(m.homeYellow, m.homeRed), played, m.homeScore)}
+        {teamLine(m.awayTeam, cards(m.awayYellow, m.awayRed), played, m.awayScore)}
+        {!played && <p className="text-right text-[10px] uppercase tracking-wide muted">{t("scheduled")}</p>}
       </div>
     );
   };
