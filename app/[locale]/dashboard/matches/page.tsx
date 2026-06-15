@@ -54,7 +54,7 @@ export default function MatchCenterPage() {
   })).filter((r) => r.matches.length > 0);
 
   const cards = (yellow: number, red: number) => (
-    <span className="text-[10px]" style={{ color: "var(--muted)" }}>
+    <span className="shrink-0 whitespace-nowrap text-[10px]" style={{ color: "var(--muted)" }}>
       {yellow > 0 && <span>🟨{yellow} </span>}
       {red > 0 && <span>🟥{red}</span>}
     </span>
@@ -70,10 +70,10 @@ export default function MatchCenterPage() {
       <div key={m.id} className="flex items-center gap-2 rounded-xl px-3 py-2" style={{ background: "var(--bg-strong)" }}>
         <span className="flex flex-1 items-center justify-end gap-1.5 min-w-0">
           {cards(m.homeYellow, m.homeRed)}
-          <span className="truncate text-sm font-medium" style={{ color: "var(--ink)" }}>{m.homeTeam.name}</span>
-          <TeamFlag code={m.homeTeam.fifaCode} size={18} />
+          <span className="truncate min-w-0 text-sm font-medium" style={{ color: "var(--ink)" }}>{m.homeTeam.name}</span>
+          <span className="shrink-0"><TeamFlag code={m.homeTeam.fifaCode} size={18} /></span>
         </span>
-        <span className="shrink-0 text-center" style={{ minWidth: 56 }}>
+        <span className="shrink-0 text-center" style={{ minWidth: 50 }}>
           {played ? (
             <span className="text-sm font-extrabold" style={{ color: "var(--ink)" }}>{m.homeScore ?? 0}–{m.awayScore ?? 0}</span>
           ) : (
@@ -81,8 +81,8 @@ export default function MatchCenterPage() {
           )}
         </span>
         <span className="flex flex-1 items-center gap-1.5 min-w-0">
-          <TeamFlag code={m.awayTeam.fifaCode} size={18} />
-          <span className="truncate text-sm font-medium" style={{ color: "var(--ink)" }}>{m.awayTeam.name}</span>
+          <span className="shrink-0"><TeamFlag code={m.awayTeam.fifaCode} size={18} /></span>
+          <span className="truncate min-w-0 text-sm font-medium" style={{ color: "var(--ink)" }}>{m.awayTeam.name}</span>
           {cards(m.awayYellow, m.awayRed)}
         </span>
       </div>
