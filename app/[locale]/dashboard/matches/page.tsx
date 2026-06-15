@@ -67,8 +67,9 @@ export default function MatchCenterPage() {
   const teamLine = (team: Team, cardsEl: ReactNode, played: boolean, score: number | null) => (
     <div className="flex items-center gap-2">
       <span className="shrink-0"><TeamFlag code={team.fifaCode} size={18} /></span>
-      <span className="truncate min-w-0 flex-1 text-sm font-medium" style={{ color: "var(--ink)" }}>{team.name}</span>
+      <span className="truncate min-w-0 text-sm font-medium" style={{ color: "var(--ink)" }}>{team.name}</span>
       {cardsEl}
+      <span className="flex-1" aria-hidden />
       <span className="shrink-0 text-right text-sm font-extrabold" style={{ minWidth: 18, color: "var(--ink)" }}>
         {played ? score ?? 0 : "–"}
       </span>
