@@ -29,6 +29,7 @@ type StagePrediction = {
   matchPicks: { matchId: string; winnerId: string }[] | null;
   lockedOutMatchIds: string[] | null;
   submittedAt: string | null;
+  unlockedAt: string | null;
 } | null;
 
 type StageScore = { points: number; correctPicks: number } | null;
@@ -117,6 +118,13 @@ function GroupQualificationForm({
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const wasUnlocked = !!existing?.unlockedAt;
+  const [confirming, setConfirming] = useState(false);
+
+  function onSubmitClick() {
+    if (wasUnlocked && !confirming) { setConfirming(true); return; }
+    void save(true);
+  }
 
   function toggle(id: string) {
     setSelected((prev) => {
@@ -254,6 +262,11 @@ function GroupQualificationForm({
       </div>
 
       {error && <p className="text-sm" style={{ color: "var(--live)" }}>{error}</p>}
+      {confirming && (
+        <p className="text-xs rounded-lg px-3 py-2" style={{ color: "var(--gold)", background: "var(--gold-soft)", border: "1px solid var(--gold)" }}>
+          {t("confirmResubmit")}
+        </p>
+      )}
 
       <div className="flex gap-3 pt-2">
         <button
@@ -263,12 +276,17 @@ function GroupQualificationForm({
         >
           {saving ? t("saving") : t("saveDraft")}
         </button>
+        {confirming && (
+          <button onClick={() => setConfirming(false)} disabled={saving} className="btn btn-ghost">
+            {t("cancel")}
+          </button>
+        )}
         <button
-          onClick={() => save(true)}
+          onClick={onSubmitClick}
           disabled={saving || selected.size !== 32}
           className="btn btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {saving ? t("submitting") : t("submitPicks")}
+          {saving ? t("submitting") : confirming ? t("confirmResubmitYes") : t("submitPicks")}
         </button>
       </div>
     </div>
@@ -296,6 +314,13 @@ function KnockoutForm({
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const wasUnlocked = !!existing?.unlockedAt;
+  const [confirming, setConfirming] = useState(false);
+
+  function onSubmitClick() {
+    if (wasUnlocked && !confirming) { setConfirming(true); return; }
+    void save(true);
+  }
 
   function pick(matchId: string, winnerId: string) {
     setPicks((prev) => ({ ...prev, [matchId]: winnerId }));
@@ -383,6 +408,11 @@ function KnockoutForm({
       </div>
 
       {error && <p className="text-sm" style={{ color: "var(--live)" }}>{error}</p>}
+      {confirming && (
+        <p className="text-xs rounded-lg px-3 py-2" style={{ color: "var(--gold)", background: "var(--gold-soft)", border: "1px solid var(--gold)" }}>
+          {t("confirmResubmit")}
+        </p>
+      )}
 
       <div className="flex gap-3">
         <button
@@ -392,12 +422,17 @@ function KnockoutForm({
         >
           {saving ? t("saving") : t("saveDraft")}
         </button>
+        {confirming && (
+          <button onClick={() => setConfirming(false)} disabled={saving} className="btn btn-ghost">
+            {t("cancel")}
+          </button>
+        )}
         <button
-          onClick={() => save(true)}
+          onClick={onSubmitClick}
           disabled={saving || pickedCount !== matches.length}
           className="btn btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {saving ? t("submitting") : t("submitPicks")}
+          {saving ? t("submitting") : confirming ? t("confirmResubmitYes") : t("submitPicks")}
         </button>
       </div>
     </div>
@@ -843,6 +878,16 @@ function StageCard({
                 {t("lockedIn")}
               </div>
               <ReadOnlyPicks stage={stage} prediction={prediction} score={score} teams={teams} matches={matches} />
+            </div>
+          )}
+
+          {stage.status === "OPEN" && !isSubmitted && prediction?.unlockedAt && (
+            <div
+              className="p-3 rounded-lg text-sm flex items-center gap-2"
+              style={{ background: "var(--gold-soft)", border: "1px solid var(--gold)", color: "var(--gold)" }}
+            >
+              <span aria-hidden>🔓</span>
+              {t("unlockedNotice")}
             </div>
           )}
 
