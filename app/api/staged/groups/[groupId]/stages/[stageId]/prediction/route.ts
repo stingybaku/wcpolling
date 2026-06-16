@@ -221,15 +221,9 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
 
   const stage = await prisma.tournamentStage.findUnique({ where: { id: stageId } });
   if (!stage) return badRequest("Stage not found");
+  // Unlocks are allowed any time the stage is still open (until it closes),
+  // as long as the member has unlocks remaining.
   if (new Date() >= stage.closesAt) return badRequest("Stage is no longer open");
-
-  const halfwayMs = (stage.closesAt.getTime() - stage.opensAt.getTime()) / 2;
-  if (Date.now() - stage.opensAt.getTime() > halfwayMs) {
-    return new Response(
-      JSON.stringify({ error: "Predictions can only be unlocked in the first half of the stage window" }),
-      { status: 409 }
-    );
-  }
 
   const existing = await prisma.stagePrediction.findUnique({
     where: { userId_stageId_groupId: { userId: targetUserId, stageId, groupId } },
