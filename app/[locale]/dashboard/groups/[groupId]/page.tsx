@@ -50,7 +50,7 @@ type StagedLeaderboardEntry = {
   stages: { stageId: string; stageName: string; stageStatus: string; points: number; correctPicks: number }[];
 };
 
-type StagedStage = { id: string; name: string; status: string };
+type StagedStage = { id: string; name: string; status: string; closesAt?: string };
 
 type LeaderboardRow = {
   userId: string;
@@ -305,9 +305,10 @@ type MemberItemProps = {
   onChanged: () => void;
   onUnlock: (userId: string, stageId: string) => void;
   isPortalAdmin: boolean;
+  openStageClosesAt: string | null;
 };
 
-function MemberItem({ variant, zebra, m, ownerId, currentUserId, sub, openStageId, groupId, onChanged, onUnlock, isPortalAdmin }: MemberItemProps) {
+function MemberItem({ variant, zebra, m, ownerId, currentUserId, sub, openStageId, groupId, onChanged, onUnlock, isPortalAdmin, openStageClosesAt }: MemberItemProps) {
   const t = useTranslations("groups.groupRoom");
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -361,6 +362,18 @@ function MemberItem({ variant, zebra, m, ownerId, currentUserId, sub, openStageI
     </span>
   ) : null;
 
+  // Per-member submission state for the open stage: can they still edit, are they
+  // locked (submitted), or has the deadline passed?
+  // eslint-disable-next-line react-hooks/purity -- deadline is inherently time-relative
+  const deadlinePassed = !!(openStageClosesAt && Date.now() >= new Date(openStageClosesAt).getTime());
+  const statusBadge = openStageId ? (
+    deadlinePassed
+      ? <span style={memberBadgeStyle("var(--muted-2)", "var(--bg-strong)")}>{t("statusDeadlinePassed")}</span>
+      : sub?.submittedAt
+        ? <span style={memberBadgeStyle("var(--gold)", "var(--gold-soft)")}>{t("statusLocked")}</span>
+        : <span style={memberBadgeStyle("var(--accent-strong)", "var(--accent-soft)")}>{t("statusOpenToEdit")}</span>
+  ) : null;
+
   // Desktop: full card with inline action buttons.
   if (variant === "card") {
     return (
@@ -376,7 +389,7 @@ function MemberItem({ variant, zebra, m, ownerId, currentUserId, sub, openStageI
               {name}{isMe && <span style={{ color: "var(--muted)", fontWeight: 400 }}> · {t("youLabel")}</span>}
             </div>
             <div style={{ display: "flex", gap: 4, marginTop: 4, flexWrap: "wrap", alignItems: "center" }}>
-              {roleBadge}{inactiveBadge}{unlocksLabel}
+              {roleBadge}{inactiveBadge}{statusBadge}{unlocksLabel}
             </div>
           </div>
         </div>
@@ -398,7 +411,7 @@ function MemberItem({ variant, zebra, m, ownerId, currentUserId, sub, openStageI
       <span style={{ flex: 1, fontSize: 13, fontWeight: 600, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: m.isActive || isOwner ? "var(--ink)" : "var(--muted)" }}>
         {name}{isMe && <span style={{ color: "var(--muted)", fontWeight: 400 }}> {t("youLabel")}</span>}
       </span>
-      {inactiveBadge}{roleBadge}{unlocksLabel}
+      {inactiveBadge}{roleBadge}{statusBadge}{unlocksLabel}
       {actions.length > 0 && (
         <div ref={menuRef} style={{ position: "relative", flexShrink: 0 }}>
           <button
@@ -439,6 +452,7 @@ type MemberManagerProps = {
   onUnlock: (userId: string, stageId: string) => void;
   onInvite: () => void;
   isPortalAdmin: boolean;
+  openStageClosesAt: string | null;
 };
 
 type StatusFilter = "all" | "active" | "inactive";
@@ -454,7 +468,7 @@ function filterChipStyle(active: boolean): CSSProperties {
   };
 }
 
-function MemberManager({ groupId, memberships, ownerId, currentUserId, memberSubmissions, openStageId, memberCount, onChanged, onUnlock, onInvite, isPortalAdmin }: MemberManagerProps) {
+function MemberManager({ groupId, memberships, ownerId, currentUserId, memberSubmissions, openStageId, memberCount, onChanged, onUnlock, onInvite, isPortalAdmin, openStageClosesAt }: MemberManagerProps) {
   const t = useTranslations("groups.groupRoom");
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -533,13 +547,13 @@ function MemberManager({ groupId, memberships, ownerId, currentUserId, memberSub
               <div className="hidden md:grid" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
                 {filtered.map((m) => (
                   <MemberItem key={m.user.id} variant="card" m={m} ownerId={ownerId} currentUserId={currentUserId}
-                    sub={memberSubmissions[m.userId]} openStageId={openStageId} groupId={groupId} onChanged={onChanged} onUnlock={onUnlock} isPortalAdmin={isPortalAdmin} />
+                    sub={memberSubmissions[m.userId]} openStageId={openStageId} groupId={groupId} onChanged={onChanged} onUnlock={onUnlock} isPortalAdmin={isPortalAdmin} openStageClosesAt={openStageClosesAt} />
                 ))}
               </div>
               <div className="flex flex-col md:hidden" style={{ gap: 4 }}>
                 {filtered.map((m, mi) => (
                   <MemberItem key={m.user.id} variant="row" zebra={mi % 2 === 1} m={m} ownerId={ownerId} currentUserId={currentUserId}
-                    sub={memberSubmissions[m.userId]} openStageId={openStageId} groupId={groupId} onChanged={onChanged} onUnlock={onUnlock} isPortalAdmin={isPortalAdmin} />
+                    sub={memberSubmissions[m.userId]} openStageId={openStageId} groupId={groupId} onChanged={onChanged} onUnlock={onUnlock} isPortalAdmin={isPortalAdmin} openStageClosesAt={openStageClosesAt} />
                 ))}
               </div>
             </>
@@ -781,6 +795,7 @@ export default function GroupDetailPage() {
   } | null>(null);
   const [openStageName, setOpenStageName] = useState<string | null>(null);
   const [openStageId, setOpenStageId] = useState<string | null>(null);
+  const [openStageClosesAt, setOpenStageClosesAt] = useState<string | null>(null);
   const [stagedLeaderboard, setStagedLeaderboard] = useState<StagedLeaderboardEntry[]>([]);
   const [stagedStages, setStagedStages] = useState<StagedStage[]>([]);
   const [memberSubmissions, setMemberSubmissions] = useState<Record<string, { submittedAt: string | null; unlockedAt: string | null; unlocksRemaining: number }>>({});
@@ -842,6 +857,7 @@ export default function GroupDetailPage() {
       if (openStage) {
         setOpenStageName(openStage.name);
         setOpenStageId(openStage.id);
+        setOpenStageClosesAt(openStage.closesAt ?? null);
         const predRes = await fetch(`/api/staged/groups/${params.groupId}/stages/${openStage.id}/prediction`);
         if (predRes.ok) {
           const predData = await predRes.json();
@@ -863,6 +879,7 @@ export default function GroupDetailPage() {
       } else {
         setOpenStageName(null);
         setOpenStageId(null);
+        setOpenStageClosesAt(null);
         setStagedStatus(null);
         setMemberSubmissions({});
       }
@@ -1654,6 +1671,7 @@ export default function GroupDetailPage() {
             onUnlock={(uid, sid) => void unlockPrediction(uid, sid)}
             onInvite={copyInviteLink}
             isPortalAdmin={isPortalAdmin}
+            openStageClosesAt={openStageClosesAt}
           />
         )}
 
