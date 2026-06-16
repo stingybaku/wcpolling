@@ -304,9 +304,10 @@ type MemberItemProps = {
   groupId: string;
   onChanged: () => void;
   onUnlock: (userId: string, stageId: string) => void;
+  isPortalAdmin: boolean;
 };
 
-function MemberItem({ variant, zebra, m, ownerId, currentUserId, sub, openStageId, groupId, onChanged, onUnlock }: MemberItemProps) {
+function MemberItem({ variant, zebra, m, ownerId, currentUserId, sub, openStageId, groupId, onChanged, onUnlock, isPortalAdmin }: MemberItemProps) {
   const t = useTranslations("groups.groupRoom");
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -344,7 +345,7 @@ function MemberItem({ variant, zebra, m, ownerId, currentUserId, sub, openStageI
   if (canManage && m.isActive && !isAdmin) actions.push({ key: "deactivate", label: t("deactivateButton"), color: "var(--live)", border: "var(--live)", onClick: () => void updateMember({ isActive: false }) });
   if (canManage && m.isActive && !isAdmin) actions.push({ key: "promote", label: t("promoteButton"), color: "var(--muted-2)", border: "var(--border)", onClick: () => void updateMember({ role: "GROUP_ADMIN" }) });
   if (isCurrentUserOwner && isAdmin && !isOwner && !isMe) actions.push({ key: "demote", label: t("demoteButton"), color: "var(--muted)", border: "var(--border)", onClick: () => void updateMember({ role: "MEMBER" }) });
-  if (!isMe && hasLockedSubmission && remaining > 0 && openStageId) actions.push({ key: "unlock", label: t("unlockButton"), color: "var(--accent-strong)", border: "var(--accent)", onClick: () => onUnlock(m.userId, openStageId) });
+  if (!isMe && hasLockedSubmission && openStageId && (remaining > 0 || isPortalAdmin)) actions.push({ key: "unlock", label: t("unlockButton"), color: "var(--accent-strong)", border: "var(--accent)", onClick: () => onUnlock(m.userId, openStageId) });
 
   const roleBadge = isOwner
     ? <span style={memberBadgeStyle("var(--accent-strong)", "var(--accent-soft)")}>{t("ownerBadge")}</span>
@@ -437,6 +438,7 @@ type MemberManagerProps = {
   onChanged: () => void;
   onUnlock: (userId: string, stageId: string) => void;
   onInvite: () => void;
+  isPortalAdmin: boolean;
 };
 
 type StatusFilter = "all" | "active" | "inactive";
@@ -452,7 +454,7 @@ function filterChipStyle(active: boolean): CSSProperties {
   };
 }
 
-function MemberManager({ groupId, memberships, ownerId, currentUserId, memberSubmissions, openStageId, memberCount, onChanged, onUnlock, onInvite }: MemberManagerProps) {
+function MemberManager({ groupId, memberships, ownerId, currentUserId, memberSubmissions, openStageId, memberCount, onChanged, onUnlock, onInvite, isPortalAdmin }: MemberManagerProps) {
   const t = useTranslations("groups.groupRoom");
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -531,13 +533,13 @@ function MemberManager({ groupId, memberships, ownerId, currentUserId, memberSub
               <div className="hidden md:grid" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
                 {filtered.map((m) => (
                   <MemberItem key={m.user.id} variant="card" m={m} ownerId={ownerId} currentUserId={currentUserId}
-                    sub={memberSubmissions[m.userId]} openStageId={openStageId} groupId={groupId} onChanged={onChanged} onUnlock={onUnlock} />
+                    sub={memberSubmissions[m.userId]} openStageId={openStageId} groupId={groupId} onChanged={onChanged} onUnlock={onUnlock} isPortalAdmin={isPortalAdmin} />
                 ))}
               </div>
               <div className="flex flex-col md:hidden" style={{ gap: 4 }}>
                 {filtered.map((m, mi) => (
                   <MemberItem key={m.user.id} variant="row" zebra={mi % 2 === 1} m={m} ownerId={ownerId} currentUserId={currentUserId}
-                    sub={memberSubmissions[m.userId]} openStageId={openStageId} groupId={groupId} onChanged={onChanged} onUnlock={onUnlock} />
+                    sub={memberSubmissions[m.userId]} openStageId={openStageId} groupId={groupId} onChanged={onChanged} onUnlock={onUnlock} isPortalAdmin={isPortalAdmin} />
                 ))}
               </div>
             </>
@@ -1651,6 +1653,7 @@ export default function GroupDetailPage() {
             onChanged={() => void loadGroup()}
             onUnlock={(uid, sid) => void unlockPrediction(uid, sid)}
             onInvite={copyInviteLink}
+            isPortalAdmin={isPortalAdmin}
           />
         )}
 
