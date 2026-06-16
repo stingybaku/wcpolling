@@ -230,7 +230,8 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
   });
   if (!existing) return badRequest("No prediction found for this user");
   if (existing.submittedAt === null) return badRequest("This prediction is not locked");
-  if (existing.unlockCount >= UNLOCKS_PER_STAGE) {
+  // Group admins are capped at UNLOCKS_PER_STAGE; portal admins can override.
+  if (!isPortalAdmin && existing.unlockCount >= UNLOCKS_PER_STAGE) {
     return new Response(
       JSON.stringify({ error: "No unlocks remaining for this member in this phase" }),
       { status: 409 }
