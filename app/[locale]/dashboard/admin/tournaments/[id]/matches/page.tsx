@@ -65,6 +65,7 @@ export default function AdminMatchResultsPage() {
   const [msg, setMsg] = useState("");
   const [error, setError] = useState("");
   const [tieBreakers, setTieBreakers] = useState<TieBreaker[]>([]);
+  const [activeTab, setActiveTab] = useState<string>("");
 
   async function load() {
     const res = await fetch(`/api/admin/staged/tournaments/${tournamentId}/match-results`);
@@ -149,6 +150,18 @@ export default function AdminMatchResultsPage() {
     new Set(matches.filter((m) => m.round === "GROUP" && m.groupName).map((m) => m.groupName as string)),
   ).sort();
 
+  const knockoutRounds = byRound.filter((r) => r.round !== "GROUP");
+  const tabs = [
+    ...groupNames.map((g) => ({ key: `group:${g}`, label: `Group ${g}` })),
+    ...knockoutRounds.map((r) => ({ key: `round:${r.round}`, label: ROUND_LABEL[r.round] })),
+  ];
+  const currentTab = tabs.find((t) => t.key === activeTab)?.key ?? tabs[0]?.key ?? "";
+  const currentMatches: Match[] = currentTab.startsWith("group:")
+    ? matches.filter((m) => m.round === "GROUP" && m.groupName === currentTab.slice("group:".length))
+    : currentTab.startsWith("round:")
+      ? matches.filter((m) => m.round === currentTab.slice("round:".length))
+      : [];
+
   const matchCard = (m: Match) => (
     <div key={m.id} className="rounded-2xl p-3" style={{ background: "var(--bg-strong)" }}>
       <div className="flex flex-wrap items-center gap-2">
@@ -228,24 +241,35 @@ export default function AdminMatchResultsPage() {
       ) : matches.length === 0 ? (
         <p className="muted text-sm">No fixtures yet — click “Generate / sync fixtures”. Group matches come from the seeded groups; knockout matches sync from the bracket as rounds resolve.</p>
       ) : (
-        byRound.map(({ round, matches: rms }) =>
-          round === "GROUP" ? (
-            <section key={round} className="space-y-4">
-              <p className="text-xs font-bold uppercase tracking-widest muted">{ROUND_LABEL.GROUP}</p>
-              {groupNames.map((g) => (
-                <div key={g} className="space-y-2">
-                  <p className="text-xs font-bold uppercase tracking-widest" style={{ color: "var(--accent-strong)" }}>Group {g}</p>
-                  <div className="space-y-2">{rms.filter((m) => m.groupName === g).map(matchCard)}</div>
-                </div>
-              ))}
-            </section>
-          ) : (
-            <section key={round} className="space-y-2">
-              <p className="text-xs font-bold uppercase tracking-widest muted">{ROUND_LABEL[round]}</p>
-              <div className="space-y-2">{rms.map(matchCard)}</div>
-            </section>
-          ),
-        )
+        <>
+          <div className="flex flex-wrap gap-1.5 overflow-x-auto pb-1" role="tablist">
+            {tabs.map((t) => {
+              const active = t.key === currentTab;
+              return (
+                <button
+                  key={t.key}
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => setActiveTab(t.key)}
+                  className="rounded-full px-3 py-1.5 text-xs font-bold whitespace-nowrap"
+                  style={{
+                    background: active ? "var(--accent-strong)" : "var(--bg-strong)",
+                    color: active ? "var(--paper)" : "var(--ink)",
+                    border: "1px solid var(--border)",
+                  }}
+                >
+                  {t.label}
+                </button>
+              );
+            })}
+          </div>
+          <section className="space-y-2">
+            <p className="text-xs font-bold uppercase tracking-widest" style={{ color: "var(--accent-strong)" }}>
+              {tabs.find((t) => t.key === currentTab)?.label}
+            </p>
+            <div className="space-y-2">{currentMatches.map(matchCard)}</div>
+          </section>
+        </>
       )}
     </div>
   );
