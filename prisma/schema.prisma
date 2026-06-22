@@ -116,6 +116,8 @@ model User {
   stageScores      StageScore[]
   stageTieBreakerAnswers StageTieBreakerAnswer[]
   userBadges       UserBadge[]
+  triviaAnswers    TriviaAnswer[]
+  triviaAchievements TriviaAchievement[]
   createdAt       DateTime               @default(now())
   updatedAt       DateTime               @updatedAt
 }
@@ -183,6 +185,8 @@ model Tournament {
   stageTieBreakerAnswers StageTieBreakerAnswer[]
   userBadges       UserBadge[]
   matchResults     MatchResult[]
+  triviaQuestions  TriviaQuestion[]
+  triviaAchievements TriviaAchievement[]
 }
 
 model TournamentTag {
@@ -788,4 +792,59 @@ model MatchResult {
 
   @@unique([tournamentId, round, groupName, matchNumber])
   @@index([tournamentId])
+}
+
+// ─── Daily Trivia ──────────────────────────────────────────────────────────────
+// A standalone engagement feature, fully decoupled from groups and prediction
+// scoring. One admin-authored multiple-choice question per tournament per day;
+// points and streaks are derived from TriviaAnswer rows (no denormalized
+// counters). A 5-day correct streak grants the global "Triviador" achievement.
+
+model TriviaQuestion {
+  id           String     @id @default(cuid())
+  tournamentId String
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  // The day this question is live. Date-only (UTC) so "one per day" is a clean
+  // unique constraint and "today's question" is a simple equality match.
+  publishDate  DateTime   @db.Date
+  prompt       Json       // { en, es }
+  options      Json       // [{ key, label: { en, es } }, ...]
+  correctKey   String
+  points       Int        @default(2)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  answers      TriviaAnswer[]
+
+  @@unique([tournamentId, publishDate])
+  @@index([tournamentId])
+}
+
+model TriviaAnswer {
+  id         String         @id @default(cuid())
+  userId     String
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  questionId String
+  question   TriviaQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  answerKey  String
+  isCorrect  Boolean
+  answeredAt DateTime       @default(now())
+
+  // One shot per user per day — no retries until correct.
+  @@unique([userId, questionId])
+  @@index([userId])
+}
+
+model TriviaAchievement {
+  id           String     @id @default(cuid())
+  userId       String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tournamentId String
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  slug         String     @default("triviador")
+  // The streak length that earned it, for display (e.g. "5-day streak").
+  streakLength Int
+  awardedAt    DateTime   @default(now())
+
+  @@unique([userId, tournamentId, slug])
+  @@index([userId])
 }

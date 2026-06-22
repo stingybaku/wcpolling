@@ -116,6 +116,7 @@
     "groups": "Groups",
     "predictions": "Predictions",
     "matchCenter": "Match Center",
+    "trivia": "Trivia",
     "tipOfTheDay": "Tip of the Day",
     "logoLabel": "Logo",
     "logoSubLabel": "Placeholder mark",
@@ -627,5 +628,22 @@
       "SF": "Semi-Finals",
       "FINAL": "Final"
     }
+  },
+  "trivia": {
+    "eyebrow": "Daily Trivia",
+    "title": "Triviador",
+    "subtitle": "Answer today's question to earn {points} points. Five correct days in a row unlocks the Triviador badge.",
+    "loading": "Loading…",
+    "noQuestionTitle": "No question today",
+    "noQuestionBody": "Check back tomorrow for a new daily trivia question.",
+    "submit": "Submit answer",
+    "submitting": "Submitting…",
+    "submitError": "Could not submit your answer.",
+    "resultCorrect": "Correct! +{points} points.",
+    "resultWrong": "Not quite. Better luck tomorrow!",
+    "statPoints": "{points} pts",
+    "statStreak": "{count}-day streak",
+    "triviadorBadge": "Triviador",
+    "triviadorEarned": "You earned the Triviador badge — five correct days in a row!"
   }
 }

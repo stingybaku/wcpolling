@@ -1186,6 +1186,9 @@ export default function DashboardAdminPage() {
                   <Link className="rounded-[0.9rem] px-3 py-2 text-xs font-bold uppercase tracking-[0.14em]" href={`/dashboard/admin/tournament?tournamentId=${item.id}`} style={{ background: "var(--accent)", color: "var(--accent-fg, #fff)" }}>
                     Manage Results
                   </Link>
+                  <Link className="rounded-[0.9rem] border px-3 py-2 text-xs font-bold uppercase tracking-[0.14em]" href={`/dashboard/admin/trivia?tournamentId=${item.id}`} style={{ borderColor: "var(--border)", background: "var(--bg)" }}>
+                    Trivia
+                  </Link>
                   {item.type === "STAGED" ? (
                     <Link className="rounded-[0.9rem] border px-3 py-2 text-xs font-bold uppercase tracking-[0.14em]" href={`/dashboard/admin/tournaments/${item.id}/staged`} style={{ borderColor: "var(--border)", background: "var(--bg)" }}>
                       Manage Stages →

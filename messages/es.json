@@ -116,6 +116,7 @@
     "groups": "Grupos",
     "predictions": "Predicciones",
     "matchCenter": "Centro de partidos",
+    "trivia": "Trivia",
     "tipOfTheDay": "Tip del día",
     "logoLabel": "Logo",
     "logoSubLabel": "Marca provisional",
@@ -627,5 +628,22 @@
       "SF": "Semifinales",
       "FINAL": "Final"
     }
+  },
+  "trivia": {
+    "eyebrow": "Trivia diaria",
+    "title": "Triviador",
+    "subtitle": "Responde la pregunta de hoy para ganar {points} puntos. Cinco días seguidos correctos desbloquean la insignia Triviador.",
+    "loading": "Cargando…",
+    "noQuestionTitle": "No hay pregunta hoy",
+    "noQuestionBody": "Vuelve mañana para una nueva pregunta de trivia diaria.",
+    "submit": "Enviar respuesta",
+    "submitting": "Enviando…",
+    "submitError": "No se pudo enviar tu respuesta.",
+    "resultCorrect": "¡Correcto! +{points} puntos.",
+    "resultWrong": "Casi. ¡Mejor suerte mañana!",
+    "statPoints": "{points} pts",
+    "statStreak": "Racha de {count} días",
+    "triviadorBadge": "Triviador",
+    "triviadorEarned": "¡Ganaste la insignia Triviador: cinco días seguidos correctos!"
   }
 }
