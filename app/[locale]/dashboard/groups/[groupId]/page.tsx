@@ -9,6 +9,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { Link } from "@/lib/navigation";
 import { TeamFlag } from "@/components/team-flag";
 import { GroupNews } from "@/components/group-news";
+import { upgradeOptionsFor, type MemberTier } from "@/lib/group-limits";
 import {
   buildGroupStandingsMap,
   buildKnockoutPicksMap,
@@ -27,6 +28,7 @@ type GroupDetail = {
   description?: string;
   inviteCode: string;
   ownerId: string;
+  memberCap: number;
   tournament?: { id: string; name: string; type: string; submissionDeadline?: string | null; finalizedAt?: string | null } | null;
   owner: { email?: string | null; name?: string | null };
   memberships: Array<{ userId: string; role: string; isActive: boolean; user: { id: string; email?: string | null; name?: string | null; image?: string | null } }>;
@@ -448,6 +450,9 @@ type MemberManagerProps = {
   memberSubmissions: Record<string, MemberSubInfo>;
   openStageId: string | null;
   memberCount: number;
+  memberCap: number;
+  upgrading: boolean;
+  onUpgrade: (cap: number) => void;
   onChanged: () => void;
   onUnlock: (userId: string, stageId: string) => void;
   onInvite: () => void;
@@ -468,8 +473,10 @@ function filterChipStyle(active: boolean): CSSProperties {
   };
 }
 
-function MemberManager({ groupId, memberships, ownerId, currentUserId, memberSubmissions, openStageId, memberCount, onChanged, onUnlock, onInvite, isPortalAdmin, openStageClosesAt }: MemberManagerProps) {
+function MemberManager({ groupId, memberships, ownerId, currentUserId, memberSubmissions, openStageId, memberCount, memberCap, upgrading, onUpgrade, onChanged, onUnlock, onInvite, isPortalAdmin, openStageClosesAt }: MemberManagerProps) {
   const t = useTranslations("groups.groupRoom");
+  const upgradeOptions = upgradeOptionsFor(memberCap);
+  const atCapacity = memberCount >= memberCap;
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
@@ -511,6 +518,38 @@ function MemberManager({ groupId, memberships, ownerId, currentUserId, memberSub
           <span aria-hidden style={{ color: "var(--muted)", transform: open ? "rotate(180deg)" : undefined, transition: "transform 0.15s" }}>▾</span>
         </button>
         <button className="btn btn-sm btn-ghost" style={{ fontSize: 11 }} onClick={onInvite}>{t("inviteButton")}</button>
+      </div>
+
+      {/* Capacity + paid upgrade options (group admins only — this whole panel is) */}
+      <div style={{ marginTop: 14, padding: "12px 14px", borderRadius: 10, background: "var(--paper)", border: "1px solid var(--border)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
+          <span className="eyebrow" style={{ fontSize: 10 }}>{t("capacityLabel")}</span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: atCapacity ? "var(--danger, #ef4444)" : "var(--ink)" }}>
+            {memberCount} / {memberCap}
+          </span>
+        </div>
+        <div style={{ height: 6, borderRadius: 999, background: "var(--border)", overflow: "hidden", margin: "8px 0 4px" }}>
+          <div style={{ height: "100%", width: `${Math.min(100, Math.round((memberCount / memberCap) * 100))}%`, background: atCapacity ? "var(--danger, #ef4444)" : "var(--accent)" }} />
+        </div>
+        {upgradeOptions.length > 0 && (
+          <div style={{ marginTop: 10 }}>
+            <p style={{ fontSize: 12, color: "var(--muted)", margin: "0 0 8px" }}>{t("upgradeHint")}</p>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {upgradeOptions.map((tier: MemberTier) => (
+                <button
+                  key={tier.cap}
+                  type="button"
+                  className="btn btn-sm"
+                  disabled={upgrading}
+                  onClick={() => onUpgrade(tier.cap)}
+                  style={{ fontSize: 12 }}
+                >
+                  {t("upgradeOption", { cap: tier.cap, price: (tier.priceCents / 100).toFixed(0) })}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
       {open && (
         <>
@@ -802,6 +841,7 @@ export default function GroupDetailPage() {
   const [classicPage, setClassicPage] = useState(1);
   const [stagedPage, setStagedPage] = useState(1);
   const [finalPage, setFinalPage] = useState(1);
+  const [upgrading, setUpgrading] = useState(false);
 
   const currentUserEmail = session?.user?.email;
   const currentUserId = (session?.user as { id?: string } | undefined)?.id;
@@ -819,6 +859,30 @@ export default function GroupDetailPage() {
   const deadline = group?.tournament?.submissionDeadline ? new Date(group.tournament.submissionDeadline) : null;
   const deadlinePassed = deadline ? new Date() > deadline : false;
   const deadlineSoon = !deadlinePassed && deadline ? deadline.getTime() - Date.now() < 48 * 60 * 60 * 1000 : false;
+
+  // Start a paid member-cap upgrade: ask the server for a Stripe Checkout URL
+  // and hand the browser off to Stripe's hosted page.
+  async function upgradeGroup(cap: number) {
+    if (upgrading) return;
+    setUpgrading(true);
+    try {
+      const res = await fetch(`/api/groups/${params.groupId}/upgrade`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cap }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.url) {
+        alert(data.error ?? "Could not start checkout.");
+        setUpgrading(false);
+        return;
+      }
+      window.location.href = data.url;
+    } catch {
+      alert("Could not start checkout.");
+      setUpgrading(false);
+    }
+  }
 
   async function loadGroup() {
     const res = await fetch(`/api/groups/${params.groupId}`);
@@ -1667,6 +1731,9 @@ export default function GroupDetailPage() {
             memberSubmissions={memberSubmissions}
             openStageId={openStageId}
             memberCount={memberCount}
+            memberCap={group.memberCap}
+            upgrading={upgrading}
+            onUpgrade={(cap) => void upgradeGroup(cap)}
             onChanged={() => void loadGroup()}
             onUnlock={(uid, sid) => void unlockPrediction(uid, sid)}
             onInvite={copyInviteLink}

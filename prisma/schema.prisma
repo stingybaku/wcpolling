@@ -381,6 +381,9 @@ model GroupRoom {
   ownerId     String
   inviteCode  String                 @unique
   status      GroupStatus            @default(APPROVED)
+  // Max members allowed in this room. Defaults to the free tier; raised via a
+  // one-time Stripe purchase (see GroupUpgrade and lib/group-limits.ts).
+  memberCap   Int                    @default(20)
   createdAt   DateTime               @default(now())
   updatedAt   DateTime               @updatedAt
   tournament  Tournament?            @relation(fields: [tournamentId], references: [id], onDelete: SetNull)
@@ -391,6 +394,27 @@ model GroupRoom {
   stageScores      StageScore[]
   stageTieBreakerAnswers StageTieBreakerAnswer[]
   userBadges       UserBadge[]
+  upgrades         GroupUpgrade[]
+}
+
+// Audit + idempotency record for a one-time member-cap upgrade purchased through
+// Stripe Checkout. A row is created (PENDING) when the checkout session opens
+// and flipped to PAID by the webhook, which then raises GroupRoom.memberCap.
+model GroupUpgrade {
+  id              String    @id @default(cuid())
+  groupId         String
+  group           GroupRoom @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  stripeSessionId String    @unique
+  // Cap this purchase unlocks and the amount charged (USD cents), captured at
+  // checkout time so the record stays correct even if the tier table changes.
+  memberCap       Int
+  amountCents     Int
+  status          String    @default("PENDING") // PENDING | PAID
+  purchasedById   String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([groupId])
 }
 
 model GroupMembership {
