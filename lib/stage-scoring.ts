@@ -41,13 +41,21 @@ export async function promoteDraftsToSubmissions(stageId: string): Promise<numbe
   return toPromote.length;
 }
 
-const ROUND_POINTS: Record<string, number> = {
+/**
+ * Points awarded per correct knockout pick, keyed by round. Exported so the
+ * audit view computes points exactly the way the scorer does (single source of
+ * truth — if these change, both stay in sync).
+ */
+export const ROUND_POINTS: Record<string, number> = {
   R32: 3,
   R16: 5,
   QF: 7,
   SF: 10,
   Final: 15,
 };
+
+/** Points awarded per correct Group-Qualification pick. */
+export const QUALIFICATION_POINTS_PER_CORRECT = 2;
 
 /**
  * Computes and persists StageScore records for all group members without
@@ -89,8 +97,8 @@ export async function scoreStage(stageId: string): Promise<void> {
 
         await prisma.stageScore.upsert({
           where: { userId_stageId_groupId: { stageId, userId: member.userId, groupId: group.id } },
-          create: { stageId, userId: member.userId, groupId: group.id, points: correctPicks * 2, correctPicks, breakdown: { correct: correctPicks, incorrect: incorrectPicks, total } },
-          update: { points: correctPicks * 2, correctPicks, breakdown: { correct: correctPicks, incorrect: incorrectPicks, total } },
+          create: { stageId, userId: member.userId, groupId: group.id, points: correctPicks * QUALIFICATION_POINTS_PER_CORRECT, correctPicks, breakdown: { correct: correctPicks, incorrect: incorrectPicks, total } },
+          update: { points: correctPicks * QUALIFICATION_POINTS_PER_CORRECT, correctPicks, breakdown: { correct: correctPicks, incorrect: incorrectPicks, total } },
         });
       }
     }
