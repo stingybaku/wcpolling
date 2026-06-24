@@ -41,6 +41,8 @@ export type SeedSummary = {
   adminEmail: string;
   qualifiersSeeded: boolean;
   qualifierCount: number;
+  r32Matches: number;
+  r32Opened: boolean;
   stages: { name: string; type: string; status: string }[];
 };
 
@@ -226,6 +228,39 @@ export async function seedDemo(): Promise<SeedSummary> {
   const qualifierSet = new Set(qualifierIds);
   const nonQualifierIds = allTeamIds.filter((id) => !qualifierSet.has(id));
 
+  // Ensure the Round of 32 is a fully-bracketed, OPEN stage, so the live member
+  // pick flow — and the admin close-and-score loop — is recordable. Pairs the 32
+  // qualifiers into 16 matches (created only when none exist), then opens the
+  // stage with a future deadline so picks are accepted. Idempotent.
+  let r32Opened = false;
+  if (r32Stage) {
+    const existingCount = await prisma.stageMatch.count({ where: { stageId: r32Stage.id } });
+    if (existingCount === 0 && qualifierIds.length >= 2) {
+      const bracket = shuffle(qualifierIds, mulberry32(990099));
+      const pairCount = Math.floor(bracket.length / 2); // 16 for 32 qualifiers
+      for (let i = 0; i < pairCount; i++) {
+        await prisma.stageMatch.create({
+          data: {
+            stageId: r32Stage.id,
+            matchNumber: String(i + 1).padStart(2, "0"),
+            homeTeamId: bracket[i * 2],
+            awayTeamId: bracket[i * 2 + 1],
+          },
+        });
+      }
+    }
+    const now = Date.now();
+    await prisma.tournamentStage.update({
+      where: { id: r32Stage.id },
+      data: {
+        status: "OPEN",
+        opensAt: new Date(now - 24 * 60 * 60 * 1000),
+        closesAt: new Date(now + 7 * 24 * 60 * 60 * 1000),
+      },
+    });
+    r32Opened = true;
+  }
+
   const r32Matches = r32Stage
     ? await prisma.stageMatch.findMany({
         where: { stageId: r32Stage.id },
@@ -253,6 +288,8 @@ export async function seedDemo(): Promise<SeedSummary> {
     adminEmail: DEMO_ADMIN_EMAIL,
     qualifiersSeeded,
     qualifierCount: qualifierIds.length,
+    r32Matches: r32Matches.length,
+    r32Opened,
     stages: [],
   };
 
@@ -345,9 +382,11 @@ export async function seedDemo(): Promise<SeedSummary> {
       });
       summary.scores++;
 
-      // Round of 32: submitted match picks (unscored — stage is still OPEN, no
-      // winners yet), so members show as "submitted" awaiting results.
-      if (r32Stage && r32Matches.length > 0) {
+      // Round of 32: submitted match picks (unscored — stage is OPEN, no winners
+      // yet), so members show as "submitted" awaiting results. The group OWNER
+      // (m === 0, e.g. demo1) is deliberately left WITHOUT an R32 prediction so a
+      // live "make your picks" flow can be recorded as that user.
+      if (r32Stage && r32Matches.length > 0 && m !== 0) {
         const matchPicks = r32Matches.map((match) => ({
           matchId: match.id,
           winnerId: prng() < 0.5 ? match.homeTeamId : match.awayTeamId,

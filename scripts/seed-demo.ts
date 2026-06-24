@@ -15,7 +15,8 @@ seedDemo()
     console.log(`   Groups:           ${s.groups} (${s.groupNames.join(", ")})`);
     console.log(`   Qualifiers:       ${s.qualifierCount}${s.qualifiersSeeded ? " (seeded now → stage SCORED)" : " (already present)"}`);
     console.log(`   Qual predictions: ${s.qualPredictions} (scored)`);
-    console.log(`   R32 predictions:  ${s.r32Predictions} (submitted, awaiting results)`);
+    console.log(`   R32 bracket:      ${s.r32Matches} matches${s.r32Opened ? " (stage OPEN for live picks)" : ""}`);
+    console.log(`   R32 predictions:  ${s.r32Predictions} (submitted; owners left open to demo live picks)`);
     console.log(`   Trivia questions: ${s.triviaQuestions} (today → ${s.triviaQuestions - 1} days back)`);
     console.log(`   Stages:           ${s.stages.map((st) => `${st.name} [${st.status}]`).join(", ")}`);
     console.log(`\n   Member login: any of demo1..demo${numberedUsers}@${DEMO_DOMAIN} / password "${DEMO_PASSWORD}"`);
