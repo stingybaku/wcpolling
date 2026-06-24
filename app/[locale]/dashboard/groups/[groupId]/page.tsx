@@ -306,11 +306,13 @@ type MemberItemProps = {
   groupId: string;
   onChanged: () => void;
   onUnlock: (userId: string, stageId: string) => void;
+  onAudit?: (userId: string) => void;
+  isStaged: boolean;
   isPortalAdmin: boolean;
   openStageClosesAt: string | null;
 };
 
-function MemberItem({ variant, zebra, m, ownerId, currentUserId, sub, openStageId, groupId, onChanged, onUnlock, isPortalAdmin, openStageClosesAt }: MemberItemProps) {
+function MemberItem({ variant, zebra, m, ownerId, currentUserId, sub, openStageId, groupId, onChanged, onUnlock, onAudit, isStaged, isPortalAdmin, openStageClosesAt }: MemberItemProps) {
   const t = useTranslations("groups.groupRoom");
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -344,6 +346,9 @@ function MemberItem({ variant, zebra, m, ownerId, currentUserId, sub, openStageI
 
   type Act = { key: string; label: string; color: string; border: string; onClick: () => void };
   const actions: Act[] = [];
+  // Audit is a read-only inspection tool, available for any member of a staged
+  // group (the section already only renders for group/portal admins).
+  if (isStaged && onAudit) actions.push({ key: "audit", label: t("audit.button"), color: "var(--accent-strong)", border: "var(--accent)", onClick: () => onAudit(m.userId) });
   if (canManage && !m.isActive) actions.push({ key: "activate", label: t("activateButton"), color: "#16a34a", border: "#86efac", onClick: () => void updateMember({ isActive: true }) });
   if (canManage && m.isActive && !isAdmin) actions.push({ key: "deactivate", label: t("deactivateButton"), color: "var(--live)", border: "var(--live)", onClick: () => void updateMember({ isActive: false }) });
   if (canManage && m.isActive && !isAdmin) actions.push({ key: "promote", label: t("promoteButton"), color: "var(--muted-2)", border: "var(--border)", onClick: () => void updateMember({ role: "GROUP_ADMIN" }) });
@@ -455,6 +460,8 @@ type MemberManagerProps = {
   onUpgrade: (cap: number) => void;
   onChanged: () => void;
   onUnlock: (userId: string, stageId: string) => void;
+  onAudit?: (userId: string) => void;
+  isStaged: boolean;
   onInvite: () => void;
   isPortalAdmin: boolean;
   openStageClosesAt: string | null;
@@ -473,7 +480,7 @@ function filterChipStyle(active: boolean): CSSProperties {
   };
 }
 
-function MemberManager({ groupId, memberships, ownerId, currentUserId, memberSubmissions, openStageId, memberCount, memberCap, upgrading, onUpgrade, onChanged, onUnlock, onInvite, isPortalAdmin, openStageClosesAt }: MemberManagerProps) {
+function MemberManager({ groupId, memberships, ownerId, currentUserId, memberSubmissions, openStageId, memberCount, memberCap, upgrading, onUpgrade, onChanged, onUnlock, onAudit, isStaged, onInvite, isPortalAdmin, openStageClosesAt }: MemberManagerProps) {
   const t = useTranslations("groups.groupRoom");
   const upgradeOptions = upgradeOptionsFor(memberCap);
   const atCapacity = memberCount >= memberCap;
@@ -586,13 +593,13 @@ function MemberManager({ groupId, memberships, ownerId, currentUserId, memberSub
               <div className="hidden md:grid" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
                 {filtered.map((m) => (
                   <MemberItem key={m.user.id} variant="card" m={m} ownerId={ownerId} currentUserId={currentUserId}
-                    sub={memberSubmissions[m.userId]} openStageId={openStageId} groupId={groupId} onChanged={onChanged} onUnlock={onUnlock} isPortalAdmin={isPortalAdmin} openStageClosesAt={openStageClosesAt} />
+                    sub={memberSubmissions[m.userId]} openStageId={openStageId} groupId={groupId} onChanged={onChanged} onUnlock={onUnlock} onAudit={onAudit} isStaged={isStaged} isPortalAdmin={isPortalAdmin} openStageClosesAt={openStageClosesAt} />
                 ))}
               </div>
               <div className="flex flex-col md:hidden" style={{ gap: 4 }}>
                 {filtered.map((m, mi) => (
                   <MemberItem key={m.user.id} variant="row" zebra={mi % 2 === 1} m={m} ownerId={ownerId} currentUserId={currentUserId}
-                    sub={memberSubmissions[m.userId]} openStageId={openStageId} groupId={groupId} onChanged={onChanged} onUnlock={onUnlock} isPortalAdmin={isPortalAdmin} openStageClosesAt={openStageClosesAt} />
+                    sub={memberSubmissions[m.userId]} openStageId={openStageId} groupId={groupId} onChanged={onChanged} onUnlock={onUnlock} onAudit={onAudit} isStaged={isStaged} isPortalAdmin={isPortalAdmin} openStageClosesAt={openStageClosesAt} />
                 ))}
               </div>
             </>
@@ -803,6 +810,200 @@ function PredictionPreviewModal({ predictionId, onClose }: { predictionId: strin
   );
 }
 
+// ─── Scoring audit modal (staged) ──────────────────────────────────────────────
+
+type AuditTeam = { teamId: string; name: string; fifaCode: string } | null;
+type AuditQualPick = { team: AuditTeam; correct: boolean };
+type AuditQualifier = { team: AuditTeam; predicted: boolean };
+type AuditMatch = {
+  matchId: string; matchNumber: string;
+  home: AuditTeam; away: AuditTeam;
+  predictedWinner: AuditTeam; actualWinner: AuditTeam;
+  lockedOut: boolean; decided: boolean; correct: boolean;
+};
+type AuditStage = {
+  stageId: string; name: string; type: "GROUP_QUALIFICATION" | "KNOCKOUT";
+  roundLabel: string | null; status: string;
+  submitted: boolean; hasResult: boolean; pointsPerUnit: number;
+  computed: { correctPicks: number; points: number };
+  stored: { points: number; correctPicks: number } | null;
+  consistent: boolean | null;
+  qualification?: { picks: AuditQualPick[]; qualifiers: AuditQualifier[]; totalPicks: number };
+  knockout?: { matches: AuditMatch[] };
+};
+type AuditData = {
+  member: { id: string; name: string | null; email: string | null; image: string | null };
+  group: { id: string; name: string };
+  tournament: { id: string; name: string };
+  stages: AuditStage[];
+};
+
+function TeamCell({ team, muted }: { team: AuditTeam; muted?: boolean }) {
+  if (!team) return <span className="muted" style={{ fontSize: 12 }}>—</span>;
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 5, minWidth: 0 }}>
+      <TeamFlag code={team.fifaCode} size={15} />
+      <span style={{ fontSize: 12, fontWeight: 600, color: muted ? "var(--muted)" : "var(--ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{team.name}</span>
+    </span>
+  );
+}
+
+function ConsistencyBadge({ stage, t }: { stage: AuditStage; t: ReturnType<typeof useTranslations> }) {
+  let label: string;
+  let color: string;
+  let bg: string;
+  if (!stage.submitted) { label = t("audit.notSubmitted"); color = "var(--muted-2)"; bg = "var(--bg-strong)"; }
+  else if (!stage.hasResult) { label = t("audit.awaitingResults"); color = "var(--muted)"; bg = "var(--bg-strong)"; }
+  else if (stage.stored === null) { label = t("audit.notScored"); color = "var(--accent-strong)"; bg = "var(--accent-soft)"; }
+  else if (stage.consistent) { label = `✓ ${t("audit.pointsMatch")}`; color = "#16a34a"; bg = "rgba(22,163,74,0.12)"; }
+  else { label = `⚠ ${t("audit.pointsMismatch")}`; color = "var(--live)"; bg = "rgba(220,38,38,0.12)"; }
+  return (
+    <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em", padding: "3px 8px", borderRadius: 999, color, background: bg, whiteSpace: "nowrap" }}>
+      {label}
+    </span>
+  );
+}
+
+function StageAuditCard({ stage, t }: { stage: AuditStage; t: ReturnType<typeof useTranslations> }) {
+  const c = stage.computed;
+  return (
+    <div className="surface-quiet rounded-[var(--r-md)] p-4">
+      <div className="mb-3 flex items-center justify-between gap-3 flex-wrap">
+        <p className="eyebrow eyebrow-accent" style={{ margin: 0 }}>{stage.name}</p>
+        <ConsistencyBadge stage={stage} t={t} />
+      </div>
+
+      {/* Points reconciliation: what the scorer would compute vs. what is stored. */}
+      <div className="mb-4 flex flex-wrap items-center gap-x-6 gap-y-1" style={{ fontSize: 12 }}>
+        <span className="muted">
+          {t("audit.computedLabel")}:{" "}
+          <span className="font-bold mono" style={{ color: "var(--ink)" }}>
+            {t("audit.pointsFormula", { correct: c.correctPicks, per: stage.pointsPerUnit, points: c.points })}
+          </span>
+        </span>
+        <span className="muted">
+          {t("audit.storedLabel")}:{" "}
+          <span className="font-bold mono" style={{ color: stage.consistent === false ? "var(--live)" : "var(--ink)" }}>
+            {stage.stored ? t("audit.storedPoints", { points: stage.stored.points, correct: stage.stored.correctPicks }) : "—"}
+          </span>
+        </span>
+      </div>
+
+      {stage.qualification && (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <p className="eyebrow mb-2">{t("audit.theirPicks", { count: stage.qualification.totalPicks })}</p>
+            <ul className="space-y-1">
+              {stage.qualification.picks.map((p, i) => (
+                <li key={`${p.team?.teamId ?? i}`} className="flex items-center justify-between gap-2 rounded px-2 py-1" style={{ background: p.correct ? "rgba(22,163,74,0.08)" : "transparent" }}>
+                  <TeamCell team={p.team} muted={!p.correct} />
+                  <span style={{ fontSize: 12, fontWeight: 800, color: p.correct ? "#16a34a" : "var(--muted-2)" }}>{p.correct ? "✓" : "✗"}</span>
+                </li>
+              ))}
+              {stage.qualification.picks.length === 0 && <li className="muted" style={{ fontSize: 12 }}>—</li>}
+            </ul>
+          </div>
+          <div>
+            <p className="eyebrow mb-2">{t("audit.actualQualifiers")}</p>
+            <ul className="space-y-1">
+              {stage.qualification.qualifiers.map((q, i) => (
+                <li key={`${q.team?.teamId ?? i}`} className="flex items-center justify-between gap-2 rounded px-2 py-1">
+                  <TeamCell team={q.team} muted={!q.predicted} />
+                  {q.predicted
+                    ? <span style={{ fontSize: 9, fontWeight: 800, textTransform: "uppercase", color: "#16a34a" }}>{t("audit.predicted")}</span>
+                    : <span style={{ fontSize: 12, color: "var(--muted-2)" }}>·</span>}
+                </li>
+              ))}
+              {stage.qualification.qualifiers.length === 0 && <li className="muted" style={{ fontSize: 12 }}>{t("audit.awaitingResults")}</li>}
+            </ul>
+          </div>
+        </div>
+      )}
+
+      {stage.knockout && (
+        <ul className="space-y-1.5">
+          {stage.knockout.matches.map((m) => {
+            const statusEl = m.lockedOut
+              ? <span style={{ fontSize: 9, fontWeight: 800, textTransform: "uppercase", color: "var(--muted-2)" }}>{t("audit.lockedOut")}</span>
+              : !m.decided
+                ? <span style={{ fontSize: 9, fontWeight: 800, textTransform: "uppercase", color: "var(--muted)" }}>{t("audit.pending")}</span>
+                : <span style={{ fontSize: 13, fontWeight: 800, color: m.correct ? "#16a34a" : "var(--live)" }}>{m.correct ? "✓" : "✗"}</span>;
+            return (
+              <li key={m.matchId} className="grid items-center gap-2 rounded px-2 py-1.5"
+                style={{ gridTemplateColumns: "1.6fr 1fr 1fr auto", background: m.correct ? "rgba(22,163,74,0.08)" : m.decided && !m.lockedOut ? "rgba(220,38,38,0.05)" : "transparent" }}>
+                <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, minWidth: 0 }}>
+                  <TeamCell team={m.home} muted />
+                  <span className="muted">v</span>
+                  <TeamCell team={m.away} muted />
+                </span>
+                <span title={t("audit.predictedWinner")}><TeamCell team={m.predictedWinner} /></span>
+                <span title={t("audit.actualWinner")}>{m.decided ? <TeamCell team={m.actualWinner} /> : <span className="muted" style={{ fontSize: 12 }}>{t("audit.pending")}</span>}</span>
+                <span style={{ justifySelf: "end" }}>{statusEl}</span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function StageAuditModal({ groupId, userId, onClose }: { groupId: string; userId: string; onClose: () => void }) {
+  const t = useTranslations("groups.groupRoom");
+  const [data, setData] = useState<AuditData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const overlayRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    let active = true;
+    fetch(`/api/staged/groups/${groupId}/members/${userId}/audit`)
+      .then(async (r) => {
+        const d = await r.json().catch(() => null);
+        if (!active) return;
+        if (!r.ok) { setError(d?.error ?? "Failed to load audit"); setLoading(false); return; }
+        setData(d); setLoading(false);
+      })
+      .catch(() => { if (active) { setError("Failed to load audit"); setLoading(false); } });
+    return () => { active = false; };
+  }, [groupId, userId]);
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) { if (e.key === "Escape") onClose(); }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const memberName = data ? (data.member.name ?? data.member.email ?? "—") : "…";
+
+  return createPortal(
+    <div ref={overlayRef} className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4 pt-10"
+      style={{ backgroundColor: "rgba(0,0,0,0.75)" }}
+      onClick={(e) => { if (e.target === overlayRef.current) onClose(); }}>
+      <div className="surface relative w-full max-w-4xl rounded-[var(--r-xl)] p-6 md:p-8 my-6">
+        <div className="mb-6 flex items-start justify-between gap-4">
+          <div>
+            <p className="eyebrow">{t("audit.eyebrow")}</p>
+            <h3 className="headline mt-2" style={{ fontSize: 24 }}>{memberName}</h3>
+            {data && <p className="text-sm muted mt-1">{data.group.name} · {t("audit.readOnly")}</p>}
+          </div>
+          <button className="btn btn-sm btn-ghost" onClick={onClose} style={{ fontSize: 16 }}>✕</button>
+        </div>
+        {loading && <p className="muted" style={{ fontSize: 13 }}>{t("audit.loading")}</p>}
+        {error && !loading && <p style={{ fontSize: 13, color: "var(--live)" }}>{error}</p>}
+        {!loading && data && data.stages.length === 0 && (
+          <p className="muted" style={{ fontSize: 13 }}>{t("audit.noSubmissions")}</p>
+        )}
+        {!loading && data && data.stages.length > 0 && (
+          <div className="space-y-4">
+            {data.stages.map((s) => <StageAuditCard key={s.stageId} stage={s} t={t} />)}
+          </div>
+        )}
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 // ─── Group room page ──────────────────────────────────────────────────────────
 
 export default function GroupDetailPage() {
@@ -825,6 +1026,7 @@ export default function GroupDetailPage() {
   const [savingName, setSavingName] = useState(false);
   const [myPredictions, setMyPredictions] = useState<UserPrediction[]>([]);
   const [previewId, setPreviewId] = useState<string | null>(null);
+  const [auditUserId, setAuditUserId] = useState<string | null>(null);
   const [changingSubmission, setChangingSubmission] = useState(false);
   const [newPredictionId, setNewPredictionId] = useState("");
   const [updatingSubmission, setUpdatingSubmission] = useState(false);
@@ -1092,6 +1294,7 @@ export default function GroupDetailPage() {
   return (
     <>
       {previewId && <PredictionPreviewModal predictionId={previewId} onClose={() => setPreviewId(null)} />}
+      {auditUserId && <StageAuditModal groupId={params.groupId} userId={auditUserId} onClose={() => setAuditUserId(null)} />}
 
       {/* Bleed wrapper — cancels the dashboard <main> padding */}
       <div className="-mx-4 md:-mx-6 lg:-mx-8 -mt-5">
@@ -1736,6 +1939,8 @@ export default function GroupDetailPage() {
             onUpgrade={(cap) => void upgradeGroup(cap)}
             onChanged={() => void loadGroup()}
             onUnlock={(uid, sid) => void unlockPrediction(uid, sid)}
+            onAudit={(uid) => setAuditUserId(uid)}
+            isStaged={isStagedTournament}
             onInvite={copyInviteLink}
             isPortalAdmin={isPortalAdmin}
             openStageClosesAt={openStageClosesAt}
