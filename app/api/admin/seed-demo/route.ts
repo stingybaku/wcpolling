@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { timingSafeEqual } from "node:crypto";
-import { seedDemo, DEMO_DOMAIN, DEMO_PASSWORD } from "@/lib/seed-demo";
+import { seedDemo, DEMO_DOMAIN, DEMO_PASSWORD, DEMO_ADMIN_EMAIL } from "@/lib/seed-demo";
 
 // Seeding does many writes against a possibly-cold Aurora cluster; give it room.
 export const runtime = "nodejs";
@@ -43,10 +43,12 @@ export async function POST(request: NextRequest) {
 
   try {
     const summary = await seedDemo();
+    const numberedUsers = summary.users - 1; // minus the admin account
     return Response.json({
       ok: true,
       ...summary,
-      login: `demo1..demo${summary.users}@${DEMO_DOMAIN} / "${DEMO_PASSWORD}"`,
+      memberLogin: `demo1..demo${numberedUsers}@${DEMO_DOMAIN} / "${DEMO_PASSWORD}"`,
+      adminLogin: `${DEMO_ADMIN_EMAIL} / "${DEMO_PASSWORD}"`,
     });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Seed failed";

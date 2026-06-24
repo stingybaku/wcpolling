@@ -26,6 +26,8 @@ import { hashPassword } from "./password";
 export const DEMO_DOMAIN = "wcdemo.local";
 export const DEMO_PASSWORD = "demo1234";
 
+export const DEMO_ADMIN_EMAIL = `admin@${DEMO_DOMAIN}`;
+
 export type SeedSummary = {
   tournament: string;
   users: number;
@@ -36,6 +38,10 @@ export type SeedSummary = {
   scores: number;
   triviaQuestions: number;
   cleared: number;
+  adminEmail: string;
+  qualifiersSeeded: boolean;
+  qualifierCount: number;
+  stages: { name: string; type: string; status: string }[];
 };
 
 // Deterministic PRNG so re-runs produce the same demo data (stable screenshots).
@@ -194,11 +200,29 @@ export async function seedDemo(): Promise<SeedSummary> {
   const r32Stage = stages.find((s) => s.roundLabel === "R32" || s.name === "Round of 32");
   if (!qualStage) throw new Error("No Group Qualification stage found.");
 
-  const qualResult = await prisma.stageQualificationResult.findUnique({ where: { stageId: qualStage.id } });
-  const qualifierIds = (qualResult?.qualifiers as string[] | undefined) ?? [];
-
   const teams = await prisma.team.findMany({ select: { id: true } });
   const allTeamIds = teams.map((t) => t.id);
+
+  // Ensure the Group Qualification stage has an ACTUAL result, so demo scores,
+  // leaderboards and the scoring-audit modal have real data to show (otherwise
+  // every score is 0 and the audit reads "awaiting results"). Deterministic 32
+  // qualifiers. Only seeds when no result exists — never clobbers real entered
+  // results — and marks the stage SCORED so it presents as finished.
+  let qualResult = await prisma.stageQualificationResult.findUnique({ where: { stageId: qualStage.id } });
+  let qualifiersSeeded = false;
+  const existingQualifiers = (qualResult?.qualifiers as string[] | undefined) ?? [];
+  if (existingQualifiers.length === 0) {
+    const qualifierCount = Math.min(32, allTeamIds.length);
+    const chosen = shuffle(allTeamIds, mulberry32(424242)).slice(0, qualifierCount);
+    qualResult = await prisma.stageQualificationResult.upsert({
+      where: { stageId: qualStage.id },
+      create: { stageId: qualStage.id, qualifiers: chosen },
+      update: { qualifiers: chosen },
+    });
+    await prisma.tournamentStage.update({ where: { id: qualStage.id }, data: { status: "SCORED" } });
+    qualifiersSeeded = true;
+  }
+  const qualifierIds = (qualResult?.qualifiers as string[] | undefined) ?? [];
   const qualifierSet = new Set(qualifierIds);
   const nonQualifierIds = allTeamIds.filter((id) => !qualifierSet.has(id));
 
@@ -226,7 +250,19 @@ export async function seedDemo(): Promise<SeedSummary> {
     scores: 0,
     triviaQuestions: 0,
     cleared: deleted.count,
+    adminEmail: DEMO_ADMIN_EMAIL,
+    qualifiersSeeded,
+    qualifierCount: qualifierIds.length,
+    stages: [],
   };
+
+  // ── 1b. Portal ADMIN demo account ───────────────────────────────────────────
+  // Role ADMIN can reach /dashboard/admin (tournament/match management, scoring)
+  // and bypasses group permissions (audit any group). Recreated each run.
+  await prisma.user.create({
+    data: { email: DEMO_ADMIN_EMAIL, name: "Demo Admin", passwordHash, role: "ADMIN", locale: "en" },
+  });
+  summary.users++;
 
   // ── 2. Create groups, members, predictions and scores ───────────────────────
   for (let g = 0; g < GROUP_NAMES.length; g++) {
@@ -348,6 +384,15 @@ export async function seedDemo(): Promise<SeedSummary> {
     });
     summary.triviaQuestions++;
   }
+
+  // Report the stage inventory + statuses so callers know what's recordable
+  // (e.g. whether an OPEN stage exists for a live pick / admin close-and-score).
+  const finalStages = await prisma.tournamentStage.findMany({
+    where: { tournamentId: tournament.id },
+    orderBy: { order: "asc" },
+    select: { name: true, type: true, status: true },
+  });
+  summary.stages = finalStages.map((s) => ({ name: s.name, type: s.type, status: s.status }));
 
   return summary;
 }
