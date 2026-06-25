@@ -258,6 +258,12 @@ export async function seedDemo(): Promise<SeedSummary> {
         closesAt: new Date(now + 7 * 24 * 60 * 60 * 1000),
       },
     });
+    // Clear any entered match winners so each (re)seed yields a clean OPEN
+    // bracket — e.g. after an admin demo closed & scored the round.
+    await prisma.stageMatch.updateMany({
+      where: { stageId: r32Stage.id },
+      data: { winnerId: null },
+    });
     r32Opened = true;
   }
 
