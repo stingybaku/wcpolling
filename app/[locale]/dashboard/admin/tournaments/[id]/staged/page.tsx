@@ -1042,7 +1042,7 @@ function StageCard({
   const [dateError, setDateError] = useState("");
   const [actionError, setActionError] = useState("");
   const [actionSuccess, setActionSuccess] = useState("");
-  const [confirm, setConfirm] = useState<null | "open" | "close" | "score" | "reset">(null);
+  const [confirm, setConfirm] = useState<null | "open" | "close" | "score" | "rescore" | "reset">(null);
   const [modal, setModal] = useState<"matchEntry" | "resultEntry" | null>(null);
   const [hasMatches, setHasMatches] = useState<boolean | null>(null);
   const countdown = useCountdown(stage.status === "OPEN" ? stage.closesAt : null);
@@ -1139,6 +1139,15 @@ function StageCard({
           description="This will calculate scores for all submissions in this stage. Make sure results are entered correctly."
           confirmLabel="Score Stage"
           onConfirm={() => { setConfirm(null); doAction(`/api/admin/staged/stages/${stage.id}/score`); }}
+          onCancel={() => setConfirm(null)}
+        />
+      )}
+      {confirm === "rescore" && (
+        <ConfirmDialogWrapper
+          title={`Re-score "${stage.name}"?`}
+          description="Recomputes everyone's points from the current picks and results — use after editing results or reactivating a member. Does not resend emails or change the stage status."
+          confirmLabel="Re-score Stage"
+          onConfirm={() => { setConfirm(null); doAction(`/api/admin/staged/stages/${stage.id}/rescore`); }}
           onCancel={() => setConfirm(null)}
         />
       )}
@@ -1392,7 +1401,15 @@ function StageCard({
             <p className="text-sm muted">
               Stage scored. <span className="font-bold" style={{ color: "var(--ink)" }}>{stage.submittedCount}</span> submissions counted.
             </p>
-            <p className="text-xs muted-2">No further actions available for scored stages.</p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => setConfirm("rescore")}
+                className="btn btn-ghost text-xs font-semibold"
+              >
+                Re-score Stage
+              </button>
+            </div>
+            <p className="text-xs muted-2">Re-score to correct points after editing results or reactivating a member. It recomputes from current picks &amp; results without resending emails.</p>
           </div>
         )}
 

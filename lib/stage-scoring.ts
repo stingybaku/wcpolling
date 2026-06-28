@@ -76,8 +76,12 @@ export async function scoreStage(stageId: string): Promise<void> {
     const qualifierTeamIds = new Set(qualificationResult.qualifiers as string[]);
 
     for (const group of groups) {
+      // Score every member, regardless of isActive. A member who is momentarily
+      // inactive (paused, or left-and-rejoined) must still be (re)scored so their
+      // stored score never goes stale vs the current results; the leaderboard
+      // filters visibility by isActive separately.
       const members = await prisma.groupMembership.findMany({
-        where: { groupId: group.id, isActive: true },
+        where: { groupId: group.id },
       });
       for (const member of members) {
         const prediction = await prisma.stagePrediction.findFirst({
@@ -108,8 +112,12 @@ export async function scoreStage(stageId: string): Promise<void> {
     const winnerMap = new Map(stageMatches.filter(m => m.winnerId).map(m => [m.id, m.winnerId!]));
 
     for (const group of groups) {
+      // Score every member, regardless of isActive. A member who is momentarily
+      // inactive (paused, or left-and-rejoined) must still be (re)scored so their
+      // stored score never goes stale vs the current results; the leaderboard
+      // filters visibility by isActive separately.
       const members = await prisma.groupMembership.findMany({
-        where: { groupId: group.id, isActive: true },
+        where: { groupId: group.id },
       });
       for (const member of members) {
         const prediction = await prisma.stagePrediction.findFirst({
