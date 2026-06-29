@@ -116,6 +116,7 @@ model User {
   stageScores      StageScore[]
   stageTieBreakerAnswers StageTieBreakerAnswer[]
   userBadges       UserBadge[]
+  submissionGraces StageSubmissionGrace[]
   createdAt       DateTime               @default(now())
   updatedAt       DateTime               @updatedAt
 }
@@ -391,6 +392,7 @@ model GroupRoom {
   stageScores      StageScore[]
   stageTieBreakerAnswers StageTieBreakerAnswer[]
   userBadges       UserBadge[]
+  submissionGraces StageSubmissionGrace[]
 }
 
 model GroupMembership {
@@ -587,6 +589,7 @@ model TournamentStage {
   qualificationResult     StageQualificationResult?
   groupResult             StageGroupResult?
   userBadges              UserBadge[]
+  submissionGraces        StageSubmissionGrace[]
 
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
@@ -620,6 +623,25 @@ model StageQualificationResult {
   stage      TournamentStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
   qualifiers Json
   createdAt  DateTime        @default(now())
+}
+
+/// Per-member allowance to submit a MISSING prediction for a stage after its
+/// deadline. Editing an existing submission is handled by the unlock flow; this
+/// only lets a member who never submitted get their picks in late. Consumed once
+/// the member submits (usedAt set); revocable by an admin before that.
+model StageSubmissionGrace {
+  id          String          @id @default(cuid())
+  stageId     String
+  groupId     String
+  userId      String
+  grantedById String?
+  grantedAt   DateTime        @default(now())
+  usedAt      DateTime?
+  stage       TournamentStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  group       GroupRoom       @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, stageId, groupId])
 }
 
 model StageGroupResult {

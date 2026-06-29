@@ -342,6 +342,8 @@
       "promoteButton": "Promover",
       "demoteButton": "Degradar",
       "unlockButton": "Desbloquear picks",
+      "allowLateButton": "Permitir envío tardío",
+      "revokeLateButton": "Revocar envío tardío",
       "unlocksRemaining": "{count} desbloqueos restantes",
       "audit": {
         "button": "Auditar",
@@ -416,6 +418,7 @@
     "opensAt": "Abre el {date}",
     "errorSaving": "Error al guardar la predicción",
     "unlockedNotice": "Un administrador desbloqueó tu predicción: revisa tus elecciones y envíala de nuevo antes de la fecha límite.",
+    "lateSubmissionNotice": "Un administrador te dio una oportunidad única para enviar tarde tus picks de esta ronda. Haz tus elecciones y envíalas antes de que la cierre.",
     "confirmResubmit": "Al enviar, tus elecciones se bloquearán de nuevo. ¿Continuar?",
     "confirmResubmitYes": "Sí, reenviar",
     "cancel": "Cancelar",

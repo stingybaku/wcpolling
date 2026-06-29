@@ -22,7 +22,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
   if (!membership) return forbidden("Not a member of this group");
   if (!membership.isActive) return forbidden("Your access to this group is paused");
 
-  const [prediction, score] = await Promise.all([
+  const [prediction, score, grace] = await Promise.all([
     prisma.stagePrediction.findUnique({
       where: { userId_stageId_groupId: { userId: user.id, stageId, groupId } },
     }),
@@ -30,9 +30,17 @@ export async function GET(request: NextRequest, context: RouteContext) {
       where: { userId_stageId_groupId: { userId: user.id, stageId, groupId } },
       select: { points: true, correctPicks: true },
     }),
+    prisma.stageSubmissionGrace.findUnique({
+      where: { userId_stageId_groupId: { userId: user.id, stageId, groupId } },
+      select: { id: true },
+    }),
   ]);
 
-  return new Response(JSON.stringify({ prediction, score }), { status: 200 });
+  // An admin-granted allowance to submit a MISSING prediction past the deadline.
+  // Lets the predictions page render the form even when the stage isn't OPEN.
+  const canSubmitLate = !!grace && !prediction?.submittedAt;
+
+  return new Response(JSON.stringify({ prediction, score, canSubmitLate }), { status: 200 });
 }
 
 export async function PUT(request: NextRequest, context: RouteContext) {
@@ -49,7 +57,24 @@ export async function PUT(request: NextRequest, context: RouteContext) {
 
   const stage = await prisma.tournamentStage.findUnique({ where: { id: stageId } });
   if (!stage) return badRequest("Stage not found");
-  if (new Date() >= stage.closesAt) return badRequest("This stage is no longer open for predictions");
+  if (new Date() >= stage.closesAt) {
+    // Past the deadline, the only way in is an admin-granted late-submission
+    // allowance — and only to submit a MISSING prediction, not edit an existing
+    // one (editing is the unlock flow). Once submitted, the deadline applies again.
+    const [existingPred, grace] = await Promise.all([
+      prisma.stagePrediction.findUnique({
+        where: { userId_stageId_groupId: { userId: user.id, stageId, groupId } },
+        select: { submittedAt: true },
+      }),
+      prisma.stageSubmissionGrace.findUnique({
+        where: { userId_stageId_groupId: { userId: user.id, stageId, groupId } },
+        select: { id: true },
+      }),
+    ]);
+    if (!grace || existingPred?.submittedAt) {
+      return badRequest("This stage is no longer open for predictions");
+    }
+  }
 
   const body = await request.json();
   const { submit } = body;

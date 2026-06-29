@@ -25,15 +25,25 @@ export async function GET(_request: NextRequest, context: RouteContext) {
     }
   }
 
-  const rows = await prisma.stagePrediction.findMany({
-    where: { stageId, groupId },
-    select: { userId: true, submittedAt: true, unlockedAt: true, unlockCount: true },
-  });
+  const [rows, graces] = await Promise.all([
+    prisma.stagePrediction.findMany({
+      where: { stageId, groupId },
+      select: { userId: true, submittedAt: true, unlockedAt: true, unlockCount: true },
+    }),
+    prisma.stageSubmissionGrace.findMany({
+      where: { stageId, groupId },
+      select: { userId: true },
+    }),
+  ]);
 
   const submissions = rows.map((r) => ({
     ...r,
     unlocksRemaining: unlocksRemaining(r.unlockCount),
   }));
 
-  return new Response(JSON.stringify({ submissions }), { status: 200 });
+  // Members with an outstanding late-submission allowance (may have no
+  // prediction row yet, so returned as a separate list).
+  const graceUserIds = graces.map((g) => g.userId);
+
+  return new Response(JSON.stringify({ submissions, graceUserIds }), { status: 200 });
 }

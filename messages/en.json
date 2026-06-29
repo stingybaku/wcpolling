@@ -342,6 +342,8 @@
       "promoteButton": "Promote",
       "demoteButton": "Demote",
       "unlockButton": "Unlock picks",
+      "allowLateButton": "Allow late submit",
+      "revokeLateButton": "Revoke late submit",
       "unlocksRemaining": "{count} unlocks left",
       "audit": {
         "button": "Audit",
@@ -416,6 +418,7 @@
     "opensAt": "Opens {date}",
     "errorSaving": "Error saving prediction",
     "unlockedNotice": "An admin unlocked your prediction — review your picks and submit again before the deadline.",
+    "lateSubmissionNotice": "An admin gave you a one-time window to submit this round's picks late. Make your picks and submit before they close it.",
     "confirmResubmit": "Submitting will lock your picks again. Continue?",
     "confirmResubmitYes": "Yes, re-submit",
     "cancel": "Cancel",

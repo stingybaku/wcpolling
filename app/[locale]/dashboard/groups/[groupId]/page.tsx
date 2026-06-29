@@ -301,16 +301,20 @@ type MemberItemProps = {
   currentUserId: string | undefined;
   sub: MemberSubInfo | undefined;
   openStageId: string | null;
+  manageStageStatus: string | null;
+  hasGrace: boolean;
   groupId: string;
   onChanged: () => void;
   onUnlock: (userId: string, stageId: string) => void;
+  onAllowLate: (userId: string, stageId: string) => void;
+  onRevokeLate: (userId: string, stageId: string) => void;
   onAudit?: (userId: string) => void;
   isStaged: boolean;
   isPortalAdmin: boolean;
   openStageClosesAt: string | null;
 };
 
-function MemberItem({ variant, zebra, m, ownerId, currentUserId, sub, openStageId, groupId, onChanged, onUnlock, onAudit, isStaged, isPortalAdmin, openStageClosesAt }: MemberItemProps) {
+function MemberItem({ variant, zebra, m, ownerId, currentUserId, sub, openStageId, manageStageStatus, hasGrace, groupId, onChanged, onUnlock, onAllowLate, onRevokeLate, onAudit, isStaged, isPortalAdmin, openStageClosesAt }: MemberItemProps) {
   const t = useTranslations("groups.groupRoom");
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -332,6 +336,13 @@ function MemberItem({ variant, zebra, m, ownerId, currentUserId, sub, openStageI
   const canManage = !isMe && !isOwner; // section is rendered for group admins only
   const hasLockedSubmission = !!(openStageId && sub?.submittedAt);
   const remaining = sub?.unlocksRemaining ?? 0;
+  // eslint-disable-next-line react-hooks/purity -- deadline is inherently time-relative
+  const deadlinePassed = !!(openStageClosesAt && Date.now() >= new Date(openStageClosesAt).getTime());
+  // A member can be granted a late submission once the stage is past submitting
+  // (closed, or open-but-past-deadline), they have NOT submitted, and don't
+  // already have a grace. Editing an existing submission uses unlock instead.
+  const lateEligible = !!(openStageId && (manageStageStatus === "CLOSED" || deadlinePassed));
+  const notSubmitted = !sub?.submittedAt;
 
   async function updateMember(body: { role?: string; isActive?: boolean }) {
     await fetch(`/api/groups/${groupId}/members/${m.userId}`, {
@@ -351,7 +362,11 @@ function MemberItem({ variant, zebra, m, ownerId, currentUserId, sub, openStageI
   if (canManage && m.isActive && !isAdmin) actions.push({ key: "deactivate", label: t("deactivateButton"), color: "var(--live)", border: "var(--live)", onClick: () => void updateMember({ isActive: false }) });
   if (canManage && m.isActive && !isAdmin) actions.push({ key: "promote", label: t("promoteButton"), color: "var(--muted-2)", border: "var(--border)", onClick: () => void updateMember({ role: "GROUP_ADMIN" }) });
   if (isCurrentUserOwner && isAdmin && !isOwner && !isMe) actions.push({ key: "demote", label: t("demoteButton"), color: "var(--muted)", border: "var(--border)", onClick: () => void updateMember({ role: "MEMBER" }) });
-  if (!isMe && hasLockedSubmission && openStageId && (remaining > 0 || isPortalAdmin)) actions.push({ key: "unlock", label: t("unlockButton"), color: "var(--accent-strong)", border: "var(--accent)", onClick: () => onUnlock(m.userId, openStageId) });
+  if (!isMe && hasLockedSubmission && openStageId && manageStageStatus === "OPEN" && (remaining > 0 || isPortalAdmin)) actions.push({ key: "unlock", label: t("unlockButton"), color: "var(--accent-strong)", border: "var(--accent)", onClick: () => onUnlock(m.userId, openStageId) });
+  // Late submission: let a member who missed the deadline submit their MISSING
+  // prediction. Grant when eligible + not submitted + no grace; revoke otherwise.
+  if (!isMe && m.isActive && lateEligible && notSubmitted && !hasGrace && openStageId) actions.push({ key: "allowLate", label: t("allowLateButton"), color: "var(--gold)", border: "var(--gold)", onClick: () => onAllowLate(m.userId, openStageId) });
+  if (!isMe && lateEligible && notSubmitted && hasGrace && openStageId) actions.push({ key: "revokeLate", label: t("revokeLateButton"), color: "var(--muted)", border: "var(--border)", onClick: () => onRevokeLate(m.userId, openStageId) });
 
   const roleBadge = isOwner
     ? <span style={memberBadgeStyle("var(--accent-strong)", "var(--accent-soft)")}>{t("ownerBadge")}</span>
@@ -368,9 +383,7 @@ function MemberItem({ variant, zebra, m, ownerId, currentUserId, sub, openStageI
   ) : null;
 
   // Per-member submission state for the open stage: can they still edit, are they
-  // locked (submitted), or has the deadline passed?
-  // eslint-disable-next-line react-hooks/purity -- deadline is inherently time-relative
-  const deadlinePassed = !!(openStageClosesAt && Date.now() >= new Date(openStageClosesAt).getTime());
+  // locked (submitted), or has the deadline passed? (deadlinePassed computed above)
   const statusBadge = openStageId ? (
     deadlinePassed
       ? <span style={memberBadgeStyle("var(--muted-2)", "var(--bg-strong)")}>{t("statusDeadlinePassed")}</span>
@@ -452,9 +465,13 @@ type MemberManagerProps = {
   currentUserId: string | undefined;
   memberSubmissions: Record<string, MemberSubInfo>;
   openStageId: string | null;
+  manageStageStatus: string | null;
+  graceUserIds: string[];
   memberCount: number;
   onChanged: () => void;
   onUnlock: (userId: string, stageId: string) => void;
+  onAllowLate: (userId: string, stageId: string) => void;
+  onRevokeLate: (userId: string, stageId: string) => void;
   onAudit?: (userId: string) => void;
   isStaged: boolean;
   onInvite: () => void;
@@ -475,7 +492,8 @@ function filterChipStyle(active: boolean): CSSProperties {
   };
 }
 
-function MemberManager({ groupId, memberships, ownerId, currentUserId, memberSubmissions, openStageId, memberCount, onChanged, onUnlock, onAudit, isStaged, onInvite, isPortalAdmin, openStageClosesAt }: MemberManagerProps) {
+function MemberManager({ groupId, memberships, ownerId, currentUserId, memberSubmissions, openStageId, manageStageStatus, graceUserIds, memberCount, onChanged, onUnlock, onAllowLate, onRevokeLate, onAudit, isStaged, onInvite, isPortalAdmin, openStageClosesAt }: MemberManagerProps) {
+  const graceSet = new Set(graceUserIds);
   const t = useTranslations("groups.groupRoom");
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -554,13 +572,13 @@ function MemberManager({ groupId, memberships, ownerId, currentUserId, memberSub
               <div className="hidden md:grid" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
                 {filtered.map((m) => (
                   <MemberItem key={m.user.id} variant="card" m={m} ownerId={ownerId} currentUserId={currentUserId}
-                    sub={memberSubmissions[m.userId]} openStageId={openStageId} groupId={groupId} onChanged={onChanged} onUnlock={onUnlock} onAudit={onAudit} isStaged={isStaged} isPortalAdmin={isPortalAdmin} openStageClosesAt={openStageClosesAt} />
+                    sub={memberSubmissions[m.userId]} openStageId={openStageId} manageStageStatus={manageStageStatus} hasGrace={graceSet.has(m.userId)} groupId={groupId} onChanged={onChanged} onUnlock={onUnlock} onAllowLate={onAllowLate} onRevokeLate={onRevokeLate} onAudit={onAudit} isStaged={isStaged} isPortalAdmin={isPortalAdmin} openStageClosesAt={openStageClosesAt} />
                 ))}
               </div>
               <div className="flex flex-col md:hidden" style={{ gap: 4 }}>
                 {filtered.map((m, mi) => (
                   <MemberItem key={m.user.id} variant="row" zebra={mi % 2 === 1} m={m} ownerId={ownerId} currentUserId={currentUserId}
-                    sub={memberSubmissions[m.userId]} openStageId={openStageId} groupId={groupId} onChanged={onChanged} onUnlock={onUnlock} onAudit={onAudit} isStaged={isStaged} isPortalAdmin={isPortalAdmin} openStageClosesAt={openStageClosesAt} />
+                    sub={memberSubmissions[m.userId]} openStageId={openStageId} manageStageStatus={manageStageStatus} hasGrace={graceSet.has(m.userId)} groupId={groupId} onChanged={onChanged} onUnlock={onUnlock} onAllowLate={onAllowLate} onRevokeLate={onRevokeLate} onAudit={onAudit} isStaged={isStaged} isPortalAdmin={isPortalAdmin} openStageClosesAt={openStageClosesAt} />
                 ))}
               </div>
             </>
@@ -998,6 +1016,8 @@ export default function GroupDetailPage() {
   const [openStageName, setOpenStageName] = useState<string | null>(null);
   const [openStageId, setOpenStageId] = useState<string | null>(null);
   const [openStageClosesAt, setOpenStageClosesAt] = useState<string | null>(null);
+  const [manageStageStatus, setManageStageStatus] = useState<string | null>(null);
+  const [graceUserIds, setGraceUserIds] = useState<string[]>([]);
   const [stagedLeaderboard, setStagedLeaderboard] = useState<StagedLeaderboardEntry[]>([]);
   const [stagedStages, setStagedStages] = useState<StagedStage[]>([]);
   const [memberSubmissions, setMemberSubmissions] = useState<Record<string, { submittedAt: string | null; unlockedAt: string | null; unlocksRemaining: number }>>({});
@@ -1056,10 +1076,9 @@ export default function GroupDetailPage() {
       setStagedStages(allStages);
 
       const openStage = allStages.find((s) => s.status === "OPEN");
+      // Member's own banner: only when a stage is truly OPEN.
       if (openStage) {
         setOpenStageName(openStage.name);
-        setOpenStageId(openStage.id);
-        setOpenStageClosesAt(openStage.closesAt ?? null);
         const predRes = await fetch(`/api/staged/groups/${params.groupId}/stages/${openStage.id}/prediction`);
         if (predRes.ok) {
           const predData = await predRes.json();
@@ -1069,7 +1088,20 @@ export default function GroupDetailPage() {
             : null
           );
         }
-        const subRes = await fetch(`/api/staged/groups/${params.groupId}/stages/${openStage.id}/submissions`);
+      } else {
+        setOpenStageName(null);
+        setStagedStatus(null);
+      }
+
+      // Member manager + late-submission: the current actionable stage is the
+      // OPEN one, else the latest CLOSED (awaiting-scoring) stage. Members who
+      // missed its deadline can be granted a late submission here.
+      const manageStage = openStage ?? [...allStages].reverse().find((s) => s.status === "CLOSED");
+      if (manageStage) {
+        setOpenStageId(manageStage.id);
+        setOpenStageClosesAt(manageStage.closesAt ?? null);
+        setManageStageStatus(manageStage.status);
+        const subRes = await fetch(`/api/staged/groups/${params.groupId}/stages/${manageStage.id}/submissions`);
         if (subRes.ok) {
           const subData = await subRes.json();
           const map: Record<string, { submittedAt: string | null; unlockedAt: string | null; unlocksRemaining: number }> = {};
@@ -1077,13 +1109,14 @@ export default function GroupDetailPage() {
             map[s.userId] = { submittedAt: s.submittedAt, unlockedAt: s.unlockedAt, unlocksRemaining: s.unlocksRemaining ?? 0 };
           }
           setMemberSubmissions(map);
+          setGraceUserIds((subData.graceUserIds ?? []) as string[]);
         }
       } else {
-        setOpenStageName(null);
         setOpenStageId(null);
         setOpenStageClosesAt(null);
-        setStagedStatus(null);
+        setManageStageStatus(null);
         setMemberSubmissions({});
+        setGraceUserIds([]);
       }
     } catch {
       // silently ignore — banner falls back to default CTA
@@ -1097,6 +1130,28 @@ export default function GroupDetailPage() {
     );
     const data = await res.json();
     if (!res.ok) { alert(data.error ?? "Failed to unlock prediction"); return; }
+    const tournamentId = group?.tournament?.id;
+    if (tournamentId) void loadStagedStatus(tournamentId);
+  }
+
+  async function allowLateSubmission(targetUserId: string, stageId: string) {
+    const res = await fetch(
+      `/api/staged/groups/${params.groupId}/stages/${stageId}/grace?userId=${targetUserId}`,
+      { method: "POST" }
+    );
+    const data = await res.json();
+    if (!res.ok) { alert(data.error ?? "Failed to allow late submission"); return; }
+    const tournamentId = group?.tournament?.id;
+    if (tournamentId) void loadStagedStatus(tournamentId);
+  }
+
+  async function revokeLateSubmission(targetUserId: string, stageId: string) {
+    const res = await fetch(
+      `/api/staged/groups/${params.groupId}/stages/${stageId}/grace?userId=${targetUserId}`,
+      { method: "DELETE" }
+    );
+    const data = await res.json();
+    if (!res.ok) { alert(data.error ?? "Failed to revoke late submission"); return; }
     const tournamentId = group?.tournament?.id;
     if (tournamentId) void loadStagedStatus(tournamentId);
   }
@@ -1869,9 +1924,13 @@ export default function GroupDetailPage() {
             currentUserId={currentUserId}
             memberSubmissions={memberSubmissions}
             openStageId={openStageId}
+            manageStageStatus={manageStageStatus}
+            graceUserIds={graceUserIds}
             memberCount={memberCount}
             onChanged={() => void loadGroup()}
             onUnlock={(uid, sid) => void unlockPrediction(uid, sid)}
+            onAllowLate={(uid, sid) => void allowLateSubmission(uid, sid)}
+            onRevokeLate={(uid, sid) => void revokeLateSubmission(uid, sid)}
             onAudit={(uid) => setAuditUserId(uid)}
             isStaged={isStagedTournament}
             onInvite={copyInviteLink}

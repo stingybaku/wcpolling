@@ -778,6 +778,7 @@ function StageCard({
   teams,
   matches,
   defaultOpen,
+  canSubmitLate,
   onPredictionUpdate,
 }: {
   stage: Stage;
@@ -787,6 +788,7 @@ function StageCard({
   teams: Team[];
   matches: StageMatch[];
   defaultOpen: boolean;
+  canSubmitLate: boolean;
   onPredictionUpdate: (stageId: string, pred: StagePrediction) => void;
 }) {
   const t = useTranslations("stagedPredictions");
@@ -800,6 +802,10 @@ function StageCard({
   };
 
   const isSubmitted = !!prediction?.submittedAt;
+  // Render the pick form when the stage is OPEN, or when an admin granted this
+  // member a late-submission allowance for a missing prediction (e.g. the stage
+  // already closed). In both cases only while they haven't submitted yet.
+  const showForm = (stage.status === "OPEN" || canSubmitLate) && !isSubmitted;
 
   return (
     <div
@@ -891,7 +897,17 @@ function StageCard({
             </div>
           )}
 
-          {stage.status === "OPEN" && !isSubmitted && stage.type === "GROUP_QUALIFICATION" && teams.length > 0 && (
+          {canSubmitLate && stage.status !== "OPEN" && (
+            <div
+              className="p-3 rounded-lg text-sm flex items-center gap-2"
+              style={{ background: "var(--gold-soft)", border: "1px solid var(--gold)", color: "var(--gold)" }}
+            >
+              <span aria-hidden>⏳</span>
+              {t("lateSubmissionNotice")}
+            </div>
+          )}
+
+          {showForm && stage.type === "GROUP_QUALIFICATION" && teams.length > 0 && (
             <GroupQualificationForm
               stage={stage}
               groupId={groupId}
@@ -901,7 +917,7 @@ function StageCard({
             />
           )}
 
-          {stage.status === "OPEN" && !isSubmitted && stage.type === "KNOCKOUT" && matches.length > 0 && (
+          {showForm && stage.type === "KNOCKOUT" && matches.length > 0 && (
             <KnockoutForm
               stage={stage}
               groupId={groupId}
@@ -911,7 +927,7 @@ function StageCard({
             />
           )}
 
-          {(stage.status === "CLOSED" || stage.status === "SCORED") && (
+          {(stage.status === "CLOSED" || stage.status === "SCORED") && !showForm && (
             <ReadOnlyPicks stage={stage} prediction={prediction} score={score} teams={teams} matches={matches} />
           )}
 
@@ -938,6 +954,7 @@ export default function PredictionsPage() {
   const [scores, setScores] = useState<Record<string, StageScore>>({});
   const [teams, setTeams] = useState<Team[]>([]);
   const [matchesByStage, setMatchesByStage] = useState<Record<string, StageMatch[]>>({});
+  const [lateGrants, setLateGrants] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -958,12 +975,13 @@ export default function PredictionsPage() {
           fetchedStages.map(async (s) => {
             const res = await fetch(`/api/staged/groups/${groupId}/stages/${s.id}/prediction`);
             const data = await res.json();
-            return [s.id, data.prediction ?? null, data.score ?? null] as [string, StagePrediction, StageScore];
+            return [s.id, data.prediction ?? null, data.score ?? null, !!data.canSubmitLate] as [string, StagePrediction, StageScore, boolean];
           })
         );
         if (cancelled) return;
         setPredictions(Object.fromEntries(predEntries.map(([id, pred]) => [id, pred])));
         setScores(Object.fromEntries(predEntries.map(([id, , score]) => [id, score])));
+        setLateGrants(Object.fromEntries(predEntries.map(([id, , , late]) => [id, late])));
 
         const gqOpen = fetchedStages.find((s) => s.type === "GROUP_QUALIFICATION" && s.status !== "UPCOMING");
         if (gqOpen) {
@@ -1078,7 +1096,8 @@ export default function PredictionsPage() {
                 groupId={groupId}
                 teams={teams}
                 matches={matchesByStage[stage.id] ?? []}
-                defaultOpen={i === openStageIndex}
+                defaultOpen={i === openStageIndex || (lateGrants[stage.id] ?? false)}
+                canSubmitLate={lateGrants[stage.id] ?? false}
                 onPredictionUpdate={handlePredictionUpdate}
               />
             ))}
