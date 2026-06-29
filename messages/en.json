@@ -287,6 +287,7 @@
       "statusOpenToEdit": "Open to edit",
       "statusLocked": "Locked",
       "statusDeadlinePassed": "Deadline passed",
+      "statusLateAllowed": "Late allowed",
       "swapSelection": "Swap selection ↻",
       "breakdownLabel": "Breakdown ·",
       "matchPts": "Match pts",

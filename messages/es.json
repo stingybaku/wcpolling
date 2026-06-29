@@ -287,6 +287,7 @@
       "statusOpenToEdit": "Editable",
       "statusLocked": "Bloqueada",
       "statusDeadlinePassed": "Plazo cerrado",
+      "statusLateAllowed": "Envío tardío permitido",
       "swapSelection": "Cambiar selección ↻",
       "breakdownLabel": "Desglose ·",
       "matchPts": "Pts partidos",

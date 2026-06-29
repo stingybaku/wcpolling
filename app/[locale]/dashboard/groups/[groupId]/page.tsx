@@ -384,11 +384,17 @@ function MemberItem({ variant, zebra, m, ownerId, currentUserId, sub, openStageI
 
   // Per-member submission state for the open stage: can they still edit, are they
   // locked (submitted), or has the deadline passed? (deadlinePassed computed above)
+  // A submitted prediction reads as Locked whether on time or late, so the admin
+  // can confirm a late submission landed. Otherwise, past the deadline, a member
+  // granted a late-submission window shows "Late allowed"; everyone else
+  // "Deadline passed". Before the deadline it's still Open to edit.
   const statusBadge = openStageId ? (
-    deadlinePassed
-      ? <span style={memberBadgeStyle("var(--muted-2)", "var(--bg-strong)")}>{t("statusDeadlinePassed")}</span>
-      : sub?.submittedAt
-        ? <span style={memberBadgeStyle("var(--gold)", "var(--gold-soft)")}>{t("statusLocked")}</span>
+    sub?.submittedAt
+      ? <span style={memberBadgeStyle("var(--gold)", "var(--gold-soft)")}>{t("statusLocked")}</span>
+      : deadlinePassed
+        ? hasGrace
+          ? <span style={memberBadgeStyle("#7c3aed", "color-mix(in srgb, #7c3aed 15%, transparent)")}>{t("statusLateAllowed")}</span>
+          : <span style={memberBadgeStyle("var(--muted-2)", "var(--bg-strong)")}>{t("statusDeadlinePassed")}</span>
         : <span style={memberBadgeStyle("var(--accent-strong)", "var(--accent-soft)")}>{t("statusOpenToEdit")}</span>
   ) : null;
 
