@@ -1417,6 +1417,10 @@ export default function GroupDetailPage() {
         {group?.tournament?.type === "STAGED" && group.tournament.id && (() => {
           const isInactive = !isCurrentUserActive;
           const noOpenStage = !isTournamentFinalized && !openStageName && !stagedStatus;
+          // Even with no stage currently OPEN, members should still be able to
+          // reach the predictions page to review their (read-only) picks for a
+          // CLOSED/SCORED stage and to answer tie breakers while those remain open.
+          const hasViewableStage = stagedStages.some((s) => s.status !== "UPCOMING");
           const bannerBg = isTournamentFinalized
             ? "var(--accent-soft)"
             : isInactive
@@ -1501,7 +1505,7 @@ export default function GroupDetailPage() {
                   )}
                 </span>
               </div>
-              {!noOpenStage && !isInactive && (
+              {!isInactive && (!noOpenStage || hasViewableStage) && (
                 <Link
                   href={`/dashboard/groups/${params.groupId}/predictions/${group.tournament.id}`}
                   style={{
@@ -1511,7 +1515,7 @@ export default function GroupDetailPage() {
                     borderRadius: 999, padding: "7px 18px", fontSize: 13, fontWeight: 600, whiteSpace: "nowrap", textDecoration: "none",
                   }}
                 >
-                  {isTournamentFinalized ? t("viewPredictions") : stagedStatus?.status === "submitted" ? t("viewPredictions") : stagedStatus?.status === "draft" ? t("continuePredictions") : t("makePredictions")}
+                  {isTournamentFinalized ? t("viewPredictions") : stagedStatus?.status === "submitted" ? t("viewPredictions") : stagedStatus?.status === "draft" ? t("continuePredictions") : noOpenStage ? t("viewPredictions") : t("makePredictions")}
                 </Link>
               )}
             </div>

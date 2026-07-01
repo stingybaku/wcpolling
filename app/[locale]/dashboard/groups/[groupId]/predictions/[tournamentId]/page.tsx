@@ -1025,7 +1025,15 @@ export default function PredictionsPage() {
     setPredictions((prev) => ({ ...prev, [stageId]: pred }));
   }
 
-  const openStageIndex = stages.findIndex((s) => s.status === "OPEN");
+  // Expand the OPEN stage by default; if none is open, fall back to the latest
+  // non-UPCOMING stage so a member landing here still sees their (read-only)
+  // picks for the just-closed stage without having to expand it.
+  let defaultOpenIndex = stages.findIndex((s) => s.status === "OPEN");
+  if (defaultOpenIndex === -1) {
+    for (let i = stages.length - 1; i >= 0; i--) {
+      if (stages[i].status !== "UPCOMING") { defaultOpenIndex = i; break; }
+    }
+  }
 
   const recap = stages.reduce(
     (acc, s) => {
@@ -1096,7 +1104,7 @@ export default function PredictionsPage() {
                 groupId={groupId}
                 teams={teams}
                 matches={matchesByStage[stage.id] ?? []}
-                defaultOpen={i === openStageIndex || (lateGrants[stage.id] ?? false)}
+                defaultOpen={i === defaultOpenIndex || (lateGrants[stage.id] ?? false)}
                 canSubmitLate={lateGrants[stage.id] ?? false}
                 onPredictionUpdate={handlePredictionUpdate}
               />
