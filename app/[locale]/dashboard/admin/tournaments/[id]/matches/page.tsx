@@ -100,7 +100,8 @@ export default function AdminMatchResultsPage() {
     setGenerating(false);
     if (!res.ok) { setError("Could not generate fixtures."); return; }
     const data = await res.json();
-    setMsg(`Synced fixtures: +${data.groups} group, +${data.knockout} knockout.`);
+    const resynced = data.knockoutResynced ? `, ${data.knockoutResynced} knockout re-synced` : "";
+    setMsg(`Synced fixtures: +${data.groups} group, +${data.knockout} knockout${resynced}.`);
     await load();
   }
 

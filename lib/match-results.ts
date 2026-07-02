@@ -33,12 +33,18 @@ function roundRobinPairs(teamIds: string[]): [string, string][] {
 /**
  * Creates/updates the MatchResult rows for a tournament:
  *  - GROUP: round-robin fixtures per seeded group (idempotent).
- *  - Knockout: one row per StageMatch that has both teams, linked by stageMatchId.
- * Safe to re-run as the bracket fills in. Returns how many rows it created.
+ *  - Knockout: one row per KNOCKOUT StageMatch, linked by stageMatchId; on re-run,
+ *    existing rows have their teams/kickoff re-synced from the (now-resolved)
+ *    bracket. Recorded stats are never touched.
+ * Safe to re-run as the bracket fills in. Returns how many rows it created and,
+ * for knockout, how many existing rows it re-synced.
  */
-export async function generateMatchFixtures(tournamentId: string): Promise<{ groups: number; knockout: number }> {
+export async function generateMatchFixtures(
+  tournamentId: string,
+): Promise<{ groups: number; knockout: number; knockoutResynced: number }> {
   let groups = 0;
   let knockout = 0;
+  let knockoutResynced = 0;
 
   // ── Group stage: round-robin from the canonical (seeded) groups ──
   const tournamentGroups = await prisma.tournamentGroup.findMany({
@@ -83,9 +89,28 @@ export async function generateMatchFixtures(tournamentId: string): Promise<{ gro
     if (!round) continue;
     const existing = await prisma.matchResult.findUnique({
       where: { stageMatchId: sm.id },
-      select: { id: true },
+      select: { id: true, homeTeamId: true, awayTeamId: true, kickoffAt: true },
     });
-    if (existing) continue;
+    if (existing) {
+      // A row created before the bracket resolved can hold TBD/placeholder teams.
+      // Re-sync the teams (and kickoff) from the StageMatch, which is the bracket
+      // source of truth, so the fixture reflects the current matchup. Recorded
+      // stats/status are left untouched, and this table never feeds prediction
+      // scoring (that reads StageMatch.winnerId / StageQualificationResult).
+      const kickoff = sm.matchDate ?? null;
+      const changed =
+        existing.homeTeamId !== sm.homeTeamId ||
+        existing.awayTeamId !== sm.awayTeamId ||
+        (existing.kickoffAt?.getTime() ?? null) !== (kickoff?.getTime() ?? null);
+      if (changed) {
+        await prisma.matchResult.update({
+          where: { stageMatchId: sm.id },
+          data: { homeTeamId: sm.homeTeamId, awayTeamId: sm.awayTeamId, kickoffAt: kickoff },
+        });
+        knockoutResynced++;
+      }
+      continue;
+    }
     await prisma.matchResult.create({
       data: {
         tournamentId,
@@ -100,7 +125,7 @@ export async function generateMatchFixtures(tournamentId: string): Promise<{ gro
     knockout++;
   }
 
-  return { groups, knockout };
+  return { groups, knockout, knockoutResynced };
 }
 
 /**
