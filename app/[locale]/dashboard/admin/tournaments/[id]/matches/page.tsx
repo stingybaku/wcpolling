@@ -100,8 +100,9 @@ export default function AdminMatchResultsPage() {
     setGenerating(false);
     if (!res.ok) { setError("Could not generate fixtures."); return; }
     const data = await res.json();
-    const resynced = data.knockoutResynced ? `, ${data.knockoutResynced} knockout re-synced` : "";
-    setMsg(`Synced fixtures: +${data.groups} group, +${data.knockout} knockout${resynced}.`);
+    const resynced = data.knockoutResynced ? `, ${data.knockoutResynced} re-synced` : "";
+    const removed = data.knockoutRemoved ? `, ${data.knockoutRemoved} stale removed` : "";
+    setMsg(`Synced fixtures: +${data.groups} group, +${data.knockout} knockout${resynced}${removed}.`);
     await load();
   }
 

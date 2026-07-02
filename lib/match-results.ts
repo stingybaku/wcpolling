@@ -33,15 +33,17 @@ function roundRobinPairs(teamIds: string[]): [string, string][] {
 /**
  * Creates/updates the MatchResult rows for a tournament:
  *  - GROUP: round-robin fixtures per seeded group (idempotent).
- *  - Knockout: one row per KNOCKOUT StageMatch, linked by stageMatchId; on re-run,
- *    existing rows have their teams/kickoff re-synced from the (now-resolved)
- *    bracket. Recorded stats are never touched.
- * Safe to re-run as the bracket fills in. Returns how many rows it created and,
- * for knockout, how many existing rows it re-synced.
+ *  - Knockout: one row per OPEN-or-later KNOCKOUT StageMatch, linked by
+ *    stageMatchId. On re-run, existing rows have their teams/kickoff re-synced
+ *    from the (now-resolved) bracket, and stale rows with no recorded stats
+ *    (orphaned by a bracket regen, or for a round no longer open) are removed.
+ *    Recorded stats are never touched.
+ * Safe to re-run as the bracket fills in. Returns how many rows it created,
+ * re-synced, and removed.
  */
 export async function generateMatchFixtures(
   tournamentId: string,
-): Promise<{ groups: number; knockout: number; knockoutResynced: number }> {
+): Promise<{ groups: number; knockout: number; knockoutResynced: number; knockoutRemoved: number }> {
   let groups = 0;
   let knockout = 0;
   let knockoutResynced = 0;
@@ -78,11 +80,33 @@ export async function generateMatchFixtures(
     }
   }
 
-  // ── Knockout: sync from the StageMatch bracket (teams known) ──
+  // ── Knockout: sync from the StageMatch bracket ──
+  // Only stages that have actually opened get fixtures. A knockout StageMatch
+  // always carries teams (placeholders that the bracket overwrites as rounds
+  // resolve), so an UPCOMING round would otherwise surface a fixture with the
+  // wrong matchup. Gating on status keeps the fixture list to rounds in play.
   const stageMatches = await prisma.stageMatch.findMany({
-    where: { stage: { tournamentId, type: "KNOCKOUT" } },
+    where: { stage: { tournamentId, type: "KNOCKOUT", status: { not: "UPCOMING" } } },
     include: { stage: { select: { roundLabel: true } } },
   });
+
+  // Reconcile away knockout fixtures that no longer map to an open bracket match:
+  //  - orphans left behind when the bracket was regenerated (stageMatchId → null
+  //    via SetNull), which is what leaves stale/duplicate rows for a round; and
+  //  - rows for a round whose stage is no longer open (e.g. reverted to UPCOMING).
+  // Only rows with NO recorded stats are removed, so any played match is kept.
+  const eligibleStageMatchIds = stageMatches.map((sm) => sm.id);
+  const removed = await prisma.matchResult.deleteMany({
+    where: {
+      tournamentId,
+      round: { not: "GROUP" },
+      status: "SCHEDULED",
+      homeScore: null,
+      awayScore: null,
+      OR: [{ stageMatchId: null }, { stageMatchId: { notIn: eligibleStageMatchIds } }],
+    },
+  });
+  const knockoutRemoved = removed.count;
 
   for (const sm of stageMatches) {
     const round = sm.stage.roundLabel ? ROUND_LABEL_TO_ROUND[sm.stage.roundLabel] : undefined;
@@ -125,7 +149,7 @@ export async function generateMatchFixtures(
     knockout++;
   }
 
-  return { groups, knockout, knockoutResynced };
+  return { groups, knockout, knockoutResynced, knockoutRemoved };
 }
 
 /**
