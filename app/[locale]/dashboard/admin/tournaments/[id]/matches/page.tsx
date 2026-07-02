@@ -61,6 +61,7 @@ export default function AdminMatchResultsPage() {
   const [matches, setMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const [pulling, setPulling] = useState(false);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [msg, setMsg] = useState("");
   const [error, setError] = useState("");
@@ -104,6 +105,25 @@ export default function AdminMatchResultsPage() {
     const removed = data.knockoutRemoved ? `, ${data.knockoutRemoved} stale removed` : "";
     setMsg(`Synced fixtures: +${data.groups} group, +${data.knockout} knockout${resynced}${removed}.`);
     await load();
+  }
+
+  async function pullResults(withCards: boolean) {
+    setPulling(true); setError(""); setMsg("");
+    const res = await fetch(
+      `/api/admin/staged/tournaments/${tournamentId}/pull-results${withCards ? "?cards=1" : ""}`,
+      { method: "POST" },
+    );
+    setPulling(false);
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data?.ok) { setError(data?.error ?? "Could not pull results."); return; }
+    const cards = data.cardsFetched ? ", cards included" : "";
+    let text = `Pulled from ${data.provider}: ${data.updated} updated, ${data.unchanged} unchanged${cards}.`;
+    if (data.unmatched?.length) {
+      text += ` ${data.unmatched.length} unmatched — ${data.unmatched.slice(0, 3).join("; ")}${data.unmatched.length > 3 ? "…" : ""}`;
+    }
+    setMsg(text);
+    await load();
+    await loadTieBreakers();
   }
 
   function patchLocal(id: string, patch: Partial<Match>) {
@@ -208,8 +228,24 @@ export default function AdminMatchResultsPage() {
         </div>
         <div className="flex items-center gap-2">
           <Link href={`/dashboard/admin/tournaments/${tournamentId}/staged`} className="btn btn-sm btn-ghost">← Staged admin</Link>
-          <button className="btn btn-sm btn-accent" onClick={() => void generate()} disabled={generating}>
+          <button className="btn btn-sm btn-ghost" onClick={() => void generate()} disabled={generating}>
             {generating ? "Syncing…" : "Generate / sync fixtures"}
+          </button>
+          <button
+            className="btn btn-sm btn-accent"
+            onClick={() => void pullResults(false)}
+            disabled={pulling}
+            title="Fetch scores, shootouts and status from the configured provider onto existing fixtures. Stage results stay manual."
+          >
+            {pulling ? "Pulling…" : "Pull results"}
+          </button>
+          <button
+            className="btn btn-sm btn-ghost"
+            onClick={() => void pullResults(true)}
+            disabled={pulling}
+            title="Also fetch yellow/red card counts (uses one extra provider request per finished match)."
+          >
+            + cards
           </button>
         </div>
       </div>
