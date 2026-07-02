@@ -49,7 +49,10 @@ export function createApiFootballProvider(config: {
 }): ResultsProvider {
   const { apiKey, host } = config;
   const isRapid = host.includes("rapidapi");
-  const baseUrl = `https://${host}/v3`;
+  // On the direct api-sports host the version lives in the subdomain
+  // (v3.football.api-sports.io) with no /v3 path; only RapidAPI puts /v3 in the
+  // path. Appending /v3 to the direct host yields /v3/fixtures → 404.
+  const baseUrl = isRapid ? `https://${host}/v3` : `https://${host}`;
   const headers: Record<string, string> = isRapid
     ? { "x-rapidapi-key": apiKey, "x-rapidapi-host": host }
     : { "x-apisports-key": apiKey };
