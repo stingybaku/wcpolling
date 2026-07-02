@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import type { MatchRound } from "@prisma/client";
 import { createApiFootballProvider } from "@/lib/results/providers/apiFootball";
+import { createFootballDataProvider } from "@/lib/results/providers/footballData";
 import { buildTeamLookup } from "@/lib/results/team-map";
 import { NormalizedMatchResult, ResultsProvider } from "@/lib/results/types";
 
@@ -16,11 +17,26 @@ const DEFAULT_HOST = "v3.football.api-sports.io";
 
 function pickProvider(): ResultsProvider | null {
   const configured = (process.env.RESULTS_PROVIDER ?? "").trim().toLowerCase();
-  const key = process.env.API_FOOTBALL_KEY;
-  if ((configured === "api-football" || (!configured && key)) && key) {
+  const apiFootballKey = process.env.API_FOOTBALL_KEY;
+  const footballDataKey = process.env.FOOTBALL_DATA_KEY;
+
+  if (configured === "football-data" && footballDataKey) {
+    return createFootballDataProvider({
+      apiKey: footballDataKey,
+      competition: (process.env.RESULTS_COMPETITION ?? "WC").trim(),
+    });
+  }
+  if ((configured === "api-football" || (!configured && apiFootballKey)) && apiFootballKey) {
     return createApiFootballProvider({
-      apiKey: key,
+      apiKey: apiFootballKey,
       host: (process.env.API_FOOTBALL_HOST ?? DEFAULT_HOST).trim(),
+    });
+  }
+  // No explicit provider set but a football-data key is present.
+  if (!configured && footballDataKey) {
+    return createFootballDataProvider({
+      apiKey: footballDataKey,
+      competition: (process.env.RESULTS_COMPETITION ?? "WC").trim(),
     });
   }
   return null;
@@ -65,7 +81,7 @@ export async function syncMatchResults(
   const provider = pickProvider();
   if (!provider) {
     throw new Error(
-      "No results provider configured. Set RESULTS_PROVIDER=api-football with API_FOOTBALL_KEY.",
+      "No results provider configured. Set RESULTS_PROVIDER=football-data with FOOTBALL_DATA_KEY (free, covers the World Cup), or =api-football with API_FOOTBALL_KEY (paid plan for 2026).",
     );
   }
 
