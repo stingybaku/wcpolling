@@ -288,6 +288,8 @@
       "statusLocked": "Bloqueada",
       "statusDeadlinePassed": "Plazo cerrado",
       "statusLateAllowed": "Envío tardío permitido",
+      "tieBreakerDone": "Desempates ✓",
+      "tieBreakerPending": "Desempates ✗",
       "swapSelection": "Cambiar selección ↻",
       "breakdownLabel": "Desglose ·",
       "matchPts": "Pts partidos",

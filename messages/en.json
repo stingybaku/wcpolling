@@ -288,6 +288,8 @@
       "statusLocked": "Locked",
       "statusDeadlinePassed": "Deadline passed",
       "statusLateAllowed": "Late allowed",
+      "tieBreakerDone": "Tie-breakers ✓",
+      "tieBreakerPending": "Tie-breakers ✗",
       "swapSelection": "Swap selection ↻",
       "breakdownLabel": "Breakdown ·",
       "matchPts": "Match pts",

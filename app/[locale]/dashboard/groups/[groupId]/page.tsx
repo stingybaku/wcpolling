@@ -303,6 +303,8 @@ type MemberItemProps = {
   openStageId: string | null;
   manageStageStatus: string | null;
   hasGrace: boolean;
+  tieBreakerTotal: number;
+  tieBreakerDone: boolean;
   groupId: string;
   onChanged: () => void;
   onUnlock: (userId: string, stageId: string) => void;
@@ -314,7 +316,7 @@ type MemberItemProps = {
   openStageClosesAt: string | null;
 };
 
-function MemberItem({ variant, zebra, m, ownerId, currentUserId, sub, openStageId, manageStageStatus, hasGrace, groupId, onChanged, onUnlock, onAllowLate, onRevokeLate, onAudit, isStaged, isPortalAdmin, openStageClosesAt }: MemberItemProps) {
+function MemberItem({ variant, zebra, m, ownerId, currentUserId, sub, openStageId, manageStageStatus, hasGrace, tieBreakerTotal, tieBreakerDone, groupId, onChanged, onUnlock, onAllowLate, onRevokeLate, onAudit, isStaged, isPortalAdmin, openStageClosesAt }: MemberItemProps) {
   const t = useTranslations("groups.groupRoom");
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -398,6 +400,15 @@ function MemberItem({ variant, zebra, m, ownerId, currentUserId, sub, openStageI
         : <span style={memberBadgeStyle("var(--accent-strong)", "var(--accent-soft)")}>{t("statusOpenToEdit")}</span>
   ) : null;
 
+  // Tie-breaker completion (tournament-level): only shown when the tournament
+  // actually has tie-breaker questions. Green when the member answered them all,
+  // muted otherwise, so an admin can chase down who's still missing them.
+  const tieBreakerBadge = tieBreakerTotal > 0 ? (
+    tieBreakerDone
+      ? <span style={memberBadgeStyle("#16a34a", "color-mix(in srgb, #16a34a 15%, transparent)")}>{t("tieBreakerDone")}</span>
+      : <span style={memberBadgeStyle("var(--muted-2)", "var(--bg-strong)")}>{t("tieBreakerPending")}</span>
+  ) : null;
+
   // Desktop: full card with inline action buttons.
   if (variant === "card") {
     return (
@@ -413,7 +424,7 @@ function MemberItem({ variant, zebra, m, ownerId, currentUserId, sub, openStageI
               {name}{isMe && <span style={{ color: "var(--muted)", fontWeight: 400 }}> · {t("youLabel")}</span>}
             </div>
             <div style={{ display: "flex", gap: 4, marginTop: 4, flexWrap: "wrap", alignItems: "center" }}>
-              {roleBadge}{inactiveBadge}{statusBadge}{unlocksLabel}
+              {roleBadge}{inactiveBadge}{statusBadge}{tieBreakerBadge}{unlocksLabel}
             </div>
           </div>
         </div>
@@ -435,7 +446,7 @@ function MemberItem({ variant, zebra, m, ownerId, currentUserId, sub, openStageI
       <span style={{ flex: 1, fontSize: 13, fontWeight: 600, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: m.isActive || isOwner ? "var(--ink)" : "var(--muted)" }}>
         {name}{isMe && <span style={{ color: "var(--muted)", fontWeight: 400 }}> {t("youLabel")}</span>}
       </span>
-      {inactiveBadge}{roleBadge}{statusBadge}{unlocksLabel}
+      {inactiveBadge}{roleBadge}{statusBadge}{tieBreakerBadge}{unlocksLabel}
       {actions.length > 0 && (
         <div ref={menuRef} style={{ position: "relative", flexShrink: 0 }}>
           <button
@@ -473,6 +484,8 @@ type MemberManagerProps = {
   openStageId: string | null;
   manageStageStatus: string | null;
   graceUserIds: string[];
+  tieBreakerTotal: number;
+  tieBreakerDoneUserIds: string[];
   memberCount: number;
   onChanged: () => void;
   onUnlock: (userId: string, stageId: string) => void;
@@ -498,8 +511,9 @@ function filterChipStyle(active: boolean): CSSProperties {
   };
 }
 
-function MemberManager({ groupId, memberships, ownerId, currentUserId, memberSubmissions, openStageId, manageStageStatus, graceUserIds, memberCount, onChanged, onUnlock, onAllowLate, onRevokeLate, onAudit, isStaged, onInvite, isPortalAdmin, openStageClosesAt }: MemberManagerProps) {
+function MemberManager({ groupId, memberships, ownerId, currentUserId, memberSubmissions, openStageId, manageStageStatus, graceUserIds, tieBreakerTotal, tieBreakerDoneUserIds, memberCount, onChanged, onUnlock, onAllowLate, onRevokeLate, onAudit, isStaged, onInvite, isPortalAdmin, openStageClosesAt }: MemberManagerProps) {
   const graceSet = new Set(graceUserIds);
+  const tieBreakerDoneSet = new Set(tieBreakerDoneUserIds);
   const t = useTranslations("groups.groupRoom");
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -578,13 +592,13 @@ function MemberManager({ groupId, memberships, ownerId, currentUserId, memberSub
               <div className="hidden md:grid" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
                 {filtered.map((m) => (
                   <MemberItem key={m.user.id} variant="card" m={m} ownerId={ownerId} currentUserId={currentUserId}
-                    sub={memberSubmissions[m.userId]} openStageId={openStageId} manageStageStatus={manageStageStatus} hasGrace={graceSet.has(m.userId)} groupId={groupId} onChanged={onChanged} onUnlock={onUnlock} onAllowLate={onAllowLate} onRevokeLate={onRevokeLate} onAudit={onAudit} isStaged={isStaged} isPortalAdmin={isPortalAdmin} openStageClosesAt={openStageClosesAt} />
+                    sub={memberSubmissions[m.userId]} openStageId={openStageId} manageStageStatus={manageStageStatus} hasGrace={graceSet.has(m.userId)} tieBreakerTotal={tieBreakerTotal} tieBreakerDone={tieBreakerDoneSet.has(m.userId)} groupId={groupId} onChanged={onChanged} onUnlock={onUnlock} onAllowLate={onAllowLate} onRevokeLate={onRevokeLate} onAudit={onAudit} isStaged={isStaged} isPortalAdmin={isPortalAdmin} openStageClosesAt={openStageClosesAt} />
                 ))}
               </div>
               <div className="flex flex-col md:hidden" style={{ gap: 4 }}>
                 {filtered.map((m, mi) => (
                   <MemberItem key={m.user.id} variant="row" zebra={mi % 2 === 1} m={m} ownerId={ownerId} currentUserId={currentUserId}
-                    sub={memberSubmissions[m.userId]} openStageId={openStageId} manageStageStatus={manageStageStatus} hasGrace={graceSet.has(m.userId)} groupId={groupId} onChanged={onChanged} onUnlock={onUnlock} onAllowLate={onAllowLate} onRevokeLate={onRevokeLate} onAudit={onAudit} isStaged={isStaged} isPortalAdmin={isPortalAdmin} openStageClosesAt={openStageClosesAt} />
+                    sub={memberSubmissions[m.userId]} openStageId={openStageId} manageStageStatus={manageStageStatus} hasGrace={graceSet.has(m.userId)} tieBreakerTotal={tieBreakerTotal} tieBreakerDone={tieBreakerDoneSet.has(m.userId)} groupId={groupId} onChanged={onChanged} onUnlock={onUnlock} onAllowLate={onAllowLate} onRevokeLate={onRevokeLate} onAudit={onAudit} isStaged={isStaged} isPortalAdmin={isPortalAdmin} openStageClosesAt={openStageClosesAt} />
                 ))}
               </div>
             </>
@@ -1024,6 +1038,8 @@ export default function GroupDetailPage() {
   const [openStageClosesAt, setOpenStageClosesAt] = useState<string | null>(null);
   const [manageStageStatus, setManageStageStatus] = useState<string | null>(null);
   const [graceUserIds, setGraceUserIds] = useState<string[]>([]);
+  const [tieBreakerTotal, setTieBreakerTotal] = useState(0);
+  const [tieBreakerDoneUserIds, setTieBreakerDoneUserIds] = useState<string[]>([]);
   const [stagedLeaderboard, setStagedLeaderboard] = useState<StagedLeaderboardEntry[]>([]);
   const [stagedStages, setStagedStages] = useState<StagedStage[]>([]);
   const [memberSubmissions, setMemberSubmissions] = useState<Record<string, { submittedAt: string | null; unlockedAt: string | null; unlocksRemaining: number }>>({});
@@ -1080,6 +1096,19 @@ export default function GroupDetailPage() {
       const stagesData = await stagesRes.json();
       const allStages: StagedStage[] = stagesData.stages ?? [];
       setStagedStages(allStages);
+
+      // Tie-breaker completion is tournament-level, so load it independently of
+      // which stage is the current "manage" stage.
+      try {
+        const tbRes = await fetch(`/api/staged/groups/${params.groupId}/tiebreaker-status`);
+        if (tbRes.ok) {
+          const tbData = await tbRes.json();
+          setTieBreakerTotal(tbData.total ?? 0);
+          setTieBreakerDoneUserIds((tbData.doneUserIds ?? []) as string[]);
+        }
+      } catch {
+        // ignore — tie-breaker badge just won't render
+      }
 
       const openStage = allStages.find((s) => s.status === "OPEN");
       // Member's own banner: only when a stage is truly OPEN.
@@ -1936,6 +1965,8 @@ export default function GroupDetailPage() {
             openStageId={openStageId}
             manageStageStatus={manageStageStatus}
             graceUserIds={graceUserIds}
+            tieBreakerTotal={tieBreakerTotal}
+            tieBreakerDoneUserIds={tieBreakerDoneUserIds}
             memberCount={memberCount}
             onChanged={() => void loadGroup()}
             onUnlock={(uid, sid) => void unlockPrediction(uid, sid)}
