@@ -289,6 +289,7 @@
       "statusDeadlinePassed": "Plazo cerrado",
       "statusLateAllowed": "Envío tardío permitido",
       "tieBreakerDone": "Desempates ✓",
+      "tieBreakerPartial": "Enviado parcialmente ({count})",
       "tieBreakerPending": "Desempates ✗",
       "swapSelection": "Cambiar selección ↻",
       "breakdownLabel": "Desglose ·",

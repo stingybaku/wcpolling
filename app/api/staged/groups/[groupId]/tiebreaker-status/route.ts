@@ -4,9 +4,10 @@ import { getCurrentUser, unauthorized, forbidden } from "@/app/api/helpers";
 
 type RouteContext = { params: Promise<{ groupId: string }> };
 
-// Per-member tie-breaker completion for a group's tournament, for the member
-// manager. A member counts as "done" once they have a non-empty answer for
-// every tie-breaker question. Admin-gated like the submission-status route.
+// Per-member tie-breaker progress for a group's tournament, for the member
+// manager. Returns the question total and each member's count of non-empty
+// answers, so the UI can show done / partial (x) / none. Admin-gated like the
+// submission-status route.
 export async function GET(_request: NextRequest, context: RouteContext) {
   const user = await getCurrentUser();
   if (!user) return unauthorized();
@@ -32,7 +33,7 @@ export async function GET(_request: NextRequest, context: RouteContext) {
     select: { tournamentId: true },
   });
   if (!group?.tournamentId) {
-    return new Response(JSON.stringify({ total: 0, doneUserIds: [], closed: false }), { status: 200 });
+    return new Response(JSON.stringify({ total: 0, answered: {}, closed: false }), { status: 200 });
   }
   const tournamentId = group.tournamentId;
 
@@ -59,12 +60,12 @@ export async function GET(_request: NextRequest, context: RouteContext) {
     set.add(a.questionId);
   }
 
-  const doneUserIds = total > 0
-    ? [...answeredByUser.entries()].filter(([, set]) => set.size >= total).map(([uid]) => uid)
-    : [];
+  // userId → number of distinct questions answered (non-empty).
+  const answered: Record<string, number> = {};
+  for (const [uid, set] of answeredByUser.entries()) answered[uid] = set.size;
 
   return new Response(
-    JSON.stringify({ total, doneUserIds, closed: tournament?.tieBreakerClosedAt != null }),
+    JSON.stringify({ total, answered, closed: tournament?.tieBreakerClosedAt != null }),
     { status: 200 }
   );
 }
