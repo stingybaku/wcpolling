@@ -300,17 +300,25 @@ function KnockoutForm({
   groupId,
   matches,
   existing,
+  lockedMatchIds,
   onSaved,
 }: {
   stage: Stage;
   groupId: string;
   matches: StageMatch[];
   existing: StagePrediction;
+  lockedMatchIds: string[];
   onSaved: (pred: StagePrediction) => void;
 }) {
   const t = useTranslations("stagedPredictions");
+  const lockedSet = new Set(lockedMatchIds);
   const [picks, setPicks] = useState<Record<string, string>>(
-    () => Object.fromEntries((existing?.matchPicks ?? []).map((p) => [p.matchId, p.winnerId]))
+    () =>
+      Object.fromEntries(
+        (existing?.matchPicks ?? [])
+          .filter((p) => !lockedMatchIds.includes(p.matchId))
+          .map((p) => [p.matchId, p.winnerId])
+      )
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -323,6 +331,7 @@ function KnockoutForm({
   }
 
   function pick(matchId: string, winnerId: string) {
+    if (lockedSet.has(matchId)) return;
     setPicks((prev) => ({ ...prev, [matchId]: winnerId }));
   }
 
@@ -347,6 +356,7 @@ function KnockoutForm({
   }
 
   const pickedCount = Object.keys(picks).length;
+  const pickableTotal = matches.length - lockedSet.size;
 
   return (
     <div className="space-y-4">
@@ -354,54 +364,65 @@ function KnockoutForm({
         <p className="text-sm muted">{t("pickWinners")}</p>
         <span
           className="text-sm font-semibold"
-          style={{ color: pickedCount === matches.length ? "var(--accent)" : "var(--muted)" }}
+          style={{ color: pickedCount === pickableTotal ? "var(--accent)" : "var(--muted)" }}
         >
-          {t("matchesPickedCount", { picked: pickedCount, total: matches.length })}
+          {t("matchesPickedCount", { picked: pickedCount, total: pickableTotal })}
         </span>
       </div>
 
       <div className="space-y-3">
         {matches.map((match) => {
           const winner = picks[match.id];
+          const isLocked = lockedSet.has(match.id);
           return (
             <div
               key={match.id}
-              className="flex items-center gap-2 p-3 rounded-lg"
-              style={{ border: "1px solid var(--border)", background: "var(--paper)" }}
+              className="p-3 rounded-lg"
+              style={{
+                border: isLocked ? "1px dashed var(--border)" : "1px solid var(--border)",
+                background: "var(--paper)",
+                opacity: isLocked ? 0.6 : 1,
+              }}
             >
-              <span className="text-xs w-6 text-center font-medium muted-2">{match.matchNumber}</span>
-              {[match.homeTeam, match.awayTeam].map((team) => {
-                if (!team) return null;
-                const isWinner = winner === team.id;
-                return (
-                  <button
-                    key={team.id}
-                    onClick={() => pick(match.id, team.id)}
-                    className="flex-1 flex items-center gap-2 px-3 py-2 rounded-lg border-2 text-sm font-medium transition-all"
-                    style={
-                      isWinner
-                        ? {
-                            background: "var(--accent-soft)",
-                            borderColor: "var(--accent)",
-                            color: "var(--accent-ink)",
-                          }
-                        : {
-                            background: "var(--paper-strong)",
-                            borderColor: "var(--border)",
-                            color: "var(--ink)",
-                          }
-                    }
-                  >
-                    <TeamFlag code={team.fifaCode} size={20} />
-                    <span>{team.name}</span>
-                    {isWinner && (
-                      <svg className="w-4 h-4 ml-auto" fill="currentColor" viewBox="0 0 20 20" style={{ color: "var(--accent)" }}>
-                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                      </svg>
-                    )}
-                  </button>
-                );
-              })}
+              <div className="flex items-center gap-2">
+                <span className="text-xs w-6 text-center font-medium muted-2">{match.matchNumber}</span>
+                {[match.homeTeam, match.awayTeam].map((team) => {
+                  if (!team) return null;
+                  const isWinner = winner === team.id;
+                  return (
+                    <button
+                      key={team.id}
+                      onClick={() => pick(match.id, team.id)}
+                      disabled={isLocked}
+                      className="flex-1 flex items-center gap-2 px-3 py-2 rounded-lg border-2 text-sm font-medium transition-all disabled:cursor-not-allowed"
+                      style={
+                        isWinner
+                          ? {
+                              background: "var(--accent-soft)",
+                              borderColor: "var(--accent)",
+                              color: "var(--accent-ink)",
+                            }
+                          : {
+                              background: "var(--paper-strong)",
+                              borderColor: "var(--border)",
+                              color: "var(--ink)",
+                            }
+                      }
+                    >
+                      <TeamFlag code={team.fifaCode} size={20} />
+                      <span>{team.name}</span>
+                      {isWinner && (
+                        <svg className="w-4 h-4 ml-auto" fill="currentColor" viewBox="0 0 20 20" style={{ color: "var(--accent)" }}>
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+              {isLocked && (
+                <p className="mt-1.5 pl-8 text-xs italic muted">🔒 {t("lockedMatchNote")}</p>
+              )}
             </div>
           );
         })}
@@ -429,7 +450,7 @@ function KnockoutForm({
         )}
         <button
           onClick={onSubmitClick}
-          disabled={saving || pickedCount !== matches.length}
+          disabled={saving || pickedCount !== pickableTotal}
           className="btn btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {saving ? t("submitting") : confirming ? t("confirmResubmitYes") : t("submitPicks")}
@@ -779,6 +800,7 @@ function StageCard({
   matches,
   defaultOpen,
   canSubmitLate,
+  lateLockedMatchIds,
   onPredictionUpdate,
 }: {
   stage: Stage;
@@ -789,6 +811,7 @@ function StageCard({
   matches: StageMatch[];
   defaultOpen: boolean;
   canSubmitLate: boolean;
+  lateLockedMatchIds: string[];
   onPredictionUpdate: (stageId: string, pred: StagePrediction) => void;
 }) {
   const t = useTranslations("stagedPredictions");
@@ -923,6 +946,7 @@ function StageCard({
               groupId={groupId}
               matches={matches}
               existing={prediction}
+              lockedMatchIds={canSubmitLate ? lateLockedMatchIds : []}
               onSaved={(pred) => onPredictionUpdate(stage.id, pred)}
             />
           )}
@@ -955,6 +979,7 @@ export default function PredictionsPage() {
   const [teams, setTeams] = useState<Team[]>([]);
   const [matchesByStage, setMatchesByStage] = useState<Record<string, StageMatch[]>>({});
   const [lateGrants, setLateGrants] = useState<Record<string, boolean>>({});
+  const [lateLocks, setLateLocks] = useState<Record<string, string[]>>({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -975,13 +1000,14 @@ export default function PredictionsPage() {
           fetchedStages.map(async (s) => {
             const res = await fetch(`/api/staged/groups/${groupId}/stages/${s.id}/prediction`);
             const data = await res.json();
-            return [s.id, data.prediction ?? null, data.score ?? null, !!data.canSubmitLate] as [string, StagePrediction, StageScore, boolean];
+            return [s.id, data.prediction ?? null, data.score ?? null, !!data.canSubmitLate, (data.lateLockedMatchIds ?? []) as string[]] as [string, StagePrediction, StageScore, boolean, string[]];
           })
         );
         if (cancelled) return;
         setPredictions(Object.fromEntries(predEntries.map(([id, pred]) => [id, pred])));
         setScores(Object.fromEntries(predEntries.map(([id, , score]) => [id, score])));
         setLateGrants(Object.fromEntries(predEntries.map(([id, , , late]) => [id, late])));
+        setLateLocks(Object.fromEntries(predEntries.map(([id, , , , locks]) => [id, locks])));
 
         const gqOpen = fetchedStages.find((s) => s.type === "GROUP_QUALIFICATION" && s.status !== "UPCOMING");
         if (gqOpen) {
@@ -1106,6 +1132,7 @@ export default function PredictionsPage() {
                 matches={matchesByStage[stage.id] ?? []}
                 defaultOpen={i === defaultOpenIndex || (lateGrants[stage.id] ?? false)}
                 canSubmitLate={lateGrants[stage.id] ?? false}
+                lateLockedMatchIds={lateLocks[stage.id] ?? []}
                 onPredictionUpdate={handlePredictionUpdate}
               />
             ))}

@@ -32,15 +32,20 @@ export async function GET(request: NextRequest, context: RouteContext) {
     }),
     prisma.stageSubmissionGrace.findUnique({
       where: { userId_stageId_groupId: { userId: user.id, stageId, groupId } },
-      select: { id: true },
+      select: { id: true, lockedMatchIds: true },
     }),
   ]);
 
   // An admin-granted allowance to submit a MISSING prediction past the deadline.
   // Lets the predictions page render the form even when the stage isn't OPEN.
   const canSubmitLate = !!grace && !prediction?.submittedAt;
+  const lateLockedMatchIds =
+    canSubmitLate && Array.isArray(grace?.lockedMatchIds) ? (grace!.lockedMatchIds as string[]) : [];
 
-  return new Response(JSON.stringify({ prediction, score, canSubmitLate }), { status: 200 });
+  return new Response(
+    JSON.stringify({ prediction, score, canSubmitLate, lateLockedMatchIds }),
+    { status: 200 }
+  );
 }
 
 export async function PUT(request: NextRequest, context: RouteContext) {
@@ -57,6 +62,10 @@ export async function PUT(request: NextRequest, context: RouteContext) {
 
   const stage = await prisma.tournamentStage.findUnique({ where: { id: stageId } });
   if (!stage) return badRequest("Stage not found");
+  // Matches an admin locked when granting a late submission: the late
+  // submitter cannot pick these and they score as excluded.
+  let lateLockedMatchIds: string[] = [];
+  let isLateSubmission = false;
   if (new Date() >= stage.closesAt) {
     // Past the deadline, the only way in is an admin-granted late-submission
     // allowance — and only to submit a MISSING prediction, not edit an existing
@@ -64,16 +73,24 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     const [existingPred, grace] = await Promise.all([
       prisma.stagePrediction.findUnique({
         where: { userId_stageId_groupId: { userId: user.id, stageId, groupId } },
-        select: { submittedAt: true },
+        select: { submittedAt: true, lockedOutMatchIds: true },
       }),
       prisma.stageSubmissionGrace.findUnique({
         where: { userId_stageId_groupId: { userId: user.id, stageId, groupId } },
-        select: { id: true },
+        select: { id: true, lockedMatchIds: true },
       }),
     ]);
     if (!grace || existingPred?.submittedAt) {
       return badRequest("This stage is no longer open for predictions");
     }
+    isLateSubmission = true;
+    // Merge with any locks already on the prediction (e.g. from an earlier
+    // unlock) so those aren't lost when the grace locks are stamped on.
+    const priorLocks = Array.isArray(existingPred?.lockedOutMatchIds)
+      ? (existingPred!.lockedOutMatchIds as string[])
+      : [];
+    const graceLocks = Array.isArray(grace.lockedMatchIds) ? (grace.lockedMatchIds as string[]) : [];
+    lateLockedMatchIds = [...new Set([...priorLocks, ...graceLocks])];
   }
 
   const body = await request.json();
@@ -158,10 +175,16 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     const { matchPicks } = body as { matchPicks?: { matchId: string; winnerId: string }[]; submit?: boolean };
     if (!Array.isArray(matchPicks)) return badRequest("matchPicks must be an array");
 
+    const lockedSet = new Set(lateLockedMatchIds);
+    if (lockedSet.size > 0 && matchPicks.some((p) => lockedSet.has(p.matchId))) {
+      return badRequest("Some matches are locked for your late submission and cannot be picked");
+    }
+
     if (submit) {
       const stageMatchCount = await prisma.stageMatch.count({ where: { stageId } });
-      if (matchPicks.length < stageMatchCount) {
-        return badRequest(`You must pick a winner for all ${stageMatchCount} matches to submit`);
+      const requiredPicks = stageMatchCount - lockedSet.size;
+      if (matchPicks.length < requiredPicks) {
+        return badRequest(`You must pick a winner for all ${requiredPicks} matches to submit`);
       }
     }
 
@@ -173,12 +196,25 @@ export async function PUT(request: NextRequest, context: RouteContext) {
         groupId,
         matchPicks,
         submittedAt: submit ? new Date() : null,
+        ...(isLateSubmission && lateLockedMatchIds.length > 0
+          ? { lockedOutMatchIds: lateLockedMatchIds }
+          : {}),
       },
       update: {
         matchPicks,
         ...(submit ? { submittedAt: new Date() } : {}),
+        ...(isLateSubmission && lateLockedMatchIds.length > 0
+          ? { lockedOutMatchIds: lateLockedMatchIds }
+          : {}),
       },
     });
+
+    if (submit && isLateSubmission) {
+      await prisma.stageSubmissionGrace.updateMany({
+        where: { userId: user.id, stageId, groupId },
+        data: { usedAt: new Date() },
+      });
+    }
 
     if (submit && user.email) {
       const baseUrl = process.env.NEXTAUTH_URL ?? '';

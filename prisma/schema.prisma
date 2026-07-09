@@ -630,13 +630,15 @@ model StageQualificationResult {
 /// only lets a member who never submitted get their picks in late. Consumed once
 /// the member submits (usedAt set); revocable by an admin before that.
 model StageSubmissionGrace {
-  id          String          @id @default(cuid())
-  stageId     String
-  groupId     String
-  userId      String
-  grantedById String?
-  grantedAt   DateTime        @default(now())
-  usedAt      DateTime?
+  id             String          @id @default(cuid())
+  stageId        String
+  groupId        String
+  userId         String
+  grantedById    String?
+  grantedAt      DateTime        @default(now())
+  usedAt         DateTime?
+  // KNOCKOUT only: matches the late submitter may not pick (scored as excluded)
+  lockedMatchIds Json?
   stage       TournamentStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
   group       GroupRoom       @relation(fields: [groupId], references: [id], onDelete: Cascade)
   user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)

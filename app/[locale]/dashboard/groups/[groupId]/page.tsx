@@ -1010,6 +1010,130 @@ function StageAuditModal({ groupId, userId, onClose }: { groupId: string; userId
   );
 }
 
+// ─── Allow-late modal ─────────────────────────────────────────────────────────
+
+type LockableMatch = {
+  id: string;
+  matchNumber: string;
+  winnerId?: string | null;
+  homeTeam?: { name: string; fifaCode: string } | null;
+  awayTeam?: { name: string; fifaCode: string } | null;
+};
+
+function AllowLateModal({
+  stageId,
+  onConfirm,
+  onClose,
+}: {
+  stageId: string;
+  onConfirm: (lockedMatchIds: string[]) => Promise<void>;
+  onClose: () => void;
+}) {
+  const t = useTranslations("groups.groupRoom");
+  const [matches, setMatches] = useState<LockableMatch[] | null>(null);
+  const [locked, setLocked] = useState<Set<string>>(new Set());
+  const [granting, setGranting] = useState(false);
+  const overlayRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    let active = true;
+    fetch(`/api/staged/stages/${stageId}/matches`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (!active) return;
+        const ms: LockableMatch[] = d.matches ?? [];
+        setMatches(ms);
+        // Decided matches default to locked: their winners are public, so a
+        // late submitter would otherwise bank free points on known results.
+        setLocked(new Set(ms.filter((m) => m.winnerId).map((m) => m.id)));
+      })
+      .catch(() => { if (active) setMatches([]); });
+    return () => { active = false; };
+  }, [stageId]);
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) { if (e.key === "Escape") onClose(); }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  function toggle(matchId: string) {
+    setLocked((prev) => {
+      const next = new Set(prev);
+      if (next.has(matchId)) next.delete(matchId); else next.add(matchId);
+      return next;
+    });
+  }
+
+  async function grant() {
+    setGranting(true);
+    try {
+      await onConfirm([...locked]);
+    } finally {
+      setGranting(false);
+    }
+  }
+
+  return createPortal(
+    <div ref={overlayRef} className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4 pt-10"
+      style={{ backgroundColor: "rgba(0,0,0,0.75)" }}
+      onClick={(e) => { if (e.target === overlayRef.current) onClose(); }}>
+      <div className="surface relative w-full max-w-lg rounded-[var(--r-xl)] p-6 my-6">
+        <div className="mb-4 flex items-start justify-between gap-4">
+          <h3 className="headline" style={{ fontSize: 20 }}>{t("allowLateTitle")}</h3>
+          <button className="btn btn-sm btn-ghost" onClick={onClose} style={{ fontSize: 16 }}>✕</button>
+        </div>
+
+        {matches === null && <p className="muted" style={{ fontSize: 13 }}>{t("audit.loading")}</p>}
+
+        {matches !== null && matches.length === 0 && (
+          <p className="text-sm muted mb-4">{t("allowLateNoMatches")}</p>
+        )}
+
+        {matches !== null && matches.length > 0 && (
+          <>
+            <p className="text-sm muted mb-3">{t("allowLateDesc")}</p>
+            <div className="space-y-1.5 mb-4 max-h-72 overflow-y-auto pr-1">
+              {matches.map((m) => {
+                const isLocked = locked.has(m.id);
+                return (
+                  <label
+                    key={m.id}
+                    className="flex cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2 text-sm"
+                    style={{
+                      border: "1px solid var(--border)",
+                      background: isLocked ? "color-mix(in srgb, var(--live) 8%, transparent)" : "transparent",
+                    }}
+                  >
+                    <input type="checkbox" checked={isLocked} onChange={() => toggle(m.id)} />
+                    <span className="w-6 shrink-0 text-center text-xs muted-2">{m.matchNumber}</span>
+                    <span className="flex-1 min-w-0 truncate" style={{ color: "var(--ink)" }}>
+                      {m.homeTeam?.name ?? "?"} vs {m.awayTeam?.name ?? "?"}
+                    </span>
+                    {m.winnerId && (
+                      <span className="shrink-0 text-[10px] font-bold uppercase tracking-wide" style={{ color: "var(--gold)" }}>
+                        {t("allowLateDecided")}
+                      </span>
+                    )}
+                  </label>
+                );
+              })}
+            </div>
+            <p className="text-xs muted mb-4">{t("allowLateLockedCount", { count: locked.size })}</p>
+          </>
+        )}
+
+        <div className="flex justify-end gap-2">
+          <button className="btn btn-ghost" onClick={onClose} disabled={granting}>{t("cancel")}</button>
+          <button className="btn btn-primary" onClick={() => void grant()} disabled={granting || matches === null}>
+            {t("allowLateButton")}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 // ─── Group room page ──────────────────────────────────────────────────────────
 
 export default function GroupDetailPage() {
@@ -1033,6 +1157,7 @@ export default function GroupDetailPage() {
   const [myPredictions, setMyPredictions] = useState<UserPrediction[]>([]);
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [auditUserId, setAuditUserId] = useState<string | null>(null);
+  const [allowLateFor, setAllowLateFor] = useState<{ userId: string; stageId: string } | null>(null);
   const [changingSubmission, setChangingSubmission] = useState(false);
   const [newPredictionId, setNewPredictionId] = useState("");
   const [updatingSubmission, setUpdatingSubmission] = useState(false);
@@ -1176,13 +1301,18 @@ export default function GroupDetailPage() {
     if (tournamentId) void loadStagedStatus(tournamentId);
   }
 
-  async function allowLateSubmission(targetUserId: string, stageId: string) {
+  async function allowLateSubmission(targetUserId: string, stageId: string, lockedMatchIds: string[]) {
     const res = await fetch(
       `/api/staged/groups/${params.groupId}/stages/${stageId}/grace?userId=${targetUserId}`,
-      { method: "POST" }
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lockedMatchIds }),
+      }
     );
     const data = await res.json();
     if (!res.ok) { alert(data.error ?? "Failed to allow late submission"); return; }
+    setAllowLateFor(null);
     const tournamentId = group?.tournament?.id;
     if (tournamentId) void loadStagedStatus(tournamentId);
   }
@@ -1328,6 +1458,13 @@ export default function GroupDetailPage() {
     <>
       {previewId && <PredictionPreviewModal predictionId={previewId} onClose={() => setPreviewId(null)} />}
       {auditUserId && <StageAuditModal groupId={params.groupId} userId={auditUserId} onClose={() => setAuditUserId(null)} />}
+      {allowLateFor && (
+        <AllowLateModal
+          stageId={allowLateFor.stageId}
+          onConfirm={(lockedMatchIds) => allowLateSubmission(allowLateFor.userId, allowLateFor.stageId, lockedMatchIds)}
+          onClose={() => setAllowLateFor(null)}
+        />
+      )}
 
       {/* Bleed wrapper — cancels the dashboard <main> padding */}
       <div className="-mx-4 md:-mx-6 lg:-mx-8 -mt-5">
@@ -1977,7 +2114,7 @@ export default function GroupDetailPage() {
             memberCount={memberCount}
             onChanged={() => void loadGroup()}
             onUnlock={(uid, sid) => void unlockPrediction(uid, sid)}
-            onAllowLate={(uid, sid) => void allowLateSubmission(uid, sid)}
+            onAllowLate={(uid, sid) => setAllowLateFor({ userId: uid, stageId: sid })}
             onRevokeLate={(uid, sid) => void revokeLateSubmission(uid, sid)}
             onAudit={(uid) => setAuditUserId(uid)}
             isStaged={isStagedTournament}

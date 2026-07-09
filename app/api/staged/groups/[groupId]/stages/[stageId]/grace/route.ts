@@ -35,8 +35,25 @@ export async function POST(request: NextRequest, context: RouteContext) {
     return forbidden("Only group admins or portal admins can allow late submissions");
   }
 
-  const stage = await prisma.tournamentStage.findUnique({ where: { id: stageId }, select: { id: true } });
+  const stage = await prisma.tournamentStage.findUnique({ where: { id: stageId }, select: { id: true, type: true } });
   if (!stage) return badRequest("Stage not found");
+
+  // Optional penalty: matches the late submitter may not pick. KNOCKOUT only.
+  const body = await request.json().catch(() => ({}));
+  const lockedMatchIds: string[] = Array.isArray(body.lockedMatchIds)
+    ? [...new Set<string>(body.lockedMatchIds.map(String))]
+    : [];
+  if (lockedMatchIds.length > 0) {
+    if (stage.type !== "KNOCKOUT") {
+      return badRequest("Locked matches only apply to knockout stages");
+    }
+    const validCount = await prisma.stageMatch.count({
+      where: { id: { in: lockedMatchIds }, stageId },
+    });
+    if (validCount !== lockedMatchIds.length) {
+      return badRequest("One or more locked matches do not belong to this stage");
+    }
+  }
 
   const targetMembership = await prisma.groupMembership.findUnique({
     where: { userId_groupId: { userId: targetUserId, groupId } },
@@ -54,8 +71,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
   const grace = await prisma.stageSubmissionGrace.upsert({
     where: { userId_stageId_groupId: { userId: targetUserId, stageId, groupId } },
-    create: { userId: targetUserId, stageId, groupId, grantedById: user.id },
-    update: { grantedById: user.id, grantedAt: new Date(), usedAt: null },
+    create: { userId: targetUserId, stageId, groupId, grantedById: user.id, lockedMatchIds },
+    update: { grantedById: user.id, grantedAt: new Date(), usedAt: null, lockedMatchIds },
   });
 
   return new Response(JSON.stringify({ ok: true, grace }), { status: 200 });
