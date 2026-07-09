@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { sendEmail } from "@/lib/email";
 import { deadlineReminderEmail } from "@/lib/emails/deadlineReminder";
 import { toLocale } from "@/lib/locale";
+import { autoCloseExpiredStages } from "@/lib/stage-auto-close";
 
 const HOUR_MS = 60 * 60 * 1000;
 
@@ -13,6 +14,10 @@ export async function GET(request: NextRequest) {
   }
 
   const now = new Date();
+
+  // Stages past their deadline are closed here too, so the transition happens
+  // on a schedule even if nobody loads a stage list.
+  const closed = await autoCloseExpiredStages();
 
   const openStages = await prisma.tournamentStage.findMany({
     where: { status: "OPEN" },
@@ -91,5 +96,5 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  return new Response(JSON.stringify({ sent }), { status: 200 });
+  return new Response(JSON.stringify({ sent, closed }), { status: 200 });
 }

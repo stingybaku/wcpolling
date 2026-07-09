@@ -1,5 +1,6 @@
 import { forbidden, getCurrentUser, unauthorized } from "@/app/api/helpers";
 import { prisma } from "@/lib/prisma";
+import { autoCloseExpiredStages } from "@/lib/stage-auto-close";
 
 async function requireAdmin() {
   const user = await getCurrentUser();
@@ -13,6 +14,8 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   if (!admin) return unauthorized();
 
   const { id } = await context.params;
+
+  await autoCloseExpiredStages(id);
 
   const tournament = await prisma.tournament.findUnique({
     where: { id },

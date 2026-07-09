@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser, unauthorized, badRequest } from "@/app/api/helpers";
+import { autoCloseExpiredStages } from "@/lib/stage-auto-close";
 
 export async function GET(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser();
@@ -8,6 +9,8 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
 
   const { id } = await context.params;
   if (!id) return badRequest("Missing tournament id");
+
+  await autoCloseExpiredStages(id);
 
   const stages = await prisma.tournamentStage.findMany({
     where: { tournamentId: id },

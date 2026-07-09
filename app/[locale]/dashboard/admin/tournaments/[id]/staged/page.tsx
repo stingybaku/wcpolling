@@ -112,11 +112,13 @@ const STATUS_BADGE_BASE = "inline-block rounded-full px-2.5 py-0.5 text-[11px] f
 
 function useCountdown(closesAt?: string | null) {
   const [remaining, setRemaining] = useState("");
+  const [expired, setExpired] = useState(false);
   useEffect(() => {
-    if (!closesAt) { setRemaining(""); return; }
+    if (!closesAt) { setRemaining(""); setExpired(false); return; }
     const update = () => {
       const diff = new Date(closesAt).getTime() - Date.now();
-      if (diff <= 0) { setRemaining("Closed"); return; }
+      if (diff <= 0) { setRemaining("Closed"); setExpired(true); return; }
+      setExpired(false);
       const h = Math.floor(diff / 3_600_000);
       const m = Math.floor((diff % 3_600_000) / 60_000);
       const s = Math.floor((diff % 60_000) / 1_000);
@@ -126,7 +128,7 @@ function useCountdown(closesAt?: string | null) {
     const id = setInterval(update, 1000);
     return () => clearInterval(id);
   }, [closesAt]);
-  return remaining;
+  return { remaining, expired };
 }
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
@@ -1045,7 +1047,17 @@ function StageCard({
   const [confirm, setConfirm] = useState<null | "open" | "close" | "score" | "rescore" | "reset">(null);
   const [modal, setModal] = useState<"matchEntry" | "resultEntry" | null>(null);
   const [hasMatches, setHasMatches] = useState<boolean | null>(null);
-  const countdown = useCountdown(stage.status === "OPEN" ? stage.closesAt : null);
+  const { remaining: countdown, expired: deadlinePassed } = useCountdown(
+    stage.status === "OPEN" ? stage.closesAt : null
+  );
+
+  // When the deadline passes while the page is open, refetch — the server
+  // auto-closes expired stages on fetch, so the card flips to CLOSED.
+  const onRefreshRef = useRef(onRefresh);
+  onRefreshRef.current = onRefresh;
+  useEffect(() => {
+    if (deadlinePassed) onRefreshRef.current();
+  }, [deadlinePassed]);
 
   // Check if KNOCKOUT stage has matches entered
   useEffect(() => {
@@ -1125,8 +1137,12 @@ function StageCard({
       )}
       {confirm === "close" && (
         <ConfirmDialogWrapper
-          title={`Close "${stage.name}" early?`}
-          description="This will immediately close the stage. No more submissions will be accepted."
+          title={deadlinePassed ? `Close "${stage.name}"?` : `Close "${stage.name}" early?`}
+          description={
+            deadlinePassed
+              ? "The deadline has passed. This finalizes the stage so results can be entered and scored."
+              : "This will immediately close the stage. No more submissions will be accepted."
+          }
           confirmLabel="Close Stage"
           destructive
           onConfirm={() => { setConfirm(null); doAction(`/api/admin/staged/stages/${stage.id}/close`); }}
@@ -1171,7 +1187,12 @@ function StageCard({
         <div className="flex flex-wrap items-center gap-3 mb-4">
           <span className="text-xs font-mono muted-2">#{stage.order + 1}</span>
           <h3 className="text-base font-bold" style={{ color: "var(--ink)" }}>{stage.name}</h3>
-          <span className={STATUS_BADGE_BASE} style={getStatusBadgeStyle(stage.status)}>{stage.status}</span>
+          <span
+            className={STATUS_BADGE_BASE}
+            style={getStatusBadgeStyle(deadlinePassed ? "CLOSED" : stage.status)}
+          >
+            {deadlinePassed ? "DEADLINE PASSED" : stage.status}
+          </span>
           {stage.roundLabel && (
             <span className="text-xs italic muted">{stage.roundLabel}</span>
           )}
@@ -1272,8 +1293,10 @@ function StageCard({
           <div className="space-y-4">
             <div className="flex flex-wrap items-center gap-6">
               <div>
-                <p className="text-xs muted mb-0.5">Closes in</p>
-                <p className="text-lg font-mono font-bold text-green-400">{countdown || formatDate(stage.closesAt)}</p>
+                <p className="text-xs muted mb-0.5">{deadlinePassed ? "Deadline" : "Closes in"}</p>
+                <p className={`text-lg font-mono font-bold ${deadlinePassed ? "text-amber-400" : "text-green-400"}`}>
+                  {deadlinePassed ? formatDate(stage.closesAt) : countdown || formatDate(stage.closesAt)}
+                </p>
               </div>
               <div>
                 <p className="text-xs muted mb-0.5">Submissions</p>
@@ -1324,7 +1347,7 @@ function StageCard({
                 onClick={() => setConfirm("close")}
                 className="rounded-xl bg-amber-700 px-3 py-1.5 text-xs font-bold text-white hover:bg-amber-600 transition"
               >
-                Close Early
+                {deadlinePassed ? "Close Stage" : "Close Early"}
               </button>
             </div>
             {stage.type === "GROUP_QUALIFICATION" && (
