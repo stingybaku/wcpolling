@@ -610,6 +610,9 @@ model StageMatch {
   winnerId    String?
   winner      Team?           @relation("WinnerTeam", fields: [winnerId], references: [id])
   matchResult MatchResult?
+  // Overrides the stage's per-round points for this match (e.g. third-place
+  // match inside the Final stage awards 10 instead of 15)
+  pointsOverride Int?
 
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt

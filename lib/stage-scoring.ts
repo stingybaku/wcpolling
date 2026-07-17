@@ -110,6 +110,8 @@ export async function scoreStage(stageId: string): Promise<void> {
     const pointsPerRound = stage.roundLabel ? (ROUND_POINTS[stage.roundLabel] ?? 0) : 0;
     const stageMatches = await prisma.stageMatch.findMany({ where: { stageId, winnerId: { not: null } } });
     const winnerMap = new Map(stageMatches.filter(m => m.winnerId).map(m => [m.id, m.winnerId!]));
+    // A match can override the round points (e.g. third-place match in the Final stage)
+    const pointsByMatch = new Map(stageMatches.map((m) => [m.id, m.pointsOverride ?? pointsPerRound]));
 
     for (const group of groups) {
       // Score every member, regardless of isActive. A member who is momentarily
@@ -125,20 +127,24 @@ export async function scoreStage(stageId: string): Promise<void> {
         });
 
         let correctPicks = 0;
+        let points = 0;
         if (prediction?.matchPicks) {
           const lockedOut = new Set(
             Array.isArray(prediction.lockedOutMatchIds) ? (prediction.lockedOutMatchIds as string[]) : []
           );
           for (const pick of prediction.matchPicks as Array<{ matchId: string; winnerId: string }>) {
             if (lockedOut.has(pick.matchId)) continue;
-            if (winnerMap.get(pick.matchId) === pick.winnerId) correctPicks++;
+            if (winnerMap.get(pick.matchId) === pick.winnerId) {
+              correctPicks++;
+              points += pointsByMatch.get(pick.matchId) ?? pointsPerRound;
+            }
           }
         }
 
         await prisma.stageScore.upsert({
           where: { userId_stageId_groupId: { stageId, userId: member.userId, groupId: group.id } },
-          create: { stageId, userId: member.userId, groupId: group.id, points: correctPicks * pointsPerRound, correctPicks, breakdown: { correctPicks, pointsPerRound, roundLabel: stage.roundLabel } },
-          update: { points: correctPicks * pointsPerRound, correctPicks, breakdown: { correctPicks, pointsPerRound, roundLabel: stage.roundLabel } },
+          create: { stageId, userId: member.userId, groupId: group.id, points, correctPicks, breakdown: { correctPicks, pointsPerRound, roundLabel: stage.roundLabel } },
+          update: { points, correctPicks, breakdown: { correctPicks, pointsPerRound, roundLabel: stage.roundLabel } },
         });
       }
     }

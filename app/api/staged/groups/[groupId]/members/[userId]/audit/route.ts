@@ -143,12 +143,14 @@ export async function GET(_request: NextRequest, context: RouteContext) {
           lockedOut: isLockedOut,
           decided,
           correct,
+          // Mirrors the scorer: a match may override the round points
+          points: m.pointsOverride ?? roundPoints,
         };
       });
 
       const hasResult = matchRows.some((m) => m.decided);
       const computedCorrect = matchRows.filter((m) => m.correct).length;
-      const computedPoints = computedCorrect * roundPoints;
+      const computedPoints = matchRows.reduce((sum, m) => sum + (m.correct ? m.points : 0), 0);
 
       auditStages.push({
         stageId: stage.id,
