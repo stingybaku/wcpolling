@@ -330,6 +330,12 @@ function KnockoutForm({
   const [error, setError] = useState<string | null>(null);
   const wasUnlocked = !!existing?.unlockedAt;
   const [confirming, setConfirming] = useState(false);
+  // Picks already persisted server-side (as draft or submission). A pick for a
+  // kickoff-locked match is safe once saved, so the per-match "lock in" button
+  // below compares against this to show a confirmed state.
+  const [savedPicks, setSavedPicks] = useState<Record<string, string>>(
+    () => Object.fromEntries((existing?.matchPicks ?? []).map((p) => [p.matchId, p.winnerId]))
+  );
 
   function onSubmitClick() {
     if (wasUnlocked && !confirming) { setConfirming(true); return; }
@@ -353,6 +359,7 @@ function KnockoutForm({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed to save");
+      setSavedPicks({ ...picks });
       onSaved(data.prediction);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : t("errorSaving"));
@@ -367,9 +374,20 @@ function KnockoutForm({
   const pickableTotal = matches.filter(
     (m) => !lockedSet.has(m.id) && (!startedSet.has(m.id) || picks[m.id] !== undefined)
   ).length;
+  const hasSplitDeadline = matches.some(
+    (m) => m.matchDate && !startedSet.has(m.id) && !lockedSet.has(m.id)
+  );
 
   return (
     <div className="space-y-4">
+      {hasSplitDeadline && (
+        <p
+          className="text-xs rounded-lg px-3 py-2"
+          style={{ color: "var(--gold)", background: "var(--gold-soft)", border: "1px solid var(--gold)" }}
+        >
+          {t("splitDeadlineNote")}
+        </p>
+      )}
       <div className="flex items-center justify-between">
         <p className="text-sm muted">{t("pickWinners")}</p>
         <span
@@ -438,7 +456,23 @@ function KnockoutForm({
                 <p className="mt-1.5 pl-8 text-xs italic muted">🔒 {t("startedMatchNote")}</p>
               )}
               {!isStarted && !isLocked && match.matchDate && (
-                <p className="mt-1.5 pl-8 text-xs muted-2">⏰ {t("matchLocksAt", { date: formatDate(match.matchDate) })}</p>
+                <div className="mt-1.5 pl-8 flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <p className="text-xs muted-2">⏰ {t("matchLocksAt", { date: formatDate(match.matchDate) })}</p>
+                  {winner && savedPicks[match.id] === winner ? (
+                    <p className="text-xs font-semibold" style={{ color: "var(--accent)" }}>
+                      ✓ {t("pickLockedIn")}
+                    </p>
+                  ) : winner ? (
+                    <button
+                      onClick={() => save(false)}
+                      disabled={saving}
+                      className="rounded-lg px-2.5 py-1 text-xs font-bold transition disabled:opacity-50"
+                      style={{ background: "var(--accent-soft)", color: "var(--accent-ink)", border: "1px solid var(--accent)" }}
+                    >
+                      {saving ? t("saving") : t("lockInPick")}
+                    </button>
+                  ) : null}
+                </div>
               )}
             </div>
           );
