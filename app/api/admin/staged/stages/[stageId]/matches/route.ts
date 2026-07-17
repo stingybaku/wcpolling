@@ -57,7 +57,9 @@ export async function POST(request: Request, context: { params: Promise<{ stageI
   }
 
   const body = await request.json().catch(() => ({}));
-  const { matchNumber, homeTeamId, awayTeamId, matchDate } = body;
+  const { matchNumber, homeTeamId, awayTeamId } = body;
+  // The admin form historically sends the kickoff as `scheduledAt`
+  const matchDate = body.matchDate ?? body.scheduledAt;
 
   if (!matchNumber || typeof matchNumber !== "string") return badRequest("matchNumber is required");
   if (!homeTeamId) return badRequest("homeTeamId is required");

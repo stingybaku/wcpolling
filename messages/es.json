@@ -414,6 +414,8 @@
     "groupFull": "✓ Completo",
     "pickWinners": "Elige el ganador de cada partido.",
     "lockedMatchNote": "Bloqueado — este partido no da puntos (penalización por envío tardío)",
+    "startedMatchNote": "Bloqueado — este partido ya comenzó",
+    "matchLocksAt": "La elección se cierra al inicio: {date}",
     "matchesPickedCount": "{picked} / {total} partidos elegidos",
     "noPicks": "Sin picks enviados.",
     "pointsEarned": "Puntos obtenidos",

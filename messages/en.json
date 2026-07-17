@@ -414,6 +414,8 @@
     "groupFull": "✓ Full",
     "pickWinners": "Pick the winner for each match.",
     "lockedMatchNote": "Locked — this match earns no points (late-submission penalty)",
+    "startedMatchNote": "Locked — this match has already started",
+    "matchLocksAt": "Pick locks at kickoff: {date}",
     "matchesPickedCount": "{picked} / {total} matches picked",
     "noPicks": "No picks submitted.",
     "pointsEarned": "Points earned",

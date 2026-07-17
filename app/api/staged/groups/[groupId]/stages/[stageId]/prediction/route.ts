@@ -172,19 +172,53 @@ export async function PUT(request: NextRequest, context: RouteContext) {
   }
 
   if (stage.type === "KNOCKOUT") {
-    const { matchPicks } = body as { matchPicks?: { matchId: string; winnerId: string }[]; submit?: boolean };
-    if (!Array.isArray(matchPicks)) return badRequest("matchPicks must be an array");
+    const { matchPicks: incomingPicks } = body as { matchPicks?: { matchId: string; winnerId: string }[]; submit?: boolean };
+    if (!Array.isArray(incomingPicks)) return badRequest("matchPicks must be an array");
 
     const lockedSet = new Set(lateLockedMatchIds);
-    if (lockedSet.size > 0 && matchPicks.some((p) => lockedSet.has(p.matchId))) {
+    if (lockedSet.size > 0 && incomingPicks.some((p) => lockedSet.has(p.matchId))) {
       return badRequest("Some matches are locked for your late submission and cannot be picked");
     }
 
+    // A match with a kickoff time locks individually once it starts, even
+    // while the stage stays open (e.g. third-place match the day before the
+    // final). Picks made before kickoff are kept; they can't be added or
+    // changed after.
+    const allStageMatches = await prisma.stageMatch.findMany({
+      where: { stageId },
+      select: { id: true, matchDate: true },
+    });
+    const started = new Set(
+      allStageMatches.filter((m) => m.matchDate && m.matchDate <= new Date()).map((m) => m.id)
+    );
+    const currentPrediction = await prisma.stagePrediction.findUnique({
+      where: { userId_stageId_groupId: { userId: user.id, stageId, groupId } },
+      select: { matchPicks: true },
+    });
+    const savedPicks = new Map(
+      ((currentPrediction?.matchPicks as Array<{ matchId: string; winnerId: string }> | null) ?? []).map(
+        (p) => [p.matchId, p.winnerId]
+      )
+    );
+    for (const p of incomingPicks) {
+      if (started.has(p.matchId) && savedPicks.get(p.matchId) !== p.winnerId) {
+        return badRequest("This match has already started — its pick can no longer be changed");
+      }
+    }
+    // Carry saved picks for started matches forward even if the client omitted them
+    const matchPicks = [...incomingPicks];
+    const incomingIds = new Set(incomingPicks.map((p) => p.matchId));
+    for (const [matchId, winnerId] of savedPicks) {
+      if (started.has(matchId) && !incomingIds.has(matchId)) matchPicks.push({ matchId, winnerId });
+    }
+
     if (submit) {
-      const stageMatchCount = await prisma.stageMatch.count({ where: { stageId } });
-      const requiredPicks = stageMatchCount - lockedSet.size;
-      if (matchPicks.length < requiredPicks) {
-        return badRequest(`You must pick a winner for all ${requiredPicks} matches to submit`);
+      const pickedIds = new Set(matchPicks.map((p) => p.matchId));
+      const missing = allStageMatches.filter(
+        (m) => !lockedSet.has(m.id) && !started.has(m.id) && !pickedIds.has(m.id)
+      );
+      if (missing.length > 0) {
+        return badRequest("You must pick a winner for every match still open to submit");
       }
     }
 

@@ -47,6 +47,7 @@ type StageMatch = {
   homeTeam: Team | null;
   awayTeam: Team | null;
   winnerId: string | null;
+  matchDate?: string | null;
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -312,6 +313,11 @@ function KnockoutForm({
 }) {
   const t = useTranslations("stagedPredictions");
   const lockedSet = new Set(lockedMatchIds);
+  // A match locks individually once it kicks off, even while the stage stays
+  // open. Picks made before kickoff are kept and shown, but can't change.
+  const startedSet = new Set(
+    matches.filter((m) => m.matchDate && new Date(m.matchDate) <= new Date()).map((m) => m.id)
+  );
   const [picks, setPicks] = useState<Record<string, string>>(
     () =>
       Object.fromEntries(
@@ -331,7 +337,7 @@ function KnockoutForm({
   }
 
   function pick(matchId: string, winnerId: string) {
-    if (lockedSet.has(matchId)) return;
+    if (lockedSet.has(matchId) || startedSet.has(matchId)) return;
     setPicks((prev) => ({ ...prev, [matchId]: winnerId }));
   }
 
@@ -356,7 +362,11 @@ function KnockoutForm({
   }
 
   const pickedCount = Object.keys(picks).length;
-  const pickableTotal = matches.length - lockedSet.size;
+  // Required: every match that isn't penalty-locked and hasn't kicked off.
+  // A started match with a pre-kickoff pick still counts toward the total.
+  const pickableTotal = matches.filter(
+    (m) => !lockedSet.has(m.id) && (!startedSet.has(m.id) || picks[m.id] !== undefined)
+  ).length;
 
   return (
     <div className="space-y-4">
@@ -374,14 +384,15 @@ function KnockoutForm({
         {matches.map((match) => {
           const winner = picks[match.id];
           const isLocked = lockedSet.has(match.id);
+          const isStarted = !isLocked && startedSet.has(match.id);
           return (
             <div
               key={match.id}
               className="p-3 rounded-lg"
               style={{
-                border: isLocked ? "1px dashed var(--border)" : "1px solid var(--border)",
+                border: isLocked || isStarted ? "1px dashed var(--border)" : "1px solid var(--border)",
                 background: "var(--paper)",
-                opacity: isLocked ? 0.6 : 1,
+                opacity: isLocked || isStarted ? 0.6 : 1,
               }}
             >
               <div className="flex items-center gap-2">
@@ -393,7 +404,7 @@ function KnockoutForm({
                     <button
                       key={team.id}
                       onClick={() => pick(match.id, team.id)}
-                      disabled={isLocked}
+                      disabled={isLocked || isStarted}
                       className="flex-1 flex items-center gap-2 px-3 py-2 rounded-lg border-2 text-sm font-medium transition-all disabled:cursor-not-allowed"
                       style={
                         isWinner
@@ -422,6 +433,12 @@ function KnockoutForm({
               </div>
               {isLocked && (
                 <p className="mt-1.5 pl-8 text-xs italic muted">🔒 {t("lockedMatchNote")}</p>
+              )}
+              {isStarted && (
+                <p className="mt-1.5 pl-8 text-xs italic muted">🔒 {t("startedMatchNote")}</p>
+              )}
+              {!isStarted && !isLocked && match.matchDate && (
+                <p className="mt-1.5 pl-8 text-xs muted-2">⏰ {t("matchLocksAt", { date: formatDate(match.matchDate) })}</p>
               )}
             </div>
           );
